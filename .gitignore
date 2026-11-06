@@ -1,0 +1,38 @@
+# ── Secrets / local config ───────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ───────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.python-version
+
+# ── Tooling caches ───────────────────────
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# ── Django runtime artefacts ─────────────
+backend/staticfiles/
+backend/media/
+backend/logs/
+*.sqlite3
+*.log
+
+# ── Frontend (later) ─────────────────────
+node_modules/
+dist/
+build/
+
+# ── Editors / OS ─────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

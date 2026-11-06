@@ -1,0 +1,13 @@
+# Runtime dependencies shared by every environment.
+# Ranges allow patch/minor security fixes; `requirements/lock.txt` (pip freeze)
+# records the exact versions we tested with.
+
+Django>=5.2,<5.3                       # LTS release line (supported until April 2028)
+djangorestframework>=3.16,<4
+djangorestframework-simplejwt>=5.5,<6  # JWT access/refresh + blacklist
+drf-spectacular>=0.28,<1               # OpenAPI schema + Swagger UI
+django-filter>=24.3                    # ?standard=8&board=CBSE style filtering
+django-cors-headers>=4.7,<5
+django-environ>=0.12,<1                # typed settings from environment variables
+psycopg[binary]>=3.2,<4                # PostgreSQL driver (psycopg 3)
+whitenoise>=6.9,<7                     # static files without a separate web server
