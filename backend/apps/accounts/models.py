@@ -12,8 +12,9 @@ from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import Q
 
+from apps.accounts.choices import OTPChannel, OTPPurpose
 from apps.accounts.managers import UserManager
-from apps.common.models import AbstractTimeStampedModel
+from apps.common.models import AbstractTimeStampedModel, GlobalTimeStampedModel
 
 # E.164 international format, e.g. +919876543210
 phone_validator = RegexValidator(
@@ -82,3 +83,56 @@ class User(AbstractTimeStampedModel, AbstractBaseUser, PermissionsMixin):
     @property
     def is_student(self) -> bool:
         return self.role == self.Role.STUDENT
+
+
+class OTPChallenge(GlobalTimeStampedModel):
+    """
+    One OTP sent to one email/phone for one purpose.
+
+    - The code itself is never stored, only its hash (like a password), so a
+      database leak does not reveal usable codes.
+    - At most ONE active challenge per (channel, identifier, purpose), enforced
+      by the database: requesting a new OTP invalidates the previous one.
+    - Rows are kept after use (consumed/invalidated) as an audit trail.
+    """
+
+    channel = models.CharField(max_length=8, choices=OTPChannel.choices)
+    identifier = models.CharField(
+        max_length=254, help_text="Normalised email or E.164 phone number."
+    )
+    purpose = models.CharField(max_length=16, choices=OTPPurpose.choices)
+    code_hash = models.CharField(max_length=128)
+
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField()
+
+    consumed_at = models.DateTimeField(
+        null=True, blank=True, help_text="Set when verified successfully."
+    )
+    invalidated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Set when superseded, expired, locked out, or undeliverable.",
+    )
+    requested_ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        db_table = "otp_challenges"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["channel", "identifier", "purpose", "-created_at"],
+                name="otp_challenges_lookup_idx",
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["channel", "identifier", "purpose"],
+                condition=Q(consumed_at__isnull=True, invalidated_at__isnull=True),
+                name="otp_challenges_one_active_per_identity",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.purpose} OTP via {self.channel} (#{self.pk})"

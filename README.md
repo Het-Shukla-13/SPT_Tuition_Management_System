@@ -80,7 +80,9 @@ backend/
 ├── apps/
 │   ├── common/          base models, response envelope, exceptions,
 │   │                    pagination, request-ID middleware, health checks
-│   └── accounts/        custom User model (more auth to come)
+│   └── accounts/        User model, OTP sign-up/login, JWT refresh/logout
+│       └── services/    otp, otp_delivery, otp_rate_limit, sms, tokens
+├── FAQ.md               business rules behind the API (keep in sync!)
 ├── requirements/        base · dev · prod
 ├── conftest.py          shared pytest fixtures
 └── pyproject.toml       ruff + pytest config
