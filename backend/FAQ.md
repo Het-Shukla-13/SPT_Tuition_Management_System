@@ -276,6 +276,23 @@ to remove). The value is stored **unverified** and becomes verified on the user'
 with it. The old address is notified. Not for your own account (`CANNOT_MODIFY_SELF`); only the
 owner may edit another admin (`OWNER_REQUIRED`). Audited with `by_admin: true`.
 
+## 5. Academic reference data (`/api/v1/academics/`)
+
+`boards/`, `standards/`, `subjects/`, `chapters/`, `schools/`, `academic-years/`. Logic: `apps/academics`.
+
+- **Seeded:** boards CBSE / GSEB / ICSE; standards 1st-10th; subjects English, Mathematics, Science,
+  Social Studies, Gujarati, Hindi (English medium only); academic year 2026-27 (1 Apr 2026 - 31 Mar 2027)
+  as current. Admins can change all of it.
+- **Read:** any logged-in user, **active items only**. Admins also see inactive ones (`?is_active=false`).
+- **Write:** admins only (`POST`, `PATCH`). **No DELETE (405):** deactivate with `PATCH {"is_active": false}`.
+  Rows referenced by other records are protected from deletion at the database level too.
+- **Uniqueness (ignoring case):** board `code`; subject `name` and `code`; school `name` + `city`;
+  standard `level`; chapter `number` per board + standard + subject.
+- **Chapters** belong to a board + standard + subject (CBSE 10th Maths ch. 1 ≠ GSEB 10th Maths ch. 1).
+  Filter: `?board=&standard=&subject=`.
+- **Academic year:** exactly one can be current. Creating/updating one with `is_current: true`
+  switches the previous one off in the same transaction. `end_date` must be after `start_date`.
+
 ---
 
 ## 9. Cross-cutting gotchas
