@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.accounts.views import (
+from apps.accounts.views.auth import (
     LogoutAllView,
     LogoutView,
     MeView,

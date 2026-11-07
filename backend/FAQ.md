@@ -135,6 +135,57 @@ the user up through the default manager, which hides soft-deleted users, and che
 
 ---
 
+## 2. Roles and permissions
+
+### What roles exist?
+| Role | Who | How the account is created |
+|---|---|---|
+| `STUDENT` | Students | Public OTP sign-up (always STUDENT) |
+| `ADMIN` | Institute staff | Promoted by the owner via `POST admin/users/{id}/role/` |
+| `ADMIN` + `is_superuser` ("owner") | The institute owner(s) | Only `python manage.py createsuperuser` |
+
+Permission classes live in `apps/common/permissions.py`: `IsAdmin`, `IsStudent`,
+`IsSuperUser` (owner), and object-level `IsOwnerOrAdmin`.
+
+### Where does the backend get a user's role from?
+Always from the database row loaded for the request, **never** from the JWT `role` claim.
+An inactive user matches no role. Denials are logged (user, role, method, path, object id).
+Anonymous → `401`; authenticated but not allowed → `403 PERMISSION_DENIED`.
+
+### How does "students can only see their own records" work?
+`IsOwnerOrAdmin` (object-level): admins pass; anyone else must own the object, found via
+the view's `owner_field` (default `user`, dotted paths like `student.user` allowed).
+Changing an ID in the URL to someone else's record → `403`.
+
+## 3. Admin user management (`/api/v1/admin/users/`)
+
+All endpoints need role `ADMIN`. Logic: `apps/accounts/services/users.py`.
+
+| Endpoint | Who | Notes |
+|---|---|---|
+| `GET /` | ADMIN | Paginated. `?search=` (email/phone), `?role=`, `?is_active=`, `?ordering=created_at\|email\|last_login` (prefix `-`) |
+| `GET /{id}/` | ADMIN | Soft-deleted users → `404` |
+| `POST /{id}/deactivate/` | ADMIN | Can't log in any more; **all sessions end immediately**. Records untouched. Idempotent |
+| `POST /{id}/activate/` | ADMIN | Idempotent |
+| `POST /{id}/role/` `{role}` | **Owner only** | Grants/revokes ADMIN; the user's sessions end so the new role applies everywhere |
+
+### What is refused?
+| Rule | Error |
+|---|---|
+| Changing your own role or deactivating yourself | `403 CANNOT_MODIFY_SELF` |
+| A non-owner admin deactivating/activating another ADMIN | `403 OWNER_REQUIRED` |
+| A non-owner changing anyone's role | `403 PERMISSION_DENIED` |
+| Demoting or deactivating the **last active ADMIN** | `409 LAST_ADMIN` |
+
+Concurrent demotions are serialised with row locks, so two at once can't remove the last admin.
+
+### Is any of this recorded?
+Yes, in `audit_logs` (`apps/audit`), in the same transaction as the change: action
+(`USER_ROLE_CHANGED`, `USER_DEACTIVATED`, `USER_ACTIVATED`), actor, target, `changes`
+(e.g. `{"role": ["STUDENT", "ADMIN"]}`), IP and request ID. Read-only in Django admin.
+
+---
+
 ## 9. Cross-cutting gotchas
 
 - **Soft delete is a silent default filter.** `User.objects` hides soft-deleted users;
