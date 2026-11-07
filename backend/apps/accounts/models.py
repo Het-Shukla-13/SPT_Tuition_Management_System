@@ -223,6 +223,16 @@ class UserSession(GlobalTimeStampedModel):
     )
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=512, blank=True)
+    # The student this device last picked in the portal (like Labe1's
+    # per-session active group). Convenience only: every request re-checks
+    # access, so this is never a permission.
+    selected_student = models.ForeignKey(
+        "students.StudentProfile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
 
     objects = UserSessionQuerySet.as_manager()
 

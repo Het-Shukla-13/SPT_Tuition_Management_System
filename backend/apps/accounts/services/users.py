@@ -187,14 +187,41 @@ def invite_user(
     Create a login and send the invite. Only the owner may create ADMINs.
     The person then logs in with an OTP (or Google) to this email/phone.
     """
+    with transaction.atomic():
+        user = create_login(
+            actor=actor,
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
+            email=email,
+            phone=phone,
+            ip=ip,
+        )
+    return user, send_invite(user)
+
+
+def create_login(
+    *,
+    actor: User,
+    first_name: str,
+    last_name: str,
+    role: str,
+    email: str | None = None,
+    phone: str | None = None,
+    ip: str | None = None,
+) -> User:
+    """
+    Create the login row without messaging anyone. Callers run it inside their
+    transaction and call send_invite() only after it commits, so a rolled-back
+    admission never sends an invite for a login that doesn't exist.
+    """
     if role == User.Role.ADMIN and not actor.is_superuser:
         raise AdminTargetRequiresOwner(
             "Only the institute owner account can add administrators."
         )
-
-    with transaction.atomic():
-        _ensure_contact_free(email=email, phone=phone)
-        try:
+    _ensure_contact_free(email=email, phone=phone)
+    try:
+        with transaction.atomic():
             user = User.objects.create_user(
                 email=email,
                 phone=phone,
@@ -203,19 +230,19 @@ def invite_user(
                 role=role,
                 invited_by=actor,
             )
-        except (IntegrityError, DjangoValidationError):
-            raise ContactInUse() from None
-        record(
-            AuditLog.Action.USER_INVITED,
-            actor=actor,
-            target=user,
-            changes={"role": role, "email": email, "phone": phone},
-            ip=ip,
-        )
+    except (IntegrityError, DjangoValidationError):
+        raise ContactInUse() from None
+    record(
+        AuditLog.Action.USER_INVITED,
+        actor=actor,
+        target=user,
+        changes={"role": role, "email": email, "phone": phone},
+        ip=ip,
+    )
     logger.info(
         "Login created: user_id=%s role=%s by actor_id=%s", user.pk, role, actor.pk
     )
-    return user, send_invite(user)
+    return user
 
 
 def resend_invite(*, actor: User, target: User) -> dict:

@@ -15,6 +15,8 @@ api_v1_patterns = [
     path("auth/", include("apps.accounts.urls")),
     path("admin/users/", include("apps.accounts.urls_admin")),
     path("academics/", include("apps.academics.urls")),
+    path("admin/students/", include("apps.students.urls_admin")),
+    path("portal/students/", include("apps.students.urls_portal")),
 ]
 
 urlpatterns = [

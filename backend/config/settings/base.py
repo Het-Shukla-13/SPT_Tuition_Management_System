@@ -49,6 +49,7 @@ LOCAL_APPS = [
     "apps.accounts",
     "apps.audit",
     "apps.academics",
+    "apps.students",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -246,6 +247,9 @@ DEFAULT_PHONE_COUNTRY_CODE = env("DEFAULT_PHONE_COUNTRY_CODE", default="+91")
 # gateway backend replaces it before production.
 SMS_BACKEND = env("SMS_BACKEND", default="apps.accounts.services.sms.ConsoleSMSBackend")
 
+# Student admission numbers look like SPT-2026-0001.
+ADMISSION_NUMBER_PREFIX = env("ADMISSION_NUMBER_PREFIX", default="SPT")
+
 # ─────────────────────────────────────────────────────────────
 # Google Sign-In
 # The OAuth *Client ID* (not a secret). A Google ID token is accepted only if
@@ -272,6 +276,11 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": r"/api/v[0-9]+",
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
+    # Several components have a field called "status"; give each enum a clear name.
+    "ENUM_NAME_OVERRIDES": {
+        "StudentStatusEnum": "apps.students.models.StudentProfile.Status",
+        "GoogleSignInStatusEnum": ["AUTHENTICATED", "OTP_REQUIRED"],
+    },
 }
 
 # ─────────────────────────────────────────────────────────────

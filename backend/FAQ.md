@@ -293,6 +293,54 @@ owner may edit another admin (`OWNER_REQUIRED`). Audited with `by_admin: true`.
 - **Academic year:** exactly one can be current. Creating/updating one with `is_current: true`
   switches the previous one off in the same transaction. `end_date` must be after `start_date`.
 
+## 6. Students (`/api/v1/admin/students/`, `/api/v1/portal/students/`)
+
+Logic: `apps/students/services.py`. Design: `docs/plans/phase-2-core-data.md`.
+
+### What is a "student" vs a "login"?
+- **StudentProfile** = the child (name, board, standard, school, guardian contact on file…). Not a login.
+- **Login** (`User`, role `PORTAL`) = whoever signs in: usually a parent, sometimes the student.
+- **StudentAccess** links them: one login can see several students (siblings), one student can be
+  seen by several logins (mom, dad, the kid's own phone). Everyone linked sees the same student data.
+
+### How is a student admitted? (`POST /admin/students/`, admin only)
+One transaction creates: the profile (auto `admission_number` `SPT-<year>-0001`, never repeated),
+current subjects, the first academic-history row (`ADMISSION`, in the current academic year), and
+access for `link_user_ids` (existing logins, e.g. a sibling's parent) and `new_logins` (created as
+`PORTAL` and invited by SMS/email **after** the transaction commits).
+- Required: first & last name, board, standard, school, at least one subject (no repeats).
+- A student may have no login yet.
+- Fails as a whole (nothing created, no invite sent) on: `NO_CURRENT_ACADEMIC_YEAR`,
+  `INACTIVE_REFERENCE` (deactivated board/standard/school/subject), `NOT_A_PORTAL_LOGIN`
+  (linking an admin/teacher), `CONTACT_IN_USE` (new login's phone/email taken).
+- **Possible duplicate** (same name AND same/unknown birth date or same guardian phone) →
+  `409 POSSIBLE_DUPLICATE_STUDENT` listing candidates; resend with `confirm_duplicate: true`.
+  Same name with a different birth date is fine.
+- Guardian phone is normalised like login phones (`+91…`).
+
+### What else can admins do?
+| Endpoint | Notes |
+|---|---|
+| `GET /` | Search (name, admission no., guardian phone/email, linked login's phone/email), filter `standard`/`board`/`school`/`status`, sort, paginate |
+| `GET /{id}/` | Profile + current subjects + linked logins (with `invite_accepted`) |
+| `PATCH /{id}/` | Personal details only |
+| `POST /{id}/academic/` `{board?, standard?, school?, reason}` | Closes the current history row, opens a new one. `NOTHING_CHANGED` if identical |
+| `GET /{id}/history/` | Academic history, newest first |
+| `POST /{id}/status/` `{ACTIVE\|ON_HOLD\|LEFT}` | `LEFT` sets `left_on`; nothing is deleted |
+| `PUT /{id}/subjects/` | Replace current subjects; dropped ones get `ended_on` (kept) |
+| `GET/POST /{id}/access/` | List logins / grant: `{user_id}` or `{new_login}` (created + invited). `ACCESS_ALREADY_GRANTED` |
+| `DELETE /{id}/access/{user_id}/` | Unlink (row kept with `revoked_at`); devices that had it selected forget it. The login stays |
+
+Everything is audited. Reference data in use can't be deleted (`PROTECT`).
+
+### What does a parent/student login see? (`/portal/students/`, `PORTAL` only)
+- `GET /`: their linked students (the "Who's studying?" picker), with `is_selected` for this device.
+- `GET /{id}/`: one linked student. **Not linked → 404** (changing the id reveals nothing).
+- `POST /{id}/select/`: remember this student on this device (stored on the session, like Labe1's
+  active group). Two devices can have different students selected. It's never a permission.
+- A `LEFT` student still appears, with its status. A login with no links sees an empty list.
+- Admins/teachers get `403` on portal endpoints; portal logins get `403` on admin endpoints.
+
 ---
 
 ## 9. Cross-cutting gotchas
