@@ -14,7 +14,8 @@ class AuditLog(models.Model):
         USER_ROLE_CHANGED = "USER_ROLE_CHANGED", "User role changed"
         USER_DEACTIVATED = "USER_DEACTIVATED", "User deactivated"
         USER_ACTIVATED = "USER_ACTIVATED", "User activated"
-        USER_REGISTERED = "USER_REGISTERED", "User registered"
+        USER_INVITED = "USER_INVITED", "Login created (invited)"
+        USER_UPDATED = "USER_UPDATED", "User details updated"
         GOOGLE_LINKED = "GOOGLE_LINKED", "Google account linked"
         GOOGLE_UNLINKED = "GOOGLE_UNLINKED", "Google account unlinked"
         CONTACT_CHANGED = "CONTACT_CHANGED", "Email/phone added or changed"
@@ -32,7 +33,7 @@ class AuditLog(models.Model):
     target_type = models.CharField(max_length=64, help_text="e.g. 'accounts.User'")
     target_id = models.CharField(max_length=64, db_index=True)
     changes = models.JSONField(
-        default=dict, blank=True, help_text='e.g. {"role": ["STUDENT", "ADMIN"]}'
+        default=dict, blank=True, help_text='e.g. {"role": ["PORTAL", "ADMIN"]}'
     )
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     request_id = models.CharField(max_length=64, blank=True)

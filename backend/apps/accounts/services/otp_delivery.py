@@ -46,7 +46,6 @@ def _send(
 
 def deliver_otp(*, channel: str, to: str, code: str, purpose: str) -> None:
     action = {
-        OTPPurpose.REGISTER: "registration",
         OTPPurpose.LOGIN: "login",
         OTPPurpose.GOOGLE_LINK: "Google sign-in verification",
         OTPPurpose.CONTACT_CHANGE: "contact verification",
@@ -65,23 +64,21 @@ def deliver_otp(*, channel: str, to: str, code: str, purpose: str) -> None:
     )
 
 
-def deliver_already_registered_notice(*, channel: str, to: str) -> None:
+def deliver_invite(*, channel: str, to: str, first_name: str, role_label: str) -> None:
     """
-    Sent instead of a registration OTP when the email/phone already has an
-    account. The API response stays identical either way, so nobody can use
-    the registration form to discover who is registered; only the real owner
-    of the inbox/phone learns it.
+    "You've been added" message for a newly created login. Contains no code
+    and no link: the person simply logs in with this email/phone (OTP).
     """
     _send(
         channel,
         to,
-        subject=f"You already have a {settings.INSTITUTE_NAME} account",
-        template="accounts/email/already_registered.txt",
+        subject=f"You've been added to {settings.INSTITUTE_NAME}",
+        template="accounts/email/invite.txt",
         sms_text=(
-            f"Someone tried to register with this number at {settings.INSTITUTE_NAME}, "
-            "but it already has an account. Please log in instead."
+            f"Hi {first_name}, you've been added to {settings.INSTITUTE_NAME} as a "
+            f"{role_label}. Log in with this number using a one-time code."
         ),
-        context=_context(),
+        context=_context(first_name=first_name, role_label=role_label),
     )
 
 

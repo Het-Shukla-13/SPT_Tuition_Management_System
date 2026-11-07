@@ -96,8 +96,8 @@ class GoogleVerifyView(APIView):
         tags=GOOGLE_TAG,
         summary="Continue with Google (step 2: verify the emailed code)",
         description=(
-            "Links the Google account to the account that owns the email (or creates a "
-            "STUDENT account if none exists) and logs in. Later Google sign-ins are one-click."
+            "Links the Google account to the invited account that owns the email and "
+            "logs in. Later Google sign-ins are one-click. Google never creates accounts."
         ),
         request=GoogleVerifySerializer,
         responses={

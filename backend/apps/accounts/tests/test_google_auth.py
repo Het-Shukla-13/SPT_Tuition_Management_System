@@ -63,8 +63,17 @@ def emailed_code():
     return re.search(r"\b(\d{6})\b", mail.outbox[-1].body).group(1)
 
 
+def invite_alice(**fields) -> User:
+    """Invite-only: the institute creates the login before Google can be used."""
+    return User.objects.create_user(
+        email="alice@gmail.com", first_name="Alice", **fields
+    )
+
+
 def first_google_login(client=None, token="tok-alice"):
     client = client or APIClient()
+    if not User.all_objects.filter(email="alice@gmail.com").exists():
+        invite_alice()
     assert start(client, token).json()["data"]["status"] == "OTP_REQUIRED"
     response = verify(client, emailed_code(), token)
     assert response.status_code == 200, response.json()
@@ -74,7 +83,8 @@ def first_google_login(client=None, token="tok-alice"):
 
 @pytest.mark.django_db
 class TestFirstGoogleLogin:
-    def test_new_user_needs_otp_then_is_created_and_linked(self):
+    def test_invited_user_needs_otp_once_then_is_linked(self):
+        user = invite_alice()
         client = APIClient()
 
         response = start(client)
@@ -85,7 +95,6 @@ class TestFirstGoogleLogin:
         assert data["email"] == "a***e@gmail.com"
         assert "access" not in data
         assert mail.outbox[-1].to == ["alice@gmail.com"]
-        assert not User.objects.exists()
 
         response = verify(client, emailed_code())
 
@@ -93,15 +102,24 @@ class TestFirstGoogleLogin:
         data = response.json()["data"]
         assert data["status"] == "AUTHENTICATED"
         assert data["access"] and data["refresh"]
-        user = User.objects.get(email="alice@gmail.com")
+        user.refresh_from_db()
         assert user.google_id == "google-sub-alice"
-        assert user.role == User.Role.STUDENT
         assert user.email_verified_at is not None
+        assert user.activated_at is not None
         assert data["user"]["google_linked"] is True
-        assert set(AuditLog.objects.values_list("action", flat=True)) == {
-            "USER_REGISTERED",
-            "GOOGLE_LINKED",
-        }
+        assert list(AuditLog.objects.values_list("action", flat=True)) == [
+            "GOOGLE_LINKED"
+        ]
+
+    def test_google_never_creates_accounts(self):
+        """Invite-only: an unknown Google email gets the same answer but no code, no account."""
+        response = start(APIClient())
+
+        assert response.status_code == 200
+        assert response.json()["data"]["status"] == "OTP_REQUIRED"  # indistinguishable
+        assert mail.outbox == []
+        assert verify(APIClient(), "123456").json()["error_code"] == "OTP_INVALID"
+        assert not User.objects.exists()
 
     def test_existing_email_account_is_linked_not_duplicated(self):
         existing = User.objects.create_user(email="alice@gmail.com")
@@ -113,13 +131,14 @@ class TestFirstGoogleLogin:
         assert existing.google_id == "google-sub-alice"
 
     def test_wrong_code_does_not_link(self):
+        invite_alice()
         start(APIClient())
         code = emailed_code()
         response = verify(APIClient(), "000000" if code != "000000" else "111111")
 
         assert response.status_code == 400
         assert response.json()["error_code"] == "OTP_INVALID"
-        assert not User.objects.exists()
+        assert User.objects.get().google_id is None
 
     def test_code_is_bound_to_the_google_account_it_was_sent_for(self):
         """An impostor's Google account using the victim's email can't reuse the victim's code."""
@@ -169,6 +188,7 @@ class TestFirstGoogleLogin:
         assert response.json()["error_code"] == "OTP_INVALID"
 
     def test_cooldown_applies(self):
+        invite_alice()
         start(APIClient())
         response = start(APIClient())
         assert response.status_code == 429
@@ -250,6 +270,7 @@ class TestTokenChecks:
         assert response.json()["error_code"] == "GOOGLE_TOKEN_INVALID"
 
     def test_audience_is_our_client_id(self, google, settings):
+        invite_alice()
         start(APIClient())
         assert google.call_args.kwargs["audience"] == settings.GOOGLE_ALLOWED_AUDIENCES
 

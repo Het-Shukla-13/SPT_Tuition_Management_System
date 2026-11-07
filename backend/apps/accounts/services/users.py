@@ -1,5 +1,6 @@
 """
-Administrative actions on user accounts: activate, deactivate, change role.
+Administrative actions on user accounts: create (invite), activate,
+deactivate, change role, edit name.
 
 Rules (spec section 10.2):
 - Nobody can change their own role or deactivate themselves.
@@ -12,14 +13,20 @@ Rules (spec section 10.2):
 
 import logging
 
-from django.db import transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError, transaction
 
+from apps.accounts.choices import OTPChannel
 from apps.accounts.exceptions import (
+    AccountDisabled,
     AdminTargetRequiresOwner,
     CannotModifySelf,
+    ContactInUse,
+    InviteAlreadyAccepted,
     LastAdminProtected,
 )
 from apps.accounts.models import User, UserSession
+from apps.accounts.services.otp_delivery import OTPDeliveryError, deliver_invite
 from apps.accounts.services.sessions import revoke_all_sessions
 from apps.audit.models import AuditLog
 from apps.audit.services import record
@@ -127,3 +134,118 @@ def change_role(*, actor: User, target: User, role: str, ip: str | None = None) 
         actor.pk,
     )
     return target
+
+
+# ─────────────────────────────────────────────────────────────
+# Creating logins (invite-only platform)
+# ─────────────────────────────────────────────────────────────
+def _ensure_contact_free(*, email: str | None, phone: str | None) -> None:
+    errors = {}
+    if email and User.all_objects.filter(email=email).exists():
+        errors["email"] = ["Another login already uses this email."]
+    if phone and User.all_objects.filter(phone=phone).exists():
+        errors["phone"] = ["Another login already uses this phone number."]
+    if errors:
+        raise ContactInUse(details=errors)
+
+
+def send_invite(user: User) -> dict:
+    """
+    Tell the person their login exists, on every contact it has. Best effort:
+    a failed SMS/email doesn't undo the login (the admin can resend).
+    Returns {"email": bool, "phone": bool} for the channels attempted.
+    """
+    results = {}
+    targets = [(OTPChannel.EMAIL, user.email), (OTPChannel.PHONE, user.phone)]
+    for channel, to in targets:
+        if not to:
+            continue
+        try:
+            deliver_invite(
+                channel=channel,
+                to=to,
+                first_name=user.first_name or "there",
+                role_label=User.Role(user.role).label.lower(),
+            )
+            results[channel.lower()] = True
+        except OTPDeliveryError:
+            results[channel.lower()] = False
+    return results
+
+
+def invite_user(
+    *,
+    actor: User,
+    first_name: str,
+    last_name: str,
+    role: str,
+    email: str | None = None,
+    phone: str | None = None,
+    ip: str | None = None,
+) -> tuple[User, dict]:
+    """
+    Create a login and send the invite. Only the owner may create ADMINs.
+    The person then logs in with an OTP (or Google) to this email/phone.
+    """
+    if role == User.Role.ADMIN and not actor.is_superuser:
+        raise AdminTargetRequiresOwner(
+            "Only the institute owner account can add administrators."
+        )
+
+    with transaction.atomic():
+        _ensure_contact_free(email=email, phone=phone)
+        try:
+            user = User.objects.create_user(
+                email=email,
+                phone=phone,
+                first_name=first_name,
+                last_name=last_name,
+                role=role,
+                invited_by=actor,
+            )
+        except (IntegrityError, DjangoValidationError):
+            raise ContactInUse() from None
+        record(
+            AuditLog.Action.USER_INVITED,
+            actor=actor,
+            target=user,
+            changes={"role": role, "email": email, "phone": phone},
+            ip=ip,
+        )
+    logger.info(
+        "Login created: user_id=%s role=%s by actor_id=%s", user.pk, role, actor.pk
+    )
+    return user, send_invite(user)
+
+
+def resend_invite(*, actor: User, target: User) -> dict:
+    if target.activated_at is not None:
+        raise InviteAlreadyAccepted()
+    if not target.is_active:
+        raise AccountDisabled()
+    return send_invite(target)
+
+
+@transaction.atomic
+def update_user_details(
+    *, actor: User, target: User, first_name: str | None, last_name: str | None, ip=None
+) -> User:
+    """Change a login's name (self-service, or an admin fixing it)."""
+    locked = User.objects.select_for_update().get(pk=target.pk)
+    if actor.pk != locked.pk:
+        _ensure_may_touch_admin(actor, locked)
+    changes = {}
+    for field, value in (("first_name", first_name), ("last_name", last_name)):
+        if value is not None and value != getattr(locked, field):
+            changes[field] = [getattr(locked, field), value]
+            setattr(locked, field, value)
+    if changes:
+        locked.save(update_fields=[*changes, "updated_at"])
+        record(
+            AuditLog.Action.USER_UPDATED,
+            actor=actor,
+            target=locked,
+            changes=changes,
+            ip=ip,
+        )
+    return locked

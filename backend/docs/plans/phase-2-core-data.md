@@ -128,8 +128,15 @@ can't be deleted; pagination cap.
 
 ---
 
-## Still to confirm (small)
-1. **Seed data:** which boards, standards and subjects does the tuition teach?
-2. **Required student fields:** first & last name, board, standard required; guardian name + phone
-   strongly suggested; rest optional. OK?
-3. **Admission number format:** `SPT-2026-0001`?
+## Confirmed details (owner, 2026-11-07)
+1. **Seed data:** boards CBSE, GSEB, ICSE; standards 1st-10th; subjects English, Mathematics,
+   Science, Social Studies, Gujarati, Hindi. **English medium only**, so no "medium" field.
+2. **Required student fields:** first & last name, board, standard, **school**. Guardian name +
+   phone strongly suggested; DOB, gender, address, photo optional.
+3. **Admission number:** auto `SPT-<admission year>-<4-digit sequence>`, e.g. `SPT-2026-0001`.
+4. **Invites go by SMS and/or email**, to whatever contacts the login has.
+5. **Subjects per student at admission:** `StudentSubject` (`student_subjects`): `student`,
+   `subject`, `started_on`, `ended_on` (null = current), `changed_by`; one active row per
+   (student, subject). Dropping/adding a subject keeps history.
+6. **Agreed fees at admission:** captured by the fees module (Phase 4) as part of the same
+   admission flow, not as a field here, so it lives in the auditable fee ledger from day one.

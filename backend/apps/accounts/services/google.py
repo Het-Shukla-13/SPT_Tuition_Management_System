@@ -8,8 +8,11 @@ Flow:
    - Not linked yet                            -> email a GOOGLE_LINK code to
      the Google account's email, bound to this Google account (`sub`).
 2. complete_google_sign_in(id_token, code)
-   - Code correct and issued for this Google account -> link it to the user
-     who owns that email (or create a STUDENT account), then log in.
+   - Code correct and issued for this Google account -> link it to the
+     invited user who owns that email, then log in.
+
+Invite-only: Google NEVER creates accounts. For an email with no account,
+step 1 sends nothing but answers the same way.
 
 Why the code: a Google account can carry an email address that its owner
 doesn't actually control (non-Gmail addresses), so "the emails match" alone
@@ -24,8 +27,7 @@ import logging
 from dataclasses import dataclass
 
 from django.conf import settings
-from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.utils import timezone
 from google.auth import exceptions as google_exceptions
 from google.auth.transport import requests as google_requests
@@ -33,7 +35,6 @@ from google.oauth2 import id_token as google_id_token
 
 from apps.accounts.choices import OTPChannel, OTPPurpose
 from apps.accounts.exceptions import (
-    AccountAlreadyExists,
     AccountDisabled,
     GoogleAccountConflict,
     GoogleEmailNotVerified,
@@ -122,9 +123,10 @@ def start_google_sign_in(*, raw_token: str, ip: str | None = None) -> GoogleStar
         purpose=OTPPurpose.GOOGLE_LINK,
     )
     owner = User.all_objects.filter(email=identity.email).first()
-    if owner is not None and (owner.is_deleted or not owner.is_active):
-        # Disabled/deleted account: send nothing, and answer exactly as if a
-        # code was sent so the response doesn't reveal the account's state.
+    if owner is None or owner.is_deleted or not owner.is_active:
+        # Invite-only: Google never creates accounts (as in Labe1). Unknown,
+        # disabled or deleted: send nothing, and answer exactly as if a code
+        # was sent, so the response reveals nothing about the address.
         return GoogleStartResult(user=None, email=identity.email)
 
     issue_challenge(
@@ -148,7 +150,7 @@ def complete_google_sign_in(
     identity = verify_google_id_token(raw_token)
 
     def link(challenge: OTPChallenge) -> User:
-        return _link_or_create(identity, ip=ip)
+        return _link(identity, ip=ip)
 
     return verify_otp(
         channel=OTPChannel.EMAIL,
@@ -160,7 +162,7 @@ def complete_google_sign_in(
     )
 
 
-def _link_or_create(identity: GoogleIdentity, *, ip: str | None) -> User:
+def _link(identity: GoogleIdentity, *, ip: str | None) -> User:
     """Runs inside verify_otp's transaction, after the code was accepted."""
     now = timezone.now()
 
@@ -171,29 +173,8 @@ def _link_or_create(identity: GoogleIdentity, *, ip: str | None) -> User:
         # Linked to someone else between step 1 and step 2.
         raise GoogleAccountConflict()
 
-    if owner is None:
-        try:
-            user = User.objects.create_user(
-                email=identity.email,
-                role=User.Role.STUDENT,  # public sign-up is always STUDENT
-                email_verified_at=now,
-                google_id=identity.sub,
-                google_linked_at=now,
-            )
-        except (IntegrityError, DjangoValidationError):
-            raise AccountAlreadyExists() from None
-        record(
-            AuditLog.Action.USER_REGISTERED,
-            actor=user,
-            target=user,
-            changes={"via": "google"},
-            ip=ip,
-        )
-        record(AuditLog.Action.GOOGLE_LINKED, actor=user, target=user, ip=ip)
-        logger.info("Account created via Google: user_id=%s", user.pk)
-        return user
-
-    if owner.is_deleted:
+    if owner is None or owner.is_deleted:
+        # No invited account with this email (removed after step 1).
         raise OTPInvalid()
     if not owner.is_active:
         raise AccountDisabled()

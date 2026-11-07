@@ -27,17 +27,34 @@ phone_validator = RegexValidator(
 class User(AbstractTimeStampedModel, AbstractBaseUser, PermissionsMixin):
     class Role(models.TextChoices):
         ADMIN = "ADMIN", "Administrator"
-        STUDENT = "STUDENT", "Student"
+        TEACHER = "TEACHER", "Teacher"
+        # A parent or student who logs in to view the student(s) linked to
+        # this login (see students.StudentAccess).
+        PORTAL = "PORTAL", "Portal user"
+
+    # Names are filled in by whoever creates the login (invite), like Labe1.
+    first_name = models.CharField(max_length=150, blank=True)
+    last_name = models.CharField(max_length=150, blank=True)
 
     email = models.EmailField(unique=True, null=True, blank=True)
     phone = models.CharField(
         max_length=16, unique=True, null=True, blank=True, validators=[phone_validator]
     )
-    # Role is never settable through public registration; ADMIN accounts are
-    # provisioned only via the trusted `createsuperuser` path (or a future
-    # admin-only endpoint).
+    # Invite-only platform: logins are created by the owner/admins, never by
+    # the public. ADMIN can only be granted by the owner.
     role = models.CharField(
-        max_length=16, choices=Role.choices, default=Role.STUDENT, db_index=True
+        max_length=16, choices=Role.choices, default=Role.PORTAL, db_index=True
+    )
+    invited_by = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="Who created this login.",
+    )
+    activated_at = models.DateTimeField(
+        null=True, blank=True, help_text="First successful login (invite accepted)."
     )
 
     email_verified_at = models.DateTimeField(null=True, blank=True)
@@ -74,7 +91,11 @@ class User(AbstractTimeStampedModel, AbstractBaseUser, PermissionsMixin):
         ]
 
     def __str__(self) -> str:
-        return self.email or self.phone or str(self.id)
+        return self.full_name or self.email or self.phone or str(self.id)
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name}".strip()
 
     def save(self, *args, **kwargs):
         # Normalise so "A@X.com" and "a@x.com" can never become two accounts,
@@ -89,8 +110,12 @@ class User(AbstractTimeStampedModel, AbstractBaseUser, PermissionsMixin):
         return self.role == self.Role.ADMIN
 
     @property
-    def is_student(self) -> bool:
-        return self.role == self.Role.STUDENT
+    def is_teacher(self) -> bool:
+        return self.role == self.Role.TEACHER
+
+    @property
+    def is_portal_user(self) -> bool:
+        return self.role == self.Role.PORTAL
 
 
 class OTPChallenge(GlobalTimeStampedModel):

@@ -11,8 +11,8 @@ class TestUserModel:
         user = User.objects.create_user(email="Student@Example.com")
 
         assert user.email == "student@example.com"  # normalised
-        assert user.role == User.Role.STUDENT
-        assert user.is_student and not user.is_admin
+        assert user.role == User.Role.PORTAL
+        assert user.is_portal_user and not user.is_admin
         assert not user.has_usable_password()
         assert not user.is_staff
 
@@ -62,7 +62,7 @@ class TestUserModel:
     def test_create_superuser_rejects_non_admin_role(self):
         with pytest.raises(ValueError):
             User.objects.create_superuser(
-                email="x@example.com", password="pw-123456789", role=User.Role.STUDENT
+                email="x@example.com", password="pw-123456789", role=User.Role.PORTAL
             )
 
     def test_ids_are_integers(self):

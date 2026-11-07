@@ -5,7 +5,14 @@ from django.contrib.auth.models import AnonymousUser
 from rest_framework.test import APIRequestFactory
 
 from apps.accounts.models import User
-from apps.common.permissions import IsAdmin, IsOwnerOrAdmin, IsStudent, IsSuperUser
+from apps.common.permissions import (
+    IsAdmin,
+    IsOwnerOrAdmin,
+    IsPortalUser,
+    IsStaff,
+    IsSuperUser,
+    IsTeacher,
+)
 
 factory = APIRequestFactory()
 
@@ -32,6 +39,11 @@ def admin(db):
 
 
 @pytest.fixture
+def teacher(db):
+    return User.objects.create_user(email="teacher@example.com", role=User.Role.TEACHER)
+
+
+@pytest.fixture
 def owner(db):
     return User.objects.create_superuser(email="owner@example.com", password="x" * 12)
 
@@ -43,8 +55,16 @@ class TestRolePermissions:
         [
             (IsAdmin, "admin", True),
             (IsAdmin, "student", False),
-            (IsStudent, "student", True),
-            (IsStudent, "admin", False),
+            (IsPortalUser, "student", True),
+            (IsPortalUser, "admin", False),
+            (IsPortalUser, "teacher", False),
+            (IsTeacher, "teacher", True),
+            (IsTeacher, "admin", False),
+            (IsTeacher, "student", False),
+            (IsStaff, "admin", True),
+            (IsStaff, "teacher", True),
+            (IsStaff, "student", False),
+            (IsAdmin, "teacher", False),
             (IsSuperUser, "owner", True),
             (IsSuperUser, "admin", False),
             (IsSuperUser, "student", False),
@@ -54,7 +74,9 @@ class TestRolePermissions:
         user = request.getfixturevalue(who)
         assert permission().has_permission(request_for(user), view=None) is expected
 
-    @pytest.mark.parametrize("permission", [IsAdmin, IsStudent, IsSuperUser])
+    @pytest.mark.parametrize(
+        "permission", [IsAdmin, IsTeacher, IsStaff, IsPortalUser, IsSuperUser]
+    )
     def test_anonymous_always_denied(self, permission):
         assert (
             permission().has_permission(request_for(AnonymousUser()), view=None)
@@ -66,7 +88,7 @@ class TestRolePermissions:
         assert IsAdmin().has_permission(request_for(admin), view=None) is False
 
     def test_superuser_demoted_to_student_loses_owner_powers(self, owner):
-        owner.role = User.Role.STUDENT
+        owner.role = User.Role.PORTAL
         assert IsSuperUser().has_permission(request_for(owner), view=None) is False
 
 

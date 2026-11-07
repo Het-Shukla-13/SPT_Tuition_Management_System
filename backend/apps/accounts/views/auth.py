@@ -13,6 +13,7 @@ from apps.accounts.models import UserSession
 from apps.accounts.serializers import (
     AuthTokensSerializer,
     LogoutSerializer,
+    NameUpdateSerializer,
     OTPRequestSerializer,
     OTPVerifySerializer,
     TokenPairSerializer,
@@ -28,6 +29,7 @@ from apps.accounts.services.tokens import (
     logout_everywhere,
     rotate_refresh_token,
 )
+from apps.accounts.services.users import update_user_details
 from apps.common.request_utils import client_ip, user_agent
 from apps.common.responses import ApiResponse
 from apps.common.throttling import ResilientScopedRateThrottle
@@ -48,14 +50,12 @@ class OTPRequestView(APIView):
 
     @extend_schema(
         tags=AUTH_TAG,
-        summary="Request an OTP (register or login)",
+        summary="Request a login code",
         description=(
-            "Sends a one-time code to the email/phone for the given purpose. "
-            "The response is identical whether or not an account exists, so this "
-            "endpoint cannot be used to discover registered users.\n\n"
-            "- `REGISTER` for an existing account: no code is sent; the owner is told "
-            "they already have an account.\n"
-            "- `LOGIN` for an unknown/disabled account: nothing is sent.\n\n"
+            "Invite-only: accounts are created by the institute, never here. Sends a "
+            "one-time login code if this email/phone has an active account; for any "
+            "other address nothing is sent, and the response is identical either way, "
+            "so this endpoint can't be used to discover who has an account.\n\n"
             "Limits: one request per identifier per cooldown period, a cap per hour, "
             "and a per-IP limit."
         ),
@@ -94,8 +94,8 @@ class OTPVerifyView(APIView):
         tags=AUTH_TAG,
         summary="Verify an OTP and receive JWT tokens",
         description=(
-            "`REGISTER` creates a STUDENT account and logs it in. "
-            "`LOGIN` logs into the existing account. Returns access + refresh tokens."
+            "Logs into the existing account and returns access + refresh tokens. "
+            "The first successful login activates an invited account."
         ),
         request=OTPVerifySerializer,
         responses={
@@ -104,7 +104,6 @@ class OTPVerifyView(APIView):
                 description="VALIDATION_ERROR / OTP_INVALID / OTP_EXPIRED"
             ),
             403: OpenApiResponse(description="ACCOUNT_DISABLED"),
-            409: OpenApiResponse(description="ACCOUNT_ALREADY_EXISTS"),
             429: OpenApiResponse(description="OTP_ATTEMPTS_EXCEEDED / THROTTLED"),
         },
     )
@@ -245,3 +244,21 @@ class MeView(APIView):
     )
     def get(self, request):
         return ApiResponse.success(data=UserSerializer(request.user).data)
+
+    @extend_schema(
+        tags=AUTH_TAG,
+        summary="Edit my name",
+        request=NameUpdateSerializer,
+        responses={200: UserSerializer},
+    )
+    def patch(self, request):
+        serializer = NameUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = update_user_details(
+            actor=request.user,
+            target=request.user,
+            first_name=serializer.validated_data.get("first_name"),
+            last_name=serializer.validated_data.get("last_name"),
+            ip=client_ip(request),
+        )
+        return ApiResponse.success(message="Updated.", data=UserSerializer(user).data)

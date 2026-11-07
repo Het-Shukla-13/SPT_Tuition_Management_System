@@ -11,29 +11,34 @@ All endpoints are under `/api/v1/`. Every response uses the envelope
 
 ## 1. Authentication (`/api/v1/auth/`)
 
-### How does a user sign up or log in?
+### Can anyone sign up?
+**No. The platform is invite-only** (one institute). Logins are created only by the owner/admins
+(`POST /api/v1/admin/users/`, section 3), with the person's name already filled in. There is no
+public registration, and Google sign-in never creates accounts.
+
+### How does an invited person log in?
 Passwordless, with a one-time code (OTP) by email or SMS:
 
-1. `POST otp/request/` `{channel: EMAIL|PHONE, identifier, purpose: REGISTER|LOGIN}`
-2. `POST otp/verify/` `{channel, identifier, purpose, code}` → `{access, refresh, user}`
+1. `POST otp/request/` `{channel: EMAIL|PHONE, identifier}` (`purpose` is optional; only `LOGIN` exists)
+2. `POST otp/verify/` `{channel, identifier, code}` → `{access, refresh, user}`
 
-Logic: `apps/accounts/services/otp.py`.
+The first successful login sets `users.activated_at` ("invite accepted") and marks that email/phone
+verified. Logic: `apps/accounts/services/otp.py`.
 
 ### Does `otp/request/` tell me whether an account exists?
 No, by design (spec §10.1, account enumeration). The response is always the same
 `200 "If the details are valid, a verification code has been sent."`:
 
-| Purpose | Account exists? | What actually happens |
-|---|---|---|
-| REGISTER | no | OTP sent |
-| REGISTER | yes (incl. soft-deleted) | No OTP; an "you already have an account" notice is sent to that email/phone |
-| LOGIN | yes, active | OTP sent |
-| LOGIN | no / inactive / soft-deleted | Nothing sent |
+| Account | What actually happens |
+|---|---|
+| Exists and active | Code sent |
+| Doesn't exist / deactivated / soft-deleted | Nothing sent |
 
 Cooldowns and limits also apply identically in every row, so they reveal nothing either.
 
-### Can a LOGIN code create an account, or a REGISTER code log in?
-No. A code only works for the `purpose` (and `channel` + `identifier`) it was issued for.
+### Can a code be used for something else?
+No. A code only works for the `purpose` (and `channel` + `identifier`, and bound context) it was
+issued for: login codes can't link Google or change contact details, and vice versa.
 
 ### What are the OTP rules?
 | Rule | Default | Setting |
@@ -59,13 +64,11 @@ No. A code only works for the `purpose` (and `channel` + `identifier`) it was is
 | `OTP_INVALID` | 400 | Wrong code, or no active code (same message for both) |
 | `OTP_EXPIRED` | 400 | Code expired; request a new one |
 | `OTP_ATTEMPTS_EXCEEDED` | 429 | 5th wrong guess; this code is dead |
-| `ACCOUNT_ALREADY_EXISTS` | 409 | REGISTER, but the identity got registered meanwhile |
 | `ACCOUNT_DISABLED` | 403 | LOGIN, but the account was deactivated after the code was sent |
 
 ### What happens if the email/SMS can't be sent?
 `503 OTP_DELIVERY_FAILED`, and the unsent code is invalidated. We never claim
-success for a code nobody received. (Exception: a failed "already registered" notice
-is swallowed, because reporting it would reveal that the account exists.)
+success for a code nobody received.
 
 ### What if the cache (rate-limit store) is down?
 **Fail closed**: OTP requests return `503 OTP_TEMPORARILY_UNAVAILABLE` and the OTP
@@ -83,7 +86,8 @@ that it was issued for **our** client ID: `GOOGLE_OAUTH_CLIENT_ID`).
    - Not linked yet → `status: OTP_REQUIRED`, `email` (masked). A 6-digit code is emailed
      to the Google account's address.
 2. `POST google/verify/` `{id_token, code}` (same Google token) → links the Google account to the
-   account that owns that email, or **creates a STUDENT account** if none exists, then logs in.
+   invited account that owns that email, then logs in. **Google never creates accounts**: for an
+email with no login, step 1 answers `OTP_REQUIRED` as usual but sends nothing.
 
 Every later Google sign-in is one click. Each one starts its own session, like any login.
 
@@ -108,13 +112,13 @@ If the email belongs to a disabled/deleted account, step 1 still answers `OTP_RE
 nothing, so the response doesn't reveal the account's state.
 
 ### Can I request a `GOOGLE_LINK` code myself, or use a login code to link Google?
-No. `GOOGLE_LINK` codes are only issued by `google/`; `otp/request/` accepts only `REGISTER` and
+No. `GOOGLE_LINK` codes are only issued by `google/`; `otp/request/` accepts only
 `LOGIN`, and codes only work for the purpose they were issued for.
 
 ### How do I unlink Google?
 `POST google/unlink/` (authenticated). Email OTP login keeps working; current sessions stay; the
 next Google sign-in needs an email code again. `GET me/` shows `google_linked`.
-Linking, unlinking and Google sign-ups are recorded in the audit log.
+Linking and unlinking are recorded in the audit log.
 
 **Not stored:** the raw Google token (unlike Labe1). Only Google's account id (`users.google_id`).
 
@@ -126,9 +130,9 @@ Before storage, lookup and rate-limiting (`apps/accounts/identifiers.py`):
 - Phone: spaces/dashes/brackets removed, `00` → `+`, a bare 10-digit number gets
   `DEFAULT_PHONE_COUNTRY_CODE` (`+91`), result must be E.164 (`+919876543210`).
 
-### What role does a new account get? Can I sign up as ADMIN?
-Always `STUDENT`. Any `role` in the payload is ignored. ADMIN accounts are created
-only with `python manage.py createsuperuser`.
+### Who decides a login's role?
+Whoever creates it (section 3): admins create `TEACHER` and `PORTAL` logins; only the owner creates
+`ADMIN`s. A `role` sent to the login endpoints is ignored.
 
 ### How do tokens and sessions work?
 Every successful OTP verification starts a **session** (`UserSession`, one per login/device).
@@ -187,12 +191,13 @@ the user up through the default manager, which hides soft-deleted users, and che
 ### What roles exist?
 | Role | Who | How the account is created |
 |---|---|---|
-| `STUDENT` | Students | Public OTP sign-up (always STUDENT) |
-| `ADMIN` | Institute staff | Promoted by the owner via `POST admin/users/{id}/role/` |
+| `TEACHER` | Teaching staff: tests, notes, assignments, grading. No invites, no fees | Admin |
+| `PORTAL` | Parents / students who view the student(s) linked to their login | Admin |
+| `ADMIN` | Institute staff | Owner: `POST admin/users/` or `POST admin/users/{id}/role/` |
 | `ADMIN` + `is_superuser` ("owner") | The institute owner(s) | Only `python manage.py createsuperuser` |
 
-Permission classes live in `apps/common/permissions.py`: `IsAdmin`, `IsStudent`,
-`IsSuperUser` (owner), and object-level `IsOwnerOrAdmin`.
+Permission classes live in `apps/common/permissions.py`: `IsAdmin`, `IsTeacher`,
+`IsStaff` (admin or teacher), `IsPortalUser`, `IsSuperUser` (owner), and object-level `IsOwnerOrAdmin`.
 
 ### Where does the backend get a user's role from?
 Always from the database row loaded for the request, **never** from the JWT `role` claim.
@@ -210,6 +215,9 @@ All endpoints need role `ADMIN`. Logic: `apps/accounts/services/users.py`.
 
 | Endpoint | Who | Notes |
 |---|---|---|
+| `POST /` | ADMIN | **Create a login (invite)**: `first_name`, `last_name`, `role`, `email` and/or `phone`. Invite goes by email and/or SMS (`invite_sent` per channel; a failed send keeps the login). Only the owner may create `ADMIN`. `409 CONTACT_IN_USE` if taken |
+| `POST /{id}/resend-invite/` | ADMIN | Before their first login only (`INVITE_ALREADY_ACCEPTED` after) |
+| `PATCH /{id}/` | ADMIN | Fix a name (`OWNER_REQUIRED` for another admin) |
 | `GET /` | ADMIN | Paginated. `?search=` (email/phone), `?role=`, `?is_active=`, `?ordering=created_at\|email\|last_login` (prefix `-`) |
 | `GET /{id}/` | ADMIN | Soft-deleted users → `404` |
 | `POST /{id}/deactivate/` | ADMIN | Can't log in any more; **all sessions end immediately**. Records untouched. Idempotent |
@@ -229,7 +237,7 @@ Concurrent demotions are serialised with row locks, so two at once can't remove 
 ### Is any of this recorded?
 Yes, in `audit_logs` (`apps/audit`), in the same transaction as the change: action
 (`USER_ROLE_CHANGED`, `USER_DEACTIVATED`, `USER_ACTIVATED`), actor, target, `changes`
-(e.g. `{"role": ["STUDENT", "ADMIN"]}`), IP and request ID. Read-only in Django admin.
+(e.g. `{"role": ["PORTAL", "ADMIN"]}`), IP and request ID. Read-only in Django admin.
 
 ## 4. Account settings: email & phone (`/api/v1/auth/me/contact/`)
 

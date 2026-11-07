@@ -1,16 +1,18 @@
 """
-OTP issuing and verification: the core of sign-up and login.
+OTP issuing and verification: the core of login.
 
 request_otp()  -> rate-limit, decide whether to send, store a hashed code, deliver.
-verify_otp()   -> check the code under a row lock, then create (REGISTER) or
-                  fetch (LOGIN) the user. Returns the User; the view issues JWTs.
+verify_otp()   -> check the code under a row lock, then fetch the user (LOGIN)
+                  or run the caller's completion step (Google link, contact change).
+
+Invite-only: OTPs never create accounts. Logins are created by the
+owner/admins (services/users.py) and then simply log in.
 
 Guarantees:
 - Codes are random (secrets module), hashed at rest, expire, are one-time use,
   and lock after OTP_MAX_ATTEMPTS wrong guesses.
 - Only the newest OTP per (channel, identifier, purpose) is valid.
-- REGISTER and LOGIN OTPs are not interchangeable: a login OTP can never
-  create an account, a registration OTP can never log into one.
+- Codes only work for the purpose (and context) they were issued for.
 - The request endpoint responds identically whether or not an account exists.
 """
 
@@ -20,13 +22,10 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
-from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.accounts.choices import OTPPurpose
 from apps.accounts.exceptions import (
-    AccountAlreadyExists,
     AccountDisabled,
     OTPAttemptsExceeded,
     OTPCooldown,
@@ -36,11 +35,7 @@ from apps.accounts.exceptions import (
 )
 from apps.accounts.identifiers import user_field_for
 from apps.accounts.models import OTPChallenge, User
-from apps.accounts.services.otp_delivery import (
-    OTPDeliveryError,
-    deliver_already_registered_notice,
-    deliver_otp,
-)
+from apps.accounts.services.otp_delivery import OTPDeliveryError, deliver_otp
 from apps.accounts.services.otp_rate_limit import reserve_otp_request
 
 logger = logging.getLogger(__name__)
@@ -68,27 +63,17 @@ def request_otp(
     *, channel: str, identifier: str, purpose: str, ip: str | None = None
 ) -> None:
     """
-    Send an OTP if appropriate. Returns nothing on purpose: the caller must
-    respond the same way whether a code was sent, a notice was sent, or
-    nothing was sent, so the endpoint can't be used to find registered users.
+    Send a login OTP if the account exists and is active. Returns nothing on
+    purpose: the caller must respond the same way whether a code was sent or
+    not, so the endpoint can't be used to find who has an account.
     """
     reserve_otp_request(channel=channel, identifier=identifier, purpose=purpose)
 
     field = user_field_for(channel)
     # all_objects: a soft-deleted account still "owns" its email/phone.
     existing = User.all_objects.filter(**{field: identifier}).first()
-
-    if purpose == OTPPurpose.REGISTER and existing is not None:
-        try:
-            deliver_already_registered_notice(channel=channel, to=identifier)
-        except OTPDeliveryError:
-            pass  # best effort: surfacing it would reveal the account exists
-        return
-
-    if purpose == OTPPurpose.LOGIN and (
-        existing is None or existing.is_deleted or not existing.is_active
-    ):
-        return  # nothing to log in to: send nothing, say nothing
+    if existing is None or existing.is_deleted or not existing.is_active:
+        return  # not invited / disabled: send nothing, say nothing
 
     issue_challenge(channel=channel, identifier=identifier, purpose=purpose, ip=ip)
 
@@ -170,7 +155,7 @@ def verify_otp(
       {"google_sub": "..."}; a challenge issued for something else is
       simply not found (OTP_INVALID).
     - complete: function(challenge) -> User run after a correct code, inside
-      the same transaction. Defaults to the REGISTER/LOGIN behaviour.
+      the same transaction. Defaults to the LOGIN behaviour.
 
     Failure bookkeeping (attempt counts, invalidation) is committed before the
     error is raised: raising inside the transaction would roll back the
@@ -226,23 +211,11 @@ def _check_code(challenge: OTPChallenge | None, code: str) -> str:
 
 
 def _complete(challenge: OTPChallenge) -> User:
+    """LOGIN: fetch the invited user; logging in with a code verifies that email/phone."""
     field = user_field_for(challenge.channel)
     verified_field = f"{field}_verified_at"
     now = timezone.now()
 
-    if challenge.purpose == OTPPurpose.REGISTER:
-        if User.all_objects.filter(**{field: challenge.identifier}).exists():
-            raise AccountAlreadyExists()
-        try:
-            # Role is never taken from the request: public sign-up is always STUDENT.
-            return User.objects.create_user(
-                **{field: challenge.identifier, verified_field: now},
-                role=User.Role.STUDENT,
-            )
-        except (IntegrityError, DjangoValidationError):
-            raise AccountAlreadyExists() from None
-
-    # LOGIN
     user = User.objects.filter(**{field: challenge.identifier}).first()
     if user is None:
         raise OTPInvalid()  # account soft-deleted after the OTP was sent

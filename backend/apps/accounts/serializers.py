@@ -35,7 +35,11 @@ class _ChannelIdentifierSerializer(serializers.Serializer):
 
 
 class _IdentifierSerializer(_ChannelIdentifierSerializer):
-    purpose = serializers.ChoiceField(choices=PUBLIC_OTP_PURPOSES)
+    purpose = serializers.ChoiceField(
+        choices=PUBLIC_OTP_PURPOSES,
+        default="LOGIN",
+        help_text="Only LOGIN: accounts are created by the institute (invite-only).",
+    )
 
 
 class OTPRequestSerializer(_IdentifierSerializer):
@@ -69,6 +73,8 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id",
+            "first_name",
+            "last_name",
             "email",
             "phone",
             "role",
@@ -115,10 +121,14 @@ class GoogleSignInResponseSerializer(serializers.Serializer):
 class AdminUserSerializer(serializers.ModelSerializer):
     """What administrators see about an account. Read-only: changes go through actions."""
 
+    invite_accepted = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
             "id",
+            "first_name",
+            "last_name",
             "email",
             "phone",
             "role",
@@ -127,10 +137,68 @@ class AdminUserSerializer(serializers.ModelSerializer):
             "email_verified_at",
             "phone_verified_at",
             "last_login",
+            "invited_by",
+            "activated_at",
+            "invite_accepted",
             "created_at",
             "updated_at",
         ]
         read_only_fields = fields
+
+    def get_invite_accepted(self, obj) -> bool:
+        return obj.activated_at is not None
+
+
+class _NameFieldsMixin(serializers.Serializer):
+    first_name = serializers.CharField(max_length=150, trim_whitespace=True)
+    last_name = serializers.CharField(max_length=150, trim_whitespace=True)
+
+
+class InviteUserSerializer(_NameFieldsMixin):
+    """Create a login. Give an email, a phone, or both; the invite goes to each."""
+
+    role = serializers.ChoiceField(choices=User.Role.choices)
+    email = serializers.CharField(max_length=254, required=False, allow_blank=True)
+    phone = serializers.CharField(max_length=32, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        errors = {}
+        for channel, field in (
+            (OTPChannel.EMAIL, "email"),
+            (OTPChannel.PHONE, "phone"),
+        ):
+            raw = attrs.get(field) or None
+            if raw is None:
+                attrs[field] = None
+                continue
+            try:
+                attrs[field] = normalize_identifier(channel, raw)
+            except DjangoValidationError as exc:
+                errors[field] = exc.messages
+        if not errors and not attrs["email"] and not attrs["phone"]:
+            errors["non_field_errors"] = ["Give an email, a phone number, or both."]
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+
+class NameUpdateSerializer(serializers.Serializer):
+    first_name = serializers.CharField(
+        max_length=150, required=False, trim_whitespace=True
+    )
+    last_name = serializers.CharField(
+        max_length=150, required=False, trim_whitespace=True
+    )
+
+
+class InviteResultSerializer(serializers.Serializer):
+    """Documentation only."""
+
+    user = AdminUserSerializer()
+    invite_sent = serializers.DictField(
+        child=serializers.BooleanField(),
+        help_text='Per channel attempted, e.g. {"email": true, "phone": false}.',
+    )
 
 
 class RoleChangeSerializer(serializers.Serializer):
