@@ -58,7 +58,7 @@ class TestAccessControl:
             == 403
         )
         student.refresh_from_db()
-        assert student.role == User.Role.STUDENT
+        assert student.role == User.Role.PORTAL
 
     def test_plain_admin_cannot_change_roles(self, admin, student):
         response = client_for(admin).post(
@@ -66,7 +66,7 @@ class TestAccessControl:
         )
         assert response.status_code == 403
         student.refresh_from_db()
-        assert student.role == User.Role.STUDENT
+        assert student.role == User.Role.PORTAL
 
 
 @pytest.mark.django_db
@@ -87,7 +87,7 @@ class TestListAndDetail:
         client = client_for(admin)
         User.objects.create_user(phone="+919876543210")
 
-        students = client.get(USERS_URL, {"role": "STUDENT"}).json()["data"]
+        students = client.get(USERS_URL, {"role": "PORTAL"}).json()["data"]
         assert len(students) == 2
 
         found = client.get(USERS_URL, {"search": "98765"}).json()["data"]
@@ -95,7 +95,7 @@ class TestListAndDetail:
 
         User.objects.create_user(email="aaa@example.com")
         ordered = client.get(
-            USERS_URL, {"ordering": "email", "role": "STUDENT", "search": "example.com"}
+            USERS_URL, {"ordering": "email", "role": "PORTAL", "search": "example.com"}
         ).json()["data"]
         assert [u["email"] for u in ordered] == [
             "aaa@example.com",
@@ -186,20 +186,20 @@ class TestRoleChange:
         assert response.json()["data"]["role"] == "ADMIN"
         assert student_client.get(ME_URL).status_code == 401  # must log in again
         log = AuditLog.objects.get(action="USER_ROLE_CHANGED")
-        assert log.changes == {"role": ["STUDENT", "ADMIN"]}
+        assert log.changes == {"role": ["PORTAL", "ADMIN"]}
         assert log.actor_id == owner.pk
 
     def test_owner_demotes_admin(self, owner, admin):
         response = client_for(owner).post(
-            url(admin, "role"), {"role": "STUDENT"}, format="json"
+            url(admin, "role"), {"role": "PORTAL"}, format="json"
         )
         assert response.status_code == 200
         admin.refresh_from_db()
-        assert admin.role == User.Role.STUDENT
+        assert admin.role == User.Role.PORTAL
 
     def test_owner_cannot_change_own_role(self, owner):
         response = client_for(owner).post(
-            url(owner, "role"), {"role": "STUDENT"}, format="json"
+            url(owner, "role"), {"role": "PORTAL"}, format="json"
         )
         assert response.status_code == 403
         assert response.json()["error_code"] == "CANNOT_MODIFY_SELF"
@@ -215,6 +215,6 @@ class TestRoleChange:
         # them must be refused (exercised at the service layer).
         actor = User.objects.create_user(email="ops@example.com")
         with pytest.raises(LastAdminProtected):
-            change_role(actor=actor, target=owner, role=User.Role.STUDENT)
+            change_role(actor=actor, target=owner, role=User.Role.PORTAL)
         owner.refresh_from_db()
         assert owner.role == User.Role.ADMIN

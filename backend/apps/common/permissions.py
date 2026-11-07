@@ -21,7 +21,8 @@ from rest_framework.permissions import BasePermission
 logger = logging.getLogger(__name__)
 
 ADMIN_ROLE = "ADMIN"
-STUDENT_ROLE = "STUDENT"
+TEACHER_ROLE = "TEACHER"
+PORTAL_ROLE = "PORTAL"
 
 
 def _log_permission_denied(permission, request, message, obj=None) -> None:
@@ -58,13 +59,13 @@ def has_role(user, role: str) -> bool:
 
 
 class _RolePermission(BasePermission):
-    required_role: str
+    allowed_roles: tuple[str, ...]
     message = "You do not have permission to perform this action."
 
     def has_permission(self, request, view) -> bool:
         if not _is_authenticated(request):
             return False  # DRF answers 401 for anonymous callers
-        allowed = has_role(request.user, self.required_role)
+        allowed = any(has_role(request.user, role) for role in self.allowed_roles)
         if not allowed:
             _log_permission_denied(self, request, self.message)
         return allowed
@@ -73,15 +74,29 @@ class _RolePermission(BasePermission):
 class IsAdmin(_RolePermission):
     """Institute administrators only."""
 
-    required_role = ADMIN_ROLE
+    allowed_roles = (ADMIN_ROLE,)
     message = "Administrator access required."
 
 
-class IsStudent(_RolePermission):
-    """Students only (e.g. the student portal's "my ..." endpoints)."""
+class IsTeacher(_RolePermission):
+    """Teachers only."""
 
-    required_role = STUDENT_ROLE
-    message = "Student access required."
+    allowed_roles = (TEACHER_ROLE,)
+    message = "Teacher access required."
+
+
+class IsStaff(_RolePermission):
+    """Admins or teachers: anyone working at the institute."""
+
+    allowed_roles = (ADMIN_ROLE, TEACHER_ROLE)
+    message = "Staff access required."
+
+
+class IsPortalUser(_RolePermission):
+    """Parents/students who view the students linked to their login."""
+
+    allowed_roles = (PORTAL_ROLE,)
+    message = "This area is for students and parents."
 
 
 class IsSuperUser(BasePermission):

@@ -13,7 +13,7 @@ class UserManager(BaseUserManager):
 
     def create_user(self, email=None, phone=None, password=None, **extra_fields):
         """
-        Create a regular (STUDENT by default) user.
+        Create a login (PORTAL by default). Called by invite_user and createsuperuser.
 
         OTP users have no password: `set_unusable_password()` makes password
         login impossible for them instead of storing an empty/guessable one.

@@ -14,10 +14,20 @@ from apps.accounts.models import User
 from apps.accounts.serializers import (
     AdminContactSerializer,
     AdminUserSerializer,
+    InviteResultSerializer,
+    InviteUserSerializer,
+    NameUpdateSerializer,
     RoleChangeSerializer,
 )
 from apps.accounts.services.contact import admin_set_contact
-from apps.accounts.services.users import activate_user, change_role, deactivate_user
+from apps.accounts.services.users import (
+    activate_user,
+    change_role,
+    deactivate_user,
+    invite_user,
+    resend_invite,
+    update_user_details,
+)
 from apps.common.permissions import IsAdmin, IsSuperUser
 from apps.common.request_utils import client_ip
 from apps.common.responses import ApiResponse
@@ -34,7 +44,7 @@ def _get_user(pk: int) -> User:
 class AdminUserListView(generics.ListAPIView):
     """
     ?search=   email or phone (partial)
-    ?role=     ADMIN | STUDENT
+    ?role=     ADMIN | TEACHER | PORTAL
     ?is_active=true | false
     ?ordering= created_at | -created_at | email | last_login (prefix - for descending)
     ?page= & ?page_size= (max 100)
@@ -52,6 +62,32 @@ class AdminUserListView(generics.ListAPIView):
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
 
+    @extend_schema(
+        summary="Create a login (invite)",
+        description=(
+            "Invite-only: this is the ONLY way accounts are created. The person gets an "
+            "invite by SMS and/or email and logs in with a one-time code (or Google). "
+            "Only the owner can create ADMIN logins."
+        ),
+        request=InviteUserSerializer,
+        responses={
+            201: InviteResultSerializer,
+            400: OpenApiResponse(description="VALIDATION_ERROR"),
+            403: OpenApiResponse(description="OWNER_REQUIRED (creating an ADMIN)"),
+            409: OpenApiResponse(description="CONTACT_IN_USE"),
+        },
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = InviteUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user, sent = invite_user(
+            actor=request.user, **serializer.validated_data, ip=client_ip(request)
+        )
+        return ApiResponse.created(
+            message="Login created and invite sent.",
+            data={"user": AdminUserSerializer(user).data, "invite_sent": sent},
+        )
+
 
 class AdminUserDetailView(APIView):
     permission_classes = [IsAdmin]
@@ -61,6 +97,49 @@ class AdminUserDetailView(APIView):
     )
     def get(self, request, pk: int):
         return ApiResponse.success(data=AdminUserSerializer(_get_user(pk)).data)
+
+    @extend_schema(
+        tags=ADMIN_USERS_TAG,
+        summary="Edit a user's name",
+        request=NameUpdateSerializer,
+        responses={
+            200: AdminUserSerializer,
+            403: OpenApiResponse(description="OWNER_REQUIRED"),
+        },
+    )
+    def patch(self, request, pk: int):
+        serializer = NameUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = update_user_details(
+            actor=request.user,
+            target=_get_user(pk),
+            first_name=serializer.validated_data.get("first_name"),
+            last_name=serializer.validated_data.get("last_name"),
+            ip=client_ip(request),
+        )
+        return ApiResponse.success(
+            message="Updated.", data=AdminUserSerializer(user).data
+        )
+
+
+class AdminUserResendInviteView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        tags=ADMIN_USERS_TAG,
+        summary="Resend the invite (before their first login)",
+        request=None,
+        responses={
+            200: OpenApiResponse(description="Invite re-sent."),
+            400: OpenApiResponse(description="INVITE_ALREADY_ACCEPTED"),
+            403: OpenApiResponse(description="ACCOUNT_DISABLED"),
+        },
+    )
+    def post(self, request, pk: int):
+        sent = resend_invite(actor=request.user, target=_get_user(pk))
+        return ApiResponse.success(
+            message="Invite re-sent.", data={"invite_sent": sent}
+        )
 
 
 class AdminUserDeactivateView(APIView):

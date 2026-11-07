@@ -1,0 +1,14 @@
+New admission enquiry
+
+Parent:   {{ enquiry.parent_name }}
+Phone:    {{ enquiry.phone }}
+Email:    {{ enquiry.email|default:"-" }}
+Student:  {{ enquiry.student_name }}
+Standard: {{ enquiry.standard|default:"-" }}
+Board:    {{ enquiry.board|default:"-" }}
+
+Message:
+{{ enquiry.message|default:"-" }}
+
+Open the admin dashboard to follow up.
+- {{ institute_name }}

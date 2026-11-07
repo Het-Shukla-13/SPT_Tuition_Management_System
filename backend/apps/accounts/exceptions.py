@@ -151,6 +151,11 @@ class LastContactMethod(AppException):
     default_code = "LAST_CONTACT_METHOD"
 
 
+class InviteAlreadyAccepted(AppException):
+    default_detail = "This person has already logged in; no invite is needed."
+    default_code = "INVITE_ALREADY_ACCEPTED"
+
+
 class InvalidRefreshToken(AppException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "The refresh token is invalid."

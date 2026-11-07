@@ -8,6 +8,7 @@ from apps.accounts.views.users import (
     AdminUserDeactivateView,
     AdminUserDetailView,
     AdminUserListView,
+    AdminUserResendInviteView,
     AdminUserRoleView,
 )
 
@@ -23,6 +24,11 @@ urlpatterns = [
         "<int:pk>/activate/",
         AdminUserActivateView.as_view(),
         name="admin-user-activate",
+    ),
+    path(
+        "<int:pk>/resend-invite/",
+        AdminUserResendInviteView.as_view(),
+        name="admin-user-resend-invite",
     ),
     path("<int:pk>/role/", AdminUserRoleView.as_view(), name="admin-user-role"),
     path(

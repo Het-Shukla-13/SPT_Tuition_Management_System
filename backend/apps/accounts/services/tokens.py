@@ -67,6 +67,10 @@ def issue_tokens(user: User, *, ip=None, user_agent: str = "") -> dict:
         user=user, refresh=refresh, session_id=session_id, ip=ip, user_agent=user_agent
     )
     update_last_login(None, user)
+    if user.activated_at is None:
+        # First successful login: the invite has been accepted.
+        user.activated_at = timezone.now()
+        user.save(update_fields=["activated_at", "updated_at"])
     return {"access": str(refresh.access_token), "refresh": str(refresh)}
 
 

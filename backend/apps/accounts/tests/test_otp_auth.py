@@ -28,7 +28,7 @@ PHONE = "+919876543210"
 
 
 # ─── helpers ─────────────────────────────────────────────────
-def otp_request(client, identifier=EMAIL, channel="EMAIL", purpose="REGISTER", **extra):
+def otp_request(client, identifier=EMAIL, channel="EMAIL", purpose="LOGIN", **extra):
     payload = {
         "channel": channel,
         "identifier": identifier,
@@ -39,7 +39,7 @@ def otp_request(client, identifier=EMAIL, channel="EMAIL", purpose="REGISTER", *
 
 
 def otp_verify(
-    client, code, identifier=EMAIL, channel="EMAIL", purpose="REGISTER", **extra
+    client, code, identifier=EMAIL, channel="EMAIL", purpose="LOGIN", **extra
 ):
     payload = {
         "channel": channel,
@@ -63,7 +63,18 @@ def wrong_code(code):
     return "000000" if code != "000000" else "111111"
 
 
+def invite(identifier=EMAIL, **fields) -> User:
+    """Create a login the way the institute does (invite-only)."""
+    fields.setdefault("first_name", "Test")
+    fields.setdefault("last_name", "Student")
+    kind = "phone" if identifier.startswith("+") else "email"
+    return User.objects.create_user(**{kind: identifier}, **fields)
+
+
 def register(client, identifier=EMAIL):
+    """Invite a login and log it in; returns the tokens + user payload."""
+    if not User.all_objects.filter(email=identifier).exists():
+        invite(identifier)
     otp_request(client, identifier=identifier)
     response = otp_verify(client, code_from_email(), identifier=identifier)
     assert response.status_code == 200, response.json()
@@ -77,71 +88,81 @@ def expire_cooldown():
     cache.clear()
 
 
-# ─── registration ────────────────────────────────────────────
+# ─── invite-only ─────────────────────────────────────────────
 @pytest.mark.django_db
-class TestRegistration:
-    def test_email_registration_creates_verified_student_and_returns_tokens(
-        self, api_client
-    ):
+class TestInviteOnly:
+    def test_invited_login_works_and_activates_the_account(self, api_client):
+        user = invite()
+        assert user.activated_at is None
+
         response = otp_request(api_client)
         assert response.status_code == 200
         assert response.json()["data"] == {
             "expires_in_seconds": 300,
             "resend_after_seconds": 60,
         }
-        assert len(mail.outbox) == 1
-
         response = otp_verify(api_client, code_from_email())
 
         assert response.status_code == 200
         data = response.json()["data"]
         assert data["access"] and data["refresh"]
-        assert data["user"]["email"] == EMAIL
-        assert data["user"]["role"] == "STUDENT"
-        assert data["user"]["email_verified_at"] is not None
-        assert User.objects.filter(email=EMAIL).count() == 1
+        assert data["user"]["first_name"] == "Test"  # set at invite, not re-entered
+        assert data["user"]["role"] == "PORTAL"
+        user.refresh_from_db()
+        assert user.activated_at is not None
+        assert user.email_verified_at is not None
 
-    def test_phone_registration_normalises_bare_indian_number(self, api_client):
+    def test_stranger_cannot_create_an_account(self, api_client):
+        response = otp_request(api_client, identifier="stranger@example.com")
+
+        assert response.status_code == 200  # same answer as for a real user
+        assert mail.outbox == []
+        assert (
+            otp_verify(api_client, "123456", identifier="stranger@example.com").json()[
+                "error_code"
+            ]
+            == "OTP_INVALID"
+        )
+        assert not User.objects.exists()
+
+    def test_register_purpose_is_rejected(self, api_client):
+        response = otp_request(api_client, purpose="REGISTER")
+        assert response.status_code == 400
+        assert "purpose" in response.json()["errors"]
+
+    def test_purpose_defaults_to_login(self, api_client):
+        invite()
+        api_client.post(
+            REQUEST_URL, {"channel": "EMAIL", "identifier": EMAIL}, format="json"
+        )
+        assert len(mail.outbox) == 1
+
+    def test_phone_login_normalises_bare_indian_number(self, api_client):
+        invite(PHONE)
         otp_request(api_client, identifier="98765 43210", channel="PHONE")
         assert LocmemSMSBackend.outbox[-1]["to"] == PHONE
 
         response = otp_verify(
             api_client, code_from_sms(), identifier="9876543210", channel="PHONE"
         )
-
         assert response.status_code == 200
-        user = User.objects.get(phone=PHONE)
-        assert user.phone_verified_at is not None
-        assert user.email is None
+        assert User.objects.get(phone=PHONE).phone_verified_at is not None
 
     def test_email_is_normalised_to_lowercase(self, api_client):
-        register(api_client, identifier="  Student@Example.COM ")
-        assert User.objects.filter(email=EMAIL).exists()
+        invite()
+        otp_request(api_client, identifier="  Student@Example.COM ")
+        assert mail.outbox[-1].to == [EMAIL]
 
     def test_role_in_payload_is_ignored(self, api_client):
+        invite()
         otp_request(api_client, role="ADMIN")
         response = otp_verify(api_client, code_from_email(), role="ADMIN")
 
-        assert response.json()["data"]["user"]["role"] == "STUDENT"
+        assert response.json()["data"]["user"]["role"] == "PORTAL"
         assert not User.objects.filter(role=User.Role.ADMIN).exists()
 
-    def test_register_existing_account_sends_notice_not_otp_with_same_response(
-        self, api_client
-    ):
-        User.objects.create_user(email=EMAIL)
-
-        response = otp_request(api_client)
-
-        assert response.status_code == 200
-        assert response.json()["message"] == (
-            "If the details are valid, a verification code has been sent."
-        )
-        assert "already" in mail.outbox[-1].subject.lower()
-        assert not re.search(r"\b\d{6}\b", mail.outbox[-1].body)
-        assert not OTPChallenge.objects.exists()
-
-    def test_soft_deleted_account_still_blocks_registration(self, api_client):
-        User.objects.create_user(email=EMAIL).soft_delete()
+    def test_soft_deleted_account_gets_nothing(self, api_client):
+        invite().soft_delete()
         otp_request(api_client)
         assert not OTPChallenge.objects.exists()
 
@@ -158,14 +179,14 @@ class TestRegistration:
     def test_missing_fields_rejected(self, api_client):
         response = api_client.post(REQUEST_URL, {}, format="json")
         assert response.status_code == 400
-        assert set(response.json()["errors"]) == {"channel", "identifier", "purpose"}
+        assert set(response.json()["errors"]) == {"channel", "identifier"}
 
 
 # ─── login ───────────────────────────────────────────────────
 @pytest.mark.django_db
 class TestLogin:
     def test_login_existing_user(self, api_client):
-        user = User.objects.create_user(email=EMAIL)
+        user = invite()
         otp_request(api_client, purpose="LOGIN")
 
         response = otp_verify(api_client, code_from_email(), purpose="LOGIN")
@@ -194,23 +215,24 @@ class TestLogin:
         assert response.json()["error_code"] == "OTP_INVALID"
         assert User.objects.count() == 0
 
-    def test_register_otp_cannot_be_used_for_login(self, api_client):
-        User.objects.create_user(phone=PHONE)
-        otp_request(api_client, identifier=PHONE, channel="PHONE", purpose="LOGIN")
+    def test_only_login_purpose_can_be_verified(self, api_client):
+        invite(PHONE)
+        otp_request(api_client, identifier=PHONE, channel="PHONE")
         code = code_from_sms()
 
         response = otp_verify(
-            api_client, code, identifier=PHONE, channel="PHONE", purpose="REGISTER"
+            api_client, code, identifier=PHONE, channel="PHONE", purpose="GOOGLE_LINK"
         )
-        assert response.json()["error_code"] == "OTP_INVALID"
+        assert response.status_code == 400
+        assert "purpose" in response.json()["errors"]
 
     def test_inactive_user_gets_no_otp(self, api_client):
-        User.objects.create_user(email=EMAIL, is_active=False)
+        invite(is_active=False)
         otp_request(api_client, purpose="LOGIN")
         assert mail.outbox == []
 
     def test_user_disabled_after_otp_sent_is_refused(self, api_client):
-        user = User.objects.create_user(email=EMAIL)
+        user = invite()
         otp_request(api_client, purpose="LOGIN")
         User.objects.filter(pk=user.pk).update(is_active=False)
 
@@ -222,6 +244,10 @@ class TestLogin:
 # ─── OTP hardening ───────────────────────────────────────────
 @pytest.mark.django_db
 class TestOTPHardening:
+    @pytest.fixture(autouse=True)
+    def _invited(self, db):
+        invite()
+
     def test_code_is_stored_hashed(self, api_client):
         otp_request(api_client)
         challenge = OTPChallenge.objects.get()
@@ -247,7 +273,7 @@ class TestOTPHardening:
 
         response = otp_verify(api_client, code)
         assert response.json()["error_code"] == "OTP_INVALID"
-        assert User.objects.count() == 0
+        assert User.objects.get().activated_at is None  # never logged in
 
     def test_expired_code_rejected(self, api_client):
         otp_request(api_client)
@@ -291,8 +317,10 @@ class TestOTPHardening:
 
     def test_cooldown_applies_even_when_no_account_exists(self, api_client):
         # Otherwise the cooldown itself would reveal whether an account exists.
-        otp_request(api_client, purpose="LOGIN")
-        assert otp_request(api_client, purpose="LOGIN").status_code == 429
+        otp_request(api_client, identifier="nobody@example.com")
+        assert (
+            otp_request(api_client, identifier="nobody@example.com").status_code == 429
+        )
 
     def test_hourly_cap_per_identifier(self, api_client, settings):
         settings.OTP_RESEND_COOLDOWN_SECONDS = 0
@@ -439,7 +467,7 @@ class TestTokens:
 
         tokens = register(api_client)
         claims = jwt.decode(tokens["access"], options={"verify_signature": False})
-        assert claims["role"] == "STUDENT"
+        assert claims["role"] == "PORTAL"
         assert (
             claims["user_id"] == str(User.objects.get(email=EMAIL).id)
             or claims["user_id"] == User.objects.get(email=EMAIL).id

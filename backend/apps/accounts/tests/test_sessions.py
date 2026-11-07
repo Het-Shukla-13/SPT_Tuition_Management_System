@@ -247,5 +247,5 @@ class TestTokenValidation:
         response = client.get(ME_URL)
 
         assert response.status_code == 200
-        assert response.json()["data"]["role"] == "STUDENT"
+        assert response.json()["data"]["role"] == "PORTAL"
         assert not User.objects.get(pk=user.pk).is_admin

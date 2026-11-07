@@ -8,11 +8,12 @@ class OTPChannel(models.TextChoices):
 
 class OTPPurpose(models.TextChoices):
     """
-    Why an OTP was issued. An OTP only works for the purpose it was issued
-    for, so a login OTP can never create an account and vice versa.
+    Why an OTP was issued. An OTP only works for the purpose it was issued for.
+
+    There is no REGISTER purpose: the platform is invite-only, so accounts are
+    created by the owner/admins, never through an OTP.
     """
 
-    REGISTER = "REGISTER", "Registration"
     LOGIN = "LOGIN", "Login"
     # Proves ownership of the email before a Google account is linked to it.
     # Issued only by the Google sign-in flow, never by the public OTP endpoint.
@@ -24,6 +25,5 @@ class OTPPurpose(models.TextChoices):
 
 # Purposes a client may request directly via POST /auth/otp/request/.
 PUBLIC_OTP_PURPOSES = [
-    (OTPPurpose.REGISTER.value, OTPPurpose.REGISTER.label),
     (OTPPurpose.LOGIN.value, OTPPurpose.LOGIN.label),
 ]
