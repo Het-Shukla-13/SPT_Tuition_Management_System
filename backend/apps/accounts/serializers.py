@@ -1,11 +1,9 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
-from rest_framework_simplejwt.exceptions import AuthenticationFailed
-from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 
 from apps.accounts.choices import OTPChannel, OTPPurpose
 from apps.accounts.identifiers import normalize_identifier
-from apps.accounts.models import User
+from apps.accounts.models import User, UserSession
 
 
 class _IdentifierSerializer(serializers.Serializer):
@@ -60,22 +58,46 @@ class AuthTokensSerializer(serializers.Serializer):
     user = UserSerializer()
 
 
-class LogoutSerializer(serializers.Serializer):
+class TokenPairSerializer(serializers.Serializer):
+    """Response shape of a token refresh (documentation only)."""
+
+    access = serializers.CharField()
     refresh = serializers.CharField()
 
 
-class SafeTokenRefreshSerializer(TokenRefreshSerializer):
-    """
-    SimpleJWT looks the user up with `User.objects.get(...)`. Our default
-    manager hides soft-deleted users, so for a deleted account that raises
-    DoesNotExist, which would surface as a 500. Treat it as what it is:
-    no active account.
-    """
+class TokenRefreshSerializer(serializers.Serializer):
+    refresh = serializers.CharField(
+        help_text=(
+            "The current refresh token. Rotation is on: the response carries a NEW "
+            "refresh token; store it and discard this one."
+        )
+    )
 
-    def validate(self, attrs):
-        try:
-            return super().validate(attrs)
-        except User.DoesNotExist:
-            raise AuthenticationFailed(
-                "No active account found for this token.", code="no_active_account"
-            ) from None
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField(
+        required=False,
+        help_text="Optional. If sent, it must belong to the logged-in user.",
+    )
+
+
+class UserSessionSerializer(serializers.ModelSerializer):
+    is_current = serializers.SerializerMethodField(
+        help_text="True for the session making this request."
+    )
+
+    class Meta:
+        model = UserSession
+        fields = [
+            "id",
+            "created_at",
+            "last_active_at",
+            "expires_at",
+            "ip_address",
+            "user_agent",
+            "is_current",
+        ]
+        read_only_fields = fields
+
+    def get_is_current(self, obj) -> bool:
+        return obj.session_id == self.context.get("current_session_id")

@@ -11,6 +11,7 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 from apps.accounts.choices import OTPChannel, OTPPurpose
 from apps.accounts.managers import UserManager
@@ -136,3 +137,68 @@ class OTPChallenge(GlobalTimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.purpose} OTP via {self.channel} (#{self.pk})"
+
+
+class UserSessionQuerySet(models.QuerySet):
+    def active(self):
+        return self.filter(revoked_at__isnull=True, expires_at__gt=timezone.now())
+
+
+class UserSession(GlobalTimeStampedModel):
+    """
+    One login on one device (pattern from Labe1 Label_Auth's UserSession).
+
+    Every JWT carries this session's `session_id` as its `sid` claim. The
+    claim survives refresh-token rotation, so one row identifies one login
+    for its whole lifetime. Revoking the row immediately kills every access
+    and refresh token of that login, even ones that haven't expired yet.
+    """
+
+    class RevokeReason(models.TextChoices):
+        LOGOUT = "LOGOUT", "Logged out"
+        LOGOUT_ALL = "LOGOUT_ALL", "Logged out of all devices"
+        REVOKED_BY_USER = "REVOKED_BY_USER", "Revoked from another device"
+        REFRESH_REUSE = "REFRESH_REUSE", "Refresh token reuse detected"
+        LIFETIME_EXCEEDED = "LIFETIME_EXCEEDED", "Maximum session lifetime reached"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sessions")
+    session_id = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text="The `sid` claim carried by this login's tokens.",
+    )
+    refresh_token_jti = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text="jti of this session's CURRENT refresh token (changes on every rotation).",
+    )
+    last_active_at = models.DateTimeField(
+        default=timezone.now, help_text="Last login or token refresh."
+    )
+    expires_at = models.DateTimeField(
+        help_text="When the current refresh token expires (slides on each refresh)."
+    )
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.CharField(
+        max_length=32, choices=RevokeReason.choices, blank=True
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=512, blank=True)
+
+    objects = UserSessionQuerySet.as_manager()
+
+    class Meta:
+        db_table = "user_sessions"
+        ordering = ["-last_active_at"]
+        indexes = [
+            models.Index(
+                fields=["user", "revoked_at"], name="user_sessions_user_active_idx"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Session #{self.pk} of user {self.user_id}"
+
+    @property
+    def is_active(self) -> bool:
+        return self.revoked_at is None and self.expires_at > timezone.now()

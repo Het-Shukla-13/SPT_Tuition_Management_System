@@ -1,7 +1,32 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from apps.accounts.models import OTPChallenge, User
+from apps.accounts.models import OTPChallenge, User, UserSession
+
+
+@admin.register(UserSession)
+class UserSessionAdmin(admin.ModelAdmin):
+    """Read-only audit view of logins. End sessions through the API, not here."""
+
+    list_display = [
+        "id",
+        "user",
+        "created_at",
+        "last_active_at",
+        "expires_at",
+        "revoked_at",
+        "revoked_reason",
+        "ip_address",
+    ]
+    list_filter = ["revoked_reason"]
+    search_fields = ["user__email", "user__phone", "ip_address"]
+    exclude = ["session_id", "refresh_token_jti"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(OTPChallenge)
