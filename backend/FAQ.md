@@ -341,6 +341,16 @@ Everything is audited. Reference data in use can't be deleted (`PROTECT`).
 - A `LEFT` student still appears, with its status. A login with no links sees an empty list.
 - Admins/teachers get `403` on portal endpoints; portal logins get `403` on admin endpoints.
 
+## 7. Admission enquiries
+
+- **Public** `POST /api/v1/public/enquiries/` (no login): `parent_name`, `phone`, `student_name`,
+  optional `email`, `standard`, `board`, `message`. Stores a request and emails active admins.
+  **Never creates a login or a student.** Throttled `5/hour` per IP (fail closed). A filled
+  `website` field (hidden honeypot) gets a fake success and nothing is stored.
+- **Admin** `GET /api/v1/admin/enquiries/` (filter `status`, search name/phone/email),
+  `GET/PATCH /{id}/` (`status` NEW/CONTACTED/ACCEPTED/REJECTED, `notes`, `student`). Linking a
+  `student` (after admitting them through the admission form) marks it ACCEPTED. Audited.
+
 ---
 
 ## 9. Cross-cutting gotchas

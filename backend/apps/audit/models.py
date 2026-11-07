@@ -39,6 +39,7 @@ class AuditLog(models.Model):
             "STUDENT_ACCESS_REVOKED",
             "Login's access to a student removed",
         )
+        ENQUIRY_UPDATED = "ENQUIRY_UPDATED", "Admission enquiry updated"
 
     action = models.CharField(max_length=64, choices=Action.choices, db_index=True)
     # SET_NULL: the trail must survive even if an account row is ever removed.

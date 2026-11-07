@@ -50,6 +50,7 @@ LOCAL_APPS = [
     "apps.audit",
     "apps.academics",
     "apps.students",
+    "apps.enquiries",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -186,6 +187,7 @@ REST_FRAMEWORK = {
         "otp_verify": env("THROTTLE_RATE_OTP_VERIFY", default="60/hour"),
         # Per-user limit on starting an email/phone change (also limits
         # probing which addresses are already registered).
+        "enquiry": env("THROTTLE_RATE_ENQUIRY", default="5/hour"),
         "contact_change": env("THROTTLE_RATE_CONTACT_CHANGE", default="10/hour"),
     },
     "EXCEPTION_HANDLER": "apps.common.exceptions.custom_exception_handler",
@@ -280,6 +282,7 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "StudentStatusEnum": "apps.students.models.StudentProfile.Status",
         "GoogleSignInStatusEnum": ["AUTHENTICATED", "OTP_REQUIRED"],
+        "EnquiryStatusEnum": "apps.enquiries.models.AdmissionEnquiry.Status",
     },
 }
 
