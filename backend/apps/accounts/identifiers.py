@@ -61,6 +61,15 @@ def mask_email(email: str) -> str:
     return f"{masked}@{domain}"
 
 
+def mask_phone(phone: str) -> str:
+    """'+919876543210' -> '+91******3210'."""
+    return phone[:3] + "*" * max(len(phone) - 7, 0) + phone[-4:]
+
+
+def mask_identifier(channel: str, value: str) -> str:
+    return mask_email(value) if channel == OTPChannel.EMAIL else mask_phone(value)
+
+
 def user_field_for(channel: str) -> str:
     """The User model field that stores identifiers of this channel."""
     return "email" if channel == OTPChannel.EMAIL else "phone"

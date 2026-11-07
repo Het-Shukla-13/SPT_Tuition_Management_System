@@ -129,6 +129,28 @@ class GoogleNotConfigured(ServiceUnavailableError):
     default_code = "GOOGLE_NOT_CONFIGURED"
 
 
+class ContactUnchanged(AppException):
+    default_detail = "This is already the email/phone on your account."
+    default_code = "CONTACT_UNCHANGED"
+
+
+class ContactInUse(ConflictError):
+    default_detail = "This email/phone is already used by another account."
+    default_code = "CONTACT_IN_USE"
+
+
+class ContactNotSet(AppException):
+    default_detail = "There is no email/phone of this type on the account."
+    default_code = "CONTACT_NOT_SET"
+
+
+class LastContactMethod(AppException):
+    default_detail = (
+        "You can't remove this: an account needs at least one email or phone to log in."
+    )
+    default_code = "LAST_CONTACT_METHOD"
+
+
 class InvalidRefreshToken(AppException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "The refresh token is invalid."

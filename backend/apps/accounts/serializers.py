@@ -6,15 +6,25 @@ from apps.accounts.identifiers import normalize_identifier
 from apps.accounts.models import User, UserSession
 
 
-class _IdentifierSerializer(serializers.Serializer):
+def _otp_code_field():
+    return serializers.RegexField(
+        regex=r"^\d{6}$",
+        error_messages={"invalid": "The OTP must be 6 digits."},
+    )
+
+
+class _ChannelIdentifierSerializer(serializers.Serializer):
+    """channel + identifier, with the identifier normalised for its channel."""
+
     channel = serializers.ChoiceField(choices=OTPChannel.choices)
     identifier = serializers.CharField(
         max_length=254,
         help_text="Email address (channel=EMAIL) or phone number (channel=PHONE).",
     )
-    purpose = serializers.ChoiceField(choices=PUBLIC_OTP_PURPOSES)
 
     def validate(self, attrs):
+        if attrs.get("identifier") is None:
+            return attrs
         try:
             attrs["identifier"] = normalize_identifier(
                 attrs["channel"], attrs["identifier"]
@@ -24,14 +34,31 @@ class _IdentifierSerializer(serializers.Serializer):
         return attrs
 
 
+class _IdentifierSerializer(_ChannelIdentifierSerializer):
+    purpose = serializers.ChoiceField(choices=PUBLIC_OTP_PURPOSES)
+
+
 class OTPRequestSerializer(_IdentifierSerializer):
     """Unknown fields (e.g. a smuggled "role") are ignored, never applied."""
 
 
 class OTPVerifySerializer(_IdentifierSerializer):
-    code = serializers.RegexField(
-        regex=r"^\d{6}$",
-        error_messages={"invalid": "The OTP must be 6 digits."},
+    code = _otp_code_field()
+
+
+class ContactChangeSerializer(_ChannelIdentifierSerializer):
+    """The NEW email/phone to add or switch to."""
+
+
+class ContactVerifySerializer(_ChannelIdentifierSerializer):
+    code = _otp_code_field()
+
+
+class AdminContactSerializer(_ChannelIdentifierSerializer):
+    identifier = serializers.CharField(
+        max_length=254,
+        allow_null=True,
+        help_text="New email/phone, or null to remove it.",
     )
 
 

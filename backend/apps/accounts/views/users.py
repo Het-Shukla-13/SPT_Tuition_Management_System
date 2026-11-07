@@ -11,7 +11,12 @@ from rest_framework import generics
 from rest_framework.views import APIView
 
 from apps.accounts.models import User
-from apps.accounts.serializers import AdminUserSerializer, RoleChangeSerializer
+from apps.accounts.serializers import (
+    AdminContactSerializer,
+    AdminUserSerializer,
+    RoleChangeSerializer,
+)
+from apps.accounts.services.contact import admin_set_contact
 from apps.accounts.services.users import activate_user, change_role, deactivate_user
 from apps.common.permissions import IsAdmin, IsSuperUser
 from apps.common.request_utils import client_ip
@@ -106,6 +111,44 @@ class AdminUserActivateView(APIView):
         )
         return ApiResponse.success(
             message="User activated.", data=AdminUserSerializer(user).data
+        )
+
+
+class AdminUserContactView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        tags=ADMIN_USERS_TAG,
+        summary="Set or remove a user's email/phone (lost-access recovery)",
+        description=(
+            "For a user who lost access to their email/phone. The new value is saved "
+            "UNVERIFIED and becomes verified on their first OTP login with it. The old "
+            "address is notified. `identifier: null` removes it (only if the other remains)."
+        ),
+        request=AdminContactSerializer,
+        responses={
+            200: AdminUserSerializer,
+            400: OpenApiResponse(
+                description="VALIDATION_ERROR / CONTACT_UNCHANGED / CONTACT_NOT_SET / LAST_CONTACT_METHOD"
+            ),
+            403: OpenApiResponse(
+                description="CANNOT_MODIFY_SELF / OWNER_REQUIRED / PERMISSION_DENIED"
+            ),
+            409: OpenApiResponse(description="CONTACT_IN_USE"),
+        },
+    )
+    def post(self, request, pk: int):
+        serializer = AdminContactSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = admin_set_contact(
+            actor=request.user,
+            target=_get_user(pk),
+            channel=serializer.validated_data["channel"],
+            identifier=serializer.validated_data["identifier"],
+            ip=client_ip(request),
+        )
+        return ApiResponse.success(
+            message="Contact details updated.", data=AdminUserSerializer(user).data
         )
 
 

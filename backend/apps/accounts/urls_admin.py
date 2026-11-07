@@ -4,6 +4,7 @@ from django.urls import path
 
 from apps.accounts.views.users import (
     AdminUserActivateView,
+    AdminUserContactView,
     AdminUserDeactivateView,
     AdminUserDetailView,
     AdminUserListView,
@@ -24,4 +25,7 @@ urlpatterns = [
         name="admin-user-activate",
     ),
     path("<int:pk>/role/", AdminUserRoleView.as_view(), name="admin-user-role"),
+    path(
+        "<int:pk>/contact/", AdminUserContactView.as_view(), name="admin-user-contact"
+    ),
 ]

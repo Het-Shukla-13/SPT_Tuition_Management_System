@@ -1,5 +1,10 @@
 from django.urls import path
 
+from apps.accounts.views.account import (
+    ContactChangeView,
+    ContactRemoveView,
+    ContactVerifyView,
+)
 from apps.accounts.views.auth import (
     LogoutAllView,
     LogoutView,
@@ -17,6 +22,13 @@ from apps.accounts.views.google import (
 )
 
 urlpatterns = [
+    path("me/contact/", ContactChangeView.as_view(), name="auth-contact-change"),
+    path("me/contact/verify/", ContactVerifyView.as_view(), name="auth-contact-verify"),
+    path(
+        "me/contact/<str:kind>/",
+        ContactRemoveView.as_view(),
+        name="auth-contact-remove",
+    ),
     path("google/", GoogleSignInView.as_view(), name="auth-google"),
     path("google/verify/", GoogleVerifyView.as_view(), name="auth-google-verify"),
     path("google/unlink/", GoogleUnlinkView.as_view(), name="auth-google-unlink"),

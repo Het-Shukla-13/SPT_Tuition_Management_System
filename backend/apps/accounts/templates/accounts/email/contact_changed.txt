@@ -1,0 +1,8 @@
+Hello,
+
+The {{ what }} on your {{ institute_name }} account was {{ change }}.
+
+If you made this change, no action is needed.
+If you did NOT, please contact the institute immediately.
+
+- {{ institute_name }}

@@ -49,6 +49,7 @@ def deliver_otp(*, channel: str, to: str, code: str, purpose: str) -> None:
         OTPPurpose.REGISTER: "registration",
         OTPPurpose.LOGIN: "login",
         OTPPurpose.GOOGLE_LINK: "Google sign-in verification",
+        OTPPurpose.CONTACT_CHANGE: "contact verification",
     }[purpose]
     context = _context(code=code, action=action)
     _send(
@@ -81,4 +82,25 @@ def deliver_already_registered_notice(*, channel: str, to: str) -> None:
             "but it already has an account. Please log in instead."
         ),
         context=_context(),
+    )
+
+
+def deliver_contact_changed_notice(
+    *, channel: str, to: str, what: str, new_value_masked: str | None
+) -> None:
+    """
+    Tell the OLD email/phone that it was replaced or removed, so an account
+    takeover can't happen silently. `what` is "email address" or "phone number".
+    """
+    change = f"changed to {new_value_masked}" if new_value_masked else "removed"
+    _send(
+        channel,
+        to,
+        subject=f"Your {settings.INSTITUTE_NAME} {what} was {'changed' if new_value_masked else 'removed'}",
+        template="accounts/email/contact_changed.txt",
+        sms_text=(
+            f"The {what} on your {settings.INSTITUTE_NAME} account was {change}. "
+            "If this wasn't you, contact the institute immediately."
+        ),
+        context=_context(what=what, change=change),
     )
