@@ -231,6 +231,43 @@ Yes, in `audit_logs` (`apps/audit`), in the same transaction as the change: acti
 (`USER_ROLE_CHANGED`, `USER_DEACTIVATED`, `USER_ACTIVATED`), actor, target, `changes`
 (e.g. `{"role": ["STUDENT", "ADMIN"]}`), IP and request ID. Read-only in Django admin.
 
+## 4. Account settings: email & phone (`/api/v1/auth/me/contact/`)
+
+Logic: `apps/accounts/services/contact.py`.
+
+### How do I add or change my email/phone?
+1. `POST me/contact/` `{channel, identifier}` (the **new** value). A `CONTACT_CHANGE` code is sent
+   to the new email/phone. Response: `sent_to` (masked), expiry, resend wait.
+2. `POST me/contact/verify/` `{channel, identifier, code}` saves it **verified**.
+
+- The code is bound to **you** (`context.user_id`): another user can't complete it.
+- The **old** email/phone gets a "your … was changed" notice (sent after commit, best effort).
+- Login codes / Google codes can't be used here; `CONTACT_CHANGE` codes aren't requestable via `otp/request/`.
+- Existing sessions stay logged in. A Google link is unaffected (it's tied to the Google account id).
+- The old email/phone stops working for login immediately (no account has it any more).
+- Limits: the usual OTP cooldown/hourly cap on the new identifier, plus `10/hour` per user
+  (`THROTTLE_RATE_CONTACT_CHANGE`).
+
+| Error | When |
+|---|---|
+| `CONTACT_UNCHANGED` (400) | It's already your value |
+| `CONTACT_IN_USE` (409) | Another account (incl. soft-deleted) has it, checked at request **and** at verify |
+| `OTP_*` | Usual code errors |
+
+> Note: `CONTACT_IN_USE` tells a logged-in user that an address is registered. Accepted on purpose
+> (clear UX for the person adding their own number); bounded by the per-user throttle.
+
+### How do I remove my email or phone?
+`DELETE me/contact/email/` or `DELETE me/contact/phone/`. Only if the other one remains
+(`LAST_CONTACT_METHOD` otherwise; the DB also enforces "email or phone required"). The removed
+address is notified.
+
+### A student lost access to their email/phone. What now? (spec §2.5)
+An admin calls `POST /api/v1/admin/users/{id}/contact/` `{channel, identifier}` (or `identifier: null`
+to remove). The value is stored **unverified** and becomes verified on the user's first OTP login
+with it. The old address is notified. Not for your own account (`CANNOT_MODIFY_SELF`); only the
+owner may edit another admin (`OWNER_REQUIRED`). Audited with `by_admin: true`.
+
 ---
 
 ## 9. Cross-cutting gotchas

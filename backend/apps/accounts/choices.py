@@ -17,6 +17,9 @@ class OTPPurpose(models.TextChoices):
     # Proves ownership of the email before a Google account is linked to it.
     # Issued only by the Google sign-in flow, never by the public OTP endpoint.
     GOOGLE_LINK = "GOOGLE_LINK", "Google account linking"
+    # Proves ownership of a NEW email/phone before it is attached to the
+    # logged-in user's account. Issued only by the account-settings flow.
+    CONTACT_CHANGE = "CONTACT_CHANGE", "Email/phone change"
 
 
 # Purposes a client may request directly via POST /auth/otp/request/.

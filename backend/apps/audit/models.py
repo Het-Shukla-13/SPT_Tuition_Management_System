@@ -17,6 +17,8 @@ class AuditLog(models.Model):
         USER_REGISTERED = "USER_REGISTERED", "User registered"
         GOOGLE_LINKED = "GOOGLE_LINKED", "Google account linked"
         GOOGLE_UNLINKED = "GOOGLE_UNLINKED", "Google account unlinked"
+        CONTACT_CHANGED = "CONTACT_CHANGED", "Email/phone added or changed"
+        CONTACT_REMOVED = "CONTACT_REMOVED", "Email/phone removed"
 
     action = models.CharField(max_length=64, choices=Action.choices, db_index=True)
     # SET_NULL: the trail must survive even if an account row is ever removed.

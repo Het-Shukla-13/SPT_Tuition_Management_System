@@ -182,6 +182,9 @@ REST_FRAMEWORK = {
         # Per-IP limits on the public OTP endpoints (fail closed).
         "otp_request": env("THROTTLE_RATE_OTP_REQUEST", default="20/hour"),
         "otp_verify": env("THROTTLE_RATE_OTP_VERIFY", default="60/hour"),
+        # Per-user limit on starting an email/phone change (also limits
+        # probing which addresses are already registered).
+        "contact_change": env("THROTTLE_RATE_CONTACT_CHANGE", default="10/hour"),
     },
     "EXCEPTION_HANDLER": "apps.common.exceptions.custom_exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
