@@ -43,6 +43,12 @@ class User(AbstractTimeStampedModel, AbstractBaseUser, PermissionsMixin):
     email_verified_at = models.DateTimeField(null=True, blank=True)
     phone_verified_at = models.DateTimeField(null=True, blank=True)
 
+    # Google's stable account id (the `sub` claim), as in Labe1. One Google
+    # account can be linked to at most one user. The raw Google token is never
+    # stored: it isn't needed after verification.
+    google_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    google_linked_at = models.DateTimeField(null=True, blank=True)
+
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(
         default=False, help_text="Can log in to the Django admin site."
@@ -75,6 +81,7 @@ class User(AbstractTimeStampedModel, AbstractBaseUser, PermissionsMixin):
         # and store empty strings as NULL so the unique constraints work.
         self.email = self.email.strip().lower() if self.email else None
         self.phone = self.phone.strip() if self.phone else None
+        self.google_id = self.google_id or None
         super().save(*args, **kwargs)
 
     @property
@@ -117,6 +124,11 @@ class OTPChallenge(GlobalTimeStampedModel):
         help_text="Set when superseded, expired, locked out, or undeliverable.",
     )
     requested_ip = models.GenericIPAddressField(null=True, blank=True)
+    context = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Facts the code is bound to, e.g. {"google_sub": "..."} for GOOGLE_LINK.',
+    )
 
     class Meta:
         db_table = "otp_challenges"

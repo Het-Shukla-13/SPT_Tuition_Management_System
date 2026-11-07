@@ -10,8 +10,16 @@ from apps.accounts.views.auth import (
     SessionRevokeView,
     TokenRefreshView,
 )
+from apps.accounts.views.google import (
+    GoogleSignInView,
+    GoogleUnlinkView,
+    GoogleVerifyView,
+)
 
 urlpatterns = [
+    path("google/", GoogleSignInView.as_view(), name="auth-google"),
+    path("google/verify/", GoogleVerifyView.as_view(), name="auth-google-verify"),
+    path("google/unlink/", GoogleUnlinkView.as_view(), name="auth-google-unlink"),
     path("otp/request/", OTPRequestView.as_view(), name="auth-otp-request"),
     path("otp/verify/", OTPVerifyView.as_view(), name="auth-otp-verify"),
     path("token/refresh/", TokenRefreshView.as_view(), name="auth-token-refresh"),

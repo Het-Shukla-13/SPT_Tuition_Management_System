@@ -2,9 +2,13 @@
 # Reproduce exactly with: pip install -r requirements/lock.txt
 asgiref==3.13.0
 attrs==26.1.0
+certifi==2026.10.23
+cffi==2.1.1
 cfgv==3.5.0
+charset-normalizer==3.5.2
 colorama==0.4.6
 coverage==7.17.2
+cryptography==50.0.2
 distlib==0.4.4
 Django==5.2.19
 django-cors-headers==4.9.0
@@ -16,7 +20,9 @@ drf-spectacular==0.30.0
 factory_boy==3.3.3
 Faker==40.44.0
 filelock==4.2.9
+google-auth==2.62.1
 identify==2.6.20
+idna==3.20
 inflection==0.5.1
 iniconfig==2.3.1
 jsonschema==4.26.0
@@ -28,6 +34,9 @@ pluggy==1.7.0
 pre_commit==4.7.0
 psycopg==3.3.8
 psycopg-binary==3.3.8
+pyasn1==0.6.5
+pyasn1_modules==0.4.2
+pycparser==3.12
 Pygments==2.21.0
 PyJWT==2.15.1
 pytest==9.2.0
@@ -36,11 +45,13 @@ pytest-django==4.14.0
 python-discovery==1.9.4
 PyYAML==6.0.3
 referencing==0.37.0
+requests==2.34.2
 rpds-py==2026.9.1
 ruff==0.17.4
 sqlparse==0.6.1
 typing_extensions==4.16.0
 tzdata==2026.6
 uritemplate==4.2.0
+urllib3==2.8.0
 virtualenv==21.15.5
 whitenoise==6.12.0

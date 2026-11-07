@@ -243,6 +243,19 @@ DEFAULT_PHONE_COUNTRY_CODE = env("DEFAULT_PHONE_COUNTRY_CODE", default="+91")
 SMS_BACKEND = env("SMS_BACKEND", default="apps.accounts.services.sms.ConsoleSMSBackend")
 
 # ─────────────────────────────────────────────────────────────
+# Google Sign-In
+# The OAuth *Client ID* (not a secret). A Google ID token is accepted only if
+# it was issued for one of these client IDs (its `aud` claim), so tokens
+# minted for any other app are rejected.
+# ─────────────────────────────────────────────────────────────
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_ALLOWED_AUDIENCES = [
+    aud
+    for aud in [GOOGLE_OAUTH_CLIENT_ID, *env.list("GOOGLE_EXTRA_AUDIENCES", default=[])]
+    if aud
+]
+
+# ─────────────────────────────────────────────────────────────
 # API documentation (Swagger / OpenAPI)
 # ─────────────────────────────────────────────────────────────
 ENABLE_API_DOCS = env.bool("ENABLE_API_DOCS", default=True)

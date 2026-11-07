@@ -45,7 +45,11 @@ def _send(
 
 
 def deliver_otp(*, channel: str, to: str, code: str, purpose: str) -> None:
-    action = "registration" if purpose == OTPPurpose.REGISTER else "login"
+    action = {
+        OTPPurpose.REGISTER: "registration",
+        OTPPurpose.LOGIN: "login",
+        OTPPurpose.GOOGLE_LINK: "Google sign-in verification",
+    }[purpose]
     context = _context(code=code, action=action)
     _send(
         channel,

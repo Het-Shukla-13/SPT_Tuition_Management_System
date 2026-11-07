@@ -90,6 +90,24 @@ def request_otp(
     ):
         return  # nothing to log in to: send nothing, say nothing
 
+    issue_challenge(channel=channel, identifier=identifier, purpose=purpose, ip=ip)
+
+
+def issue_challenge(
+    *,
+    channel: str,
+    identifier: str,
+    purpose: str,
+    ip: str | None = None,
+    context: dict | None = None,
+) -> OTPChallenge:
+    """
+    Create a hashed OTP challenge and deliver the code. Callers must already
+    have applied rate limits (reserve_otp_request) and decided a code is due.
+
+    `context` binds extra facts to the challenge (e.g. which Google account a
+    GOOGLE_LINK code is for); verification can require them to match.
+    """
     code = generate_code()
     now = timezone.now()
     try:
@@ -104,6 +122,7 @@ def request_otp(
                 expires_at=now + timedelta(seconds=settings.OTP_TTL_SECONDS),
                 max_attempts=settings.OTP_MAX_ATTEMPTS,
                 requested_ip=ip,
+                context=context or {},
             )
     except IntegrityError:
         # A simultaneous request created the active OTP first (the DB's
@@ -125,6 +144,7 @@ def request_otp(
         purpose,
         channel,
     )
+    return challenge
 
 
 # ─────────────────────────────────────────────────────────────
@@ -134,19 +154,35 @@ _OK, _INVALID, _EXPIRED, _LOCKED = "ok", "invalid", "expired", "locked"
 _FAILURES = {_INVALID: OTPInvalid, _EXPIRED: OTPExpired, _LOCKED: OTPAttemptsExceeded}
 
 
-def verify_otp(*, channel: str, identifier: str, purpose: str, code: str) -> User:
+def verify_otp(
+    *,
+    channel: str,
+    identifier: str,
+    purpose: str,
+    code: str,
+    context_match: dict | None = None,
+    complete=None,
+) -> User:
     """
     Check the code and return the authenticated user.
+
+    - context_match: extra fields the challenge's `context` must have, e.g.
+      {"google_sub": "..."}; a challenge issued for something else is
+      simply not found (OTP_INVALID).
+    - complete: function(challenge) -> User run after a correct code, inside
+      the same transaction. Defaults to the REGISTER/LOGIN behaviour.
 
     Failure bookkeeping (attempt counts, invalidation) is committed before the
     error is raised: raising inside the transaction would roll back the
     attempt counter and give an attacker unlimited guesses.
     """
+    lookup = {f"context__{key}": value for key, value in (context_match or {}).items()}
     with transaction.atomic():
         # Row lock: two simultaneous verifications of one OTP are serialised,
         # so an OTP can never be consumed twice or bypass the attempt limit.
         challenge = (
             _active_challenges(channel, identifier, purpose)
+            .filter(**lookup)
             .select_for_update()
             .order_by("-created_at")
             .first()
@@ -155,7 +191,7 @@ def verify_otp(*, channel: str, identifier: str, purpose: str, code: str) -> Use
         if outcome == _OK:
             # Same transaction: if creating/fetching the user fails, the OTP
             # consumption is rolled back too.
-            user = _complete(challenge)
+            user = (complete or _complete)(challenge)
 
     if outcome != _OK:
         logger.info("OTP verification failed: outcome=%s purpose=%s", outcome, purpose)
