@@ -16,3 +16,4 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 # Isolated in-memory cache and mailbox per test run.
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+SMS_BACKEND = "apps.accounts.services.sms.LocmemSMSBackend"

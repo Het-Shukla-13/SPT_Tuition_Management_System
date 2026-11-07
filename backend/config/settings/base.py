@@ -172,12 +172,15 @@ REST_FRAMEWORK = {
         "rest_framework.filters.OrderingFilter",
     ],
     "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
+        "apps.common.throttling.ResilientAnonRateThrottle",
+        "apps.common.throttling.ResilientUserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": env("THROTTLE_RATE_ANON", default="60/min"),
         "user": env("THROTTLE_RATE_USER", default="300/min"),
+        # Per-IP limits on the public OTP endpoints (fail closed).
+        "otp_request": env("THROTTLE_RATE_OTP_REQUEST", default="20/hour"),
+        "otp_verify": env("THROTTLE_RATE_OTP_VERIFY", default="60/hour"),
     },
     "EXCEPTION_HANDLER": "apps.common.exceptions.custom_exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -206,6 +209,24 @@ SIMPLE_JWT = {
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
 }
+
+# ─────────────────────────────────────────────────────────────
+# OTP authentication
+# ─────────────────────────────────────────────────────────────
+INSTITUTE_NAME = env("INSTITUTE_NAME", default="SPT Tuition Classes")
+
+OTP_LENGTH = 6
+OTP_TTL_SECONDS = env.int("OTP_TTL_SECONDS", default=300)  # 5 minutes
+OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)  # per OTP
+OTP_RESEND_COOLDOWN_SECONDS = env.int("OTP_RESEND_COOLDOWN_SECONDS", default=60)
+OTP_MAX_REQUESTS_PER_HOUR = env.int("OTP_MAX_REQUESTS_PER_HOUR", default=5)
+
+# A bare 10-digit number like 9876543210 is assumed to be Indian.
+DEFAULT_PHONE_COUNTRY_CODE = env("DEFAULT_PHONE_COUNTRY_CODE", default="+91")
+
+# Console backend prints SMS to the terminal (development only). A real SMS
+# gateway backend replaces it before production.
+SMS_BACKEND = env("SMS_BACKEND", default="apps.accounts.services.sms.ConsoleSMSBackend")
 
 # ─────────────────────────────────────────────────────────────
 # API documentation (Swagger / OpenAPI)

@@ -8,6 +8,7 @@ they are logged with the request ID instead.
 """
 
 import logging
+import math
 
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.http import Http404
@@ -113,8 +114,11 @@ def custom_exception_handler(exc, context):
 
     if isinstance(exc, AppException) and exc.details:
         errors = exc.details
-    if isinstance(exc, exceptions.Throttled) and exc.wait is not None:
-        errors = {"retry_after_seconds": int(exc.wait)}
+    # Throttled, OTP cooldowns and outage errors carry `wait` (seconds); DRF
+    # already turned it into a Retry-After header, mirror it in the body.
+    wait = getattr(exc, "wait", None)
+    if wait is not None:
+        errors = {"retry_after_seconds": math.ceil(wait)}
 
     if response.status_code >= 500:
         logger.error("API error %s: %s", code, message)

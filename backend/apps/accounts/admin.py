@@ -1,7 +1,33 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from apps.accounts.models import User
+from apps.accounts.models import OTPChallenge, User
+
+
+@admin.register(OTPChallenge)
+class OTPChallengeAdmin(admin.ModelAdmin):
+    """Read-only audit view. The code hash is never shown."""
+
+    list_display = [
+        "id",
+        "purpose",
+        "channel",
+        "identifier",
+        "attempts",
+        "created_at",
+        "expires_at",
+        "consumed_at",
+        "invalidated_at",
+    ]
+    list_filter = ["purpose", "channel"]
+    search_fields = ["identifier"]
+    exclude = ["code_hash"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(User)
