@@ -50,6 +50,31 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class AdminUserSerializer(serializers.ModelSerializer):
+    """What administrators see about an account. Read-only: changes go through actions."""
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "phone",
+            "role",
+            "is_active",
+            "is_superuser",
+            "email_verified_at",
+            "phone_verified_at",
+            "last_login",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class RoleChangeSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=User.Role.choices)
+
+
 class AuthTokensSerializer(serializers.Serializer):
     """Response shape of a successful OTP verification (documentation only)."""
 

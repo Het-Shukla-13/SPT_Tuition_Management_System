@@ -74,6 +74,25 @@ class AccountDisabled(ForbiddenError):
     default_code = "ACCOUNT_DISABLED"
 
 
+class CannotModifySelf(ForbiddenError):
+    default_detail = "You cannot change your own role or account status."
+    default_code = "CANNOT_MODIFY_SELF"
+
+
+class AdminTargetRequiresOwner(ForbiddenError):
+    default_detail = (
+        "Only the institute owner account can modify another administrator."
+    )
+    default_code = "OWNER_REQUIRED"
+
+
+class LastAdminProtected(ConflictError):
+    default_detail = (
+        "This is the last active administrator and cannot be demoted or deactivated."
+    )
+    default_code = "LAST_ADMIN"
+
+
 class InvalidRefreshToken(AppException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "The refresh token is invalid."

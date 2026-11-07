@@ -80,8 +80,11 @@ backend/
 ├── apps/
 │   ├── common/          base models, response envelope, exceptions,
 │   │                    pagination, request-ID middleware, health checks
-│   └── accounts/        User, OTP sign-up/login, sessions (per device), JWT refresh/logout
-│       └── services/    otp, otp_delivery, otp_rate_limit, sms, sessions, tokens
+│   ├── accounts/        User, OTP sign-up/login, sessions (per device), JWT refresh/logout,
+│   │   │                admin user management (activate/deactivate/role)
+│   │   ├── services/    otp, otp_delivery, otp_rate_limit, sms, sessions, tokens, users
+│   │   └── views/       auth, users
+│   └── audit/           append-only audit log of sensitive actions
 ├── FAQ.md               business rules behind the API (keep in sync!)
 ├── requirements/        base · dev · prod
 ├── conftest.py          shared pytest fixtures

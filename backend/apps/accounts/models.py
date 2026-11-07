@@ -160,6 +160,8 @@ class UserSession(GlobalTimeStampedModel):
         REVOKED_BY_USER = "REVOKED_BY_USER", "Revoked from another device"
         REFRESH_REUSE = "REFRESH_REUSE", "Refresh token reuse detected"
         LIFETIME_EXCEEDED = "LIFETIME_EXCEEDED", "Maximum session lifetime reached"
+        ACCOUNT_DEACTIVATED = "ACCOUNT_DEACTIVATED", "Account deactivated"
+        ROLE_CHANGED = "ROLE_CHANGED", "Role changed"
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sessions")
     session_id = models.CharField(
