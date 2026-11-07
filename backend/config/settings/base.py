@@ -151,7 +151,7 @@ MAX_UPLOAD_SIZE_MB = env.int("MAX_UPLOAD_SIZE_MB", default=20)
 # ─────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "apps.accounts.authentication.SessionJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -205,10 +205,23 @@ SIMPLE_JWT = {
     "UPDATE_LAST_LOGIN": True,
     "ALGORITHM": "HS256",
     "SIGNING_KEY": env("JWT_SIGNING_KEY", default=SECRET_KEY),
+    # Tokens are stamped with and checked against these, so a token minted
+    # by any other system that happens to share the key is rejected.
+    "ISSUER": "spt-tms-api",
+    "AUDIENCE": "spt-tms",
+    "LEEWAY": 0,
     "AUTH_HEADER_TYPES": ("Bearer",),
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
 }
+
+# Sessions (see apps/accounts/services/sessions.py)
+# A refresh token rotated within this window may be presented again and gets
+# the same new pair back (two tabs refreshing at once). After it: reuse
+# detection revokes the session.
+REFRESH_ROTATION_GRACE_SECONDS = env.int("REFRESH_ROTATION_GRACE_SECONDS", default=30)
+# Hard cap: a login must be repeated after this, however actively it is refreshed.
+SESSION_MAX_LIFETIME_DAYS = env.int("SESSION_MAX_LIFETIME_DAYS", default=30)
 
 # ─────────────────────────────────────────────────────────────
 # OTP authentication

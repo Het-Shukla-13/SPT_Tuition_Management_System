@@ -83,19 +83,51 @@ Before storage, lookup and rate-limiting (`apps/accounts/identifiers.py`):
 Always `STUDENT`. Any `role` in the payload is ignored. ADMIN accounts are created
 only with `python manage.py createsuperuser`.
 
-### How do tokens work?
+### How do tokens and sessions work?
+Every successful OTP verification starts a **session** (`UserSession`, one per login/device).
+Both tokens carry the session's id as the `sid` claim. Logic: `apps/accounts/services/tokens.py`,
+`apps/accounts/services/sessions.py`, `apps/accounts/authentication.py`.
+
 - Access token: 15 min (`JWT_ACCESS_TOKEN_LIFETIME_MINUTES`). Send `Authorization: Bearer <access>`.
-- Refresh token: 7 days (`JWT_REFRESH_TOKEN_LIFETIME_DAYS`).
-- `POST token/refresh/` `{refresh}` → **rotates**: returns a new refresh token and blacklists
-  the old one. Re-using an old refresh token → `401`. Store the new one every time.
-- Tokens carry a `role` claim **for the frontend only**. The backend always re-reads the
-  role from the database.
+- Refresh token: 7 days (`JWT_REFRESH_TOKEN_LIFETIME_DAYS`), sliding: each refresh extends it.
+- Hard cap: a session can't be refreshed beyond **30 days** after login (`SESSION_MAX_LIFETIME_DAYS`)
+  → `401 SESSION_EXPIRED`; log in again.
+- **Every authenticated request checks the session in the database.** A revoked session's
+  access token is rejected immediately (`401 TOKEN_NOT_VALID`), not after it expires.
+- A token without a `sid`, with a different issuer/audience (`spt-tms-api` / `spt-tms`),
+  or a bad signature → `401`.
+- Tokens carry a `role` claim **for the frontend only**. The backend always reads the role
+  from the database (a forged `role: ADMIN` claim changes nothing).
+
+### What exactly happens on `POST token/refresh/`?
+`{refresh}` → returns `{access, refresh}`. The refresh token **rotates**: store the new one,
+the old one stops working.
+
+| Situation | Result |
+|---|---|
+| Normal refresh | `200`, new pair; session `last_active_at` / `expires_at` updated |
+| Same old token sent again **within 30 s** (`REFRESH_ROTATION_GRACE_SECONDS`), e.g. two tabs | `200` with the **same** new pair (no false logout) |
+| Same old token sent again **after 30 s** | `401` and the **whole session is revoked** (`REFRESH_REUSE`): someone else may hold a copy |
+| Session logged out / revoked / user disabled or deleted | `401` |
+| Garbage, expired, or an access token instead | `401 TOKEN_NOT_VALID` |
+
+Simultaneous refreshes are serialised by a row lock on the session.
 
 ### What does logout do?
-`POST logout/` `{refresh}` (authenticated) blacklists that refresh token. It is idempotent
-(logging out twice is fine). A refresh token that belongs to another user →
-`400 INVALID_REFRESH_TOKEN`. The access token stays valid until it expires (≤ 15 min);
-the frontend must drop it. Per-device sessions and "log out everywhere" come in Phase 1.2.
+- `POST logout/` (authenticated): ends **this device's** session. Its access and refresh tokens
+  die at once; other devices stay logged in. Optional body `{refresh}`; if sent it must belong
+  to you, otherwise `400 INVALID_REFRESH_TOKEN`.
+- `POST logout-all/`: ends **every** session of the account, including this one.
+  Returns `{sessions_ended: n}`.
+
+### How do I see and end my sessions (devices)?
+- `GET sessions/`: your active sessions: `id`, `created_at`, `last_active_at`, `expires_at`,
+  `ip_address`, `user_agent`, `is_current`.
+- `DELETE sessions/{id}/`: end one of them (e.g. a lost phone). Someone else's session id →
+  `404` (indistinguishable from "doesn't exist").
+
+Revoked sessions keep their row with `revoked_at` + `revoked_reason`
+(`LOGOUT`, `LOGOUT_ALL`, `REVOKED_BY_USER`, `REFRESH_REUSE`, `LIFETIME_EXCEEDED`) for auditing.
 
 ### What happens to a soft-deleted or deactivated user's tokens?
 Both access and refresh tokens stop working immediately (`401`): authentication looks

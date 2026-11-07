@@ -372,7 +372,7 @@ class TestTokens:
         assert response.status_code == 401
         assert response.json()["success"] is False
 
-    def test_refresh_rotates_and_old_refresh_is_dead(self, api_client):
+    def test_refresh_rotates_the_refresh_token(self, api_client):
         tokens = register(api_client)
 
         response = api_client.post(
@@ -381,11 +381,8 @@ class TestTokens:
         assert response.status_code == 200
         new = response.json()["data"]
         assert new["access"] and new["refresh"] != tokens["refresh"]
-
-        reuse = api_client.post(
-            REFRESH_URL, {"refresh": tokens["refresh"]}, format="json"
-        )
-        assert reuse.status_code == 401
+        # Reuse of the old token (grace window and reuse detection) is covered
+        # in test_sessions.py.
 
     def test_logout_blacklists_refresh_token(self, api_client):
         tokens = register(api_client)
@@ -404,15 +401,14 @@ class TestTokens:
         )
         assert response.status_code == 401
 
-    def test_logout_is_idempotent(self, api_client):
+    def test_access_token_dies_immediately_on_logout(self, api_client):
         tokens = register(api_client)
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
-        api_client.post(LOGOUT_URL, {"refresh": tokens["refresh"]}, format="json")
+        api_client.post(LOGOUT_URL, {}, format="json")
 
-        again = api_client.post(
-            LOGOUT_URL, {"refresh": tokens["refresh"]}, format="json"
-        )
-        assert again.status_code == 200
+        response = api_client.get(ME_URL)
+        assert response.status_code == 401
+        assert response.json()["error_code"] == "TOKEN_NOT_VALID"
 
     def test_cannot_revoke_someone_elses_refresh_token(self, api_client):
         victim = register(api_client, identifier="victim@example.com")

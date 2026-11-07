@@ -4,31 +4,40 @@ shape the response. All decisions live in apps/accounts/services/.
 """
 
 from django.conf import settings
+from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenRefreshView
 
+from apps.accounts.models import UserSession
 from apps.accounts.serializers import (
     AuthTokensSerializer,
     LogoutSerializer,
     OTPRequestSerializer,
     OTPVerifySerializer,
-    SafeTokenRefreshSerializer,
+    TokenPairSerializer,
+    TokenRefreshSerializer,
     UserSerializer,
+    UserSessionSerializer,
 )
 from apps.accounts.services.otp import request_otp, verify_otp
-from apps.accounts.services.tokens import issue_tokens, revoke_refresh_token
+from apps.accounts.services.sessions import SID_CLAIM, revoke_session
+from apps.accounts.services.tokens import (
+    issue_tokens,
+    logout,
+    logout_everywhere,
+    rotate_refresh_token,
+)
+from apps.common.request_utils import client_ip, user_agent
 from apps.common.responses import ApiResponse
 from apps.common.throttling import ResilientScopedRateThrottle
 
 AUTH_TAG = ["Auth"]
+SESSIONS_TAG = ["Auth: sessions"]
 
 
-def _client_ip(request) -> str | None:
-    # REMOTE_ADDR only. X-Forwarded-For is trivially spoofable and will be
-    # trusted only once we know the production proxy setup (deployment phase).
-    return request.META.get("REMOTE_ADDR")
+def _current_session_id(request) -> str | None:
+    return request.auth.get(SID_CLAIM) if request.auth is not None else None
 
 
 class OTPRequestView(APIView):
@@ -65,7 +74,7 @@ class OTPRequestView(APIView):
     def post(self, request):
         serializer = OTPRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        request_otp(**serializer.validated_data, ip=_client_ip(request))
+        request_otp(**serializer.validated_data, ip=client_ip(request))
         return ApiResponse.success(
             message="If the details are valid, a verification code has been sent.",
             data={
@@ -103,24 +112,47 @@ class OTPVerifyView(APIView):
         serializer = OTPVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = verify_otp(**serializer.validated_data)
+        tokens = issue_tokens(
+            user, ip=client_ip(request), user_agent=user_agent(request)
+        )
         return ApiResponse.success(
             message="Verified successfully.",
-            data={**issue_tokens(user), "user": UserSerializer(user).data},
+            data={**tokens, "user": UserSerializer(user).data},
         )
 
 
-class TokenRefreshEnvelopeView(TokenRefreshView):
-    """
-    Exchange a refresh token for a new access token. Refresh tokens rotate:
-    the response carries a NEW refresh token and the old one is blacklisted.
-    """
+class TokenRefreshView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
-    serializer_class = SafeTokenRefreshSerializer
+    def get_authenticate_header(self, request):
+        # Without an auth scheme DRF turns 401 (AuthenticationFailed) into 403.
+        # A dead refresh token is "log in again" (401), not "forbidden" (403).
+        return 'Bearer realm="api"'
 
-    @extend_schema(tags=AUTH_TAG, summary="Refresh the access token")
-    def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        return ApiResponse.success(message="Token refreshed.", data=response.data)
+    @extend_schema(
+        tags=AUTH_TAG,
+        summary="Refresh the access token (rotates the refresh token)",
+        description=(
+            "Returns a new access token AND a new refresh token; the presented "
+            "refresh token stops working. Two refreshes with the same token within "
+            "a short grace window (e.g. two tabs) both receive the same new pair. "
+            "Re-using an old refresh token after that window ends the whole session "
+            "(theft protection)."
+        ),
+        request=TokenRefreshSerializer,
+        responses={
+            200: TokenPairSerializer,
+            401: OpenApiResponse(
+                description="TOKEN_NOT_VALID / NO_ACTIVE_ACCOUNT / SESSION_EXPIRED"
+            ),
+        },
+    )
+    def post(self, request):
+        serializer = TokenRefreshSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        tokens = rotate_refresh_token(serializer.validated_data["refresh"])
+        return ApiResponse.success(message="Token refreshed.", data=tokens)
 
 
 class LogoutView(APIView):
@@ -128,11 +160,10 @@ class LogoutView(APIView):
 
     @extend_schema(
         tags=AUTH_TAG,
-        summary="Log out (revoke the refresh token)",
+        summary="Log out of this device",
         description=(
-            "Blacklists the given refresh token so it can't mint new access tokens. "
-            "The current access token stays valid until it expires (max 15 min); "
-            "the frontend must discard it."
+            "Ends the current session immediately: its access AND refresh tokens "
+            "stop working at once. Other devices stay logged in."
         ),
         request=LogoutSerializer,
         responses={200: OpenApiResponse(description="Logged out.")},
@@ -140,8 +171,70 @@ class LogoutView(APIView):
     def post(self, request):
         serializer = LogoutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        revoke_refresh_token(request.user, serializer.validated_data["refresh"])
+        logout(
+            request.user,
+            session_id=_current_session_id(request),
+            raw_refresh=serializer.validated_data.get("refresh"),
+        )
         return ApiResponse.success(message="Logged out successfully.")
+
+
+class LogoutAllView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=SESSIONS_TAG,
+        summary="Log out of all devices",
+        description="Ends every session of this account, including the current one.",
+        request=None,
+        responses={200: OpenApiResponse(description="All sessions ended.")},
+    )
+    def post(self, request):
+        count = logout_everywhere(request.user)
+        return ApiResponse.success(
+            message="Logged out of all devices.", data={"sessions_ended": count}
+        )
+
+
+class SessionListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=SESSIONS_TAG,
+        summary="List my active sessions (devices)",
+        responses={200: UserSessionSerializer(many=True)},
+    )
+    def get(self, request):
+        sessions = UserSession.objects.active().filter(user=request.user)
+        serializer = UserSessionSerializer(
+            sessions,
+            many=True,
+            context={"current_session_id": _current_session_id(request)},
+        )
+        return ApiResponse.success(data=serializer.data)
+
+
+class SessionRevokeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=SESSIONS_TAG,
+        summary="End one of my sessions (log out another device)",
+        request=None,
+        responses={
+            200: OpenApiResponse(description="Session ended."),
+            404: OpenApiResponse(
+                description="NOT_FOUND (not your session, or already ended)"
+            ),
+        },
+    )
+    def delete(self, request, pk: int):
+        # Scoped to the requester: someone else's session id is simply "not found".
+        session = get_object_or_404(
+            UserSession.objects.active(), pk=pk, user=request.user
+        )
+        revoke_session(session, UserSession.RevokeReason.REVOKED_BY_USER)
+        return ApiResponse.success(message="Session ended.")
 
 
 class MeView(APIView):
