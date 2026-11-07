@@ -73,6 +73,53 @@ endpoints' IP throttle returns `503 THROTTLE_UNAVAILABLE` (`Retry-After: 30`). L
 limits must not mean unlimited OTP emails or guesses. The global anon/user throttles
 **fail open** (they only smooth load). See `apps/common/throttling.py`.
 
+### How does "Continue with Google" work?
+Logic: `apps/accounts/services/google.py`. The frontend gets a Google **ID token** from Google
+and sends it to us; we verify it with Google's official library (signature, expiry, issuer, and
+that it was issued for **our** client ID: `GOOGLE_OAUTH_CLIENT_ID`).
+
+1. `POST google/` `{id_token}`
+   - Google account already linked → `status: AUTHENTICATED` + `access`, `refresh`, `user`.
+   - Not linked yet → `status: OTP_REQUIRED`, `email` (masked). A 6-digit code is emailed
+     to the Google account's address.
+2. `POST google/verify/` `{id_token, code}` (same Google token) → links the Google account to the
+   account that owns that email, or **creates a STUDENT account** if none exists, then logs in.
+
+Every later Google sign-in is one click. Each one starts its own session, like any login.
+
+### Why an email code the first time, if Google already verified the email?
+A Google account can carry an email address its creator doesn't own (non-Gmail addresses).
+Matching emails alone could let someone take over a student's account. Only the inbox owner can
+read the code, so only they can link. The code is **bound to that Google account** (`sub`):
+a code sent for one Google account can't complete the link for another.
+
+### What can go wrong with Google sign-in?
+| Code | HTTP | Meaning |
+|---|---|---|
+| `GOOGLE_TOKEN_INVALID` | 401 | Forged/expired token, issued for another app, wrong issuer, or no email |
+| `GOOGLE_EMAIL_NOT_VERIFIED` | 400 | Google says the email isn't verified |
+| `ACCOUNT_DISABLED` | 403 | The linked account is deactivated or deleted |
+| `GOOGLE_ACCOUNT_CONFLICT` | 409 | The email's account is already linked to a *different* Google account |
+| `GOOGLE_UNAVAILABLE` | 503 | Couldn't reach Google; use email/phone OTP instead |
+| `GOOGLE_NOT_CONFIGURED` | 503 | `GOOGLE_OAUTH_CLIENT_ID` isn't set on the server |
+Plus all the usual OTP errors/limits on the code (cooldown, attempts, expiry).
+
+If the email belongs to a disabled/deleted account, step 1 still answers `OTP_REQUIRED` but sends
+nothing, so the response doesn't reveal the account's state.
+
+### Can I request a `GOOGLE_LINK` code myself, or use a login code to link Google?
+No. `GOOGLE_LINK` codes are only issued by `google/`; `otp/request/` accepts only `REGISTER` and
+`LOGIN`, and codes only work for the purpose they were issued for.
+
+### How do I unlink Google?
+`POST google/unlink/` (authenticated). Email OTP login keeps working; current sessions stay; the
+next Google sign-in needs an email code again. `GET me/` shows `google_linked`.
+Linking, unlinking and Google sign-ups are recorded in the audit log.
+
+**Not stored:** the raw Google token (unlike Labe1). Only Google's account id (`users.google_id`).
+
+**Manual testing:** `backend/tools/google_signin_tester.html` (instructions inside).
+
 ### How are phone numbers and emails normalised?
 Before storage, lookup and rate-limiting (`apps/accounts/identifiers.py`):
 - Email: trimmed + lowercased.

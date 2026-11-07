@@ -51,6 +51,16 @@ def normalize_identifier(channel: str, raw: str) -> str:
     raise ValidationError("Unsupported channel.")
 
 
+def mask_email(email: str) -> str:
+    """'het310304@gmail.com' -> 'h*******4@gmail.com' (for "code sent to ..." messages)."""
+    local, _, domain = email.partition("@")
+    if len(local) <= 2:
+        masked = local[:1] + "*"
+    else:
+        masked = local[0] + "*" * (len(local) - 2) + local[-1]
+    return f"{masked}@{domain}"
+
+
 def user_field_for(channel: str) -> str:
     """The User model field that stores identifiers of this channel."""
     return "email" if channel == OTPChannel.EMAIL else "phone"

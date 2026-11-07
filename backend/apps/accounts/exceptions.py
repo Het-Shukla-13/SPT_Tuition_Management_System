@@ -93,6 +93,42 @@ class LastAdminProtected(ConflictError):
     default_code = "LAST_ADMIN"
 
 
+class GoogleTokenInvalid(AppException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    default_detail = "The Google sign-in could not be verified. Please try again."
+    default_code = "GOOGLE_TOKEN_INVALID"
+
+
+class GoogleEmailNotVerified(AppException):
+    default_detail = "This Google account's email address is not verified with Google."
+    default_code = "GOOGLE_EMAIL_NOT_VERIFIED"
+
+
+class GoogleAccountConflict(ConflictError):
+    default_detail = (
+        "This account is already linked to a different Google account. "
+        "Unlink it first, or sign in with the linked Google account."
+    )
+    default_code = "GOOGLE_ACCOUNT_CONFLICT"
+
+
+class GoogleNotLinked(AppException):
+    default_detail = "No Google account is linked to this account."
+    default_code = "GOOGLE_NOT_LINKED"
+
+
+class GoogleUnavailable(ServiceUnavailableError):
+    default_detail = (
+        "Google sign-in is temporarily unavailable. Please try again or use an OTP."
+    )
+    default_code = "GOOGLE_UNAVAILABLE"
+
+
+class GoogleNotConfigured(ServiceUnavailableError):
+    default_detail = "Google sign-in is not available right now."
+    default_code = "GOOGLE_NOT_CONFIGURED"
+
+
 class InvalidRefreshToken(AppException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "The refresh token is invalid."

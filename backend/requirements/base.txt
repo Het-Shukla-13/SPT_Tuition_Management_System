@@ -11,3 +11,5 @@ django-cors-headers>=4.7,<5
 django-environ>=0.12,<1                # typed settings from environment variables
 psycopg[binary]>=3.2,<4                # PostgreSQL driver (psycopg 3)
 whitenoise>=6.9,<7                     # static files without a separate web server
+google-auth>=2.35,<3                   # verifies Google Sign-In ID tokens
+requests>=2.32,<3                      # HTTP transport google-auth uses to fetch Google's keys

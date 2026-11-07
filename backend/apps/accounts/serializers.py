@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from apps.accounts.choices import OTPChannel, OTPPurpose
+from apps.accounts.choices import PUBLIC_OTP_PURPOSES, OTPChannel
 from apps.accounts.identifiers import normalize_identifier
 from apps.accounts.models import User, UserSession
 
@@ -12,7 +12,7 @@ class _IdentifierSerializer(serializers.Serializer):
         max_length=254,
         help_text="Email address (channel=EMAIL) or phone number (channel=PHONE).",
     )
-    purpose = serializers.ChoiceField(choices=OTPPurpose.choices)
+    purpose = serializers.ChoiceField(choices=PUBLIC_OTP_PURPOSES)
 
     def validate(self, attrs):
         try:
@@ -36,6 +36,8 @@ class OTPVerifySerializer(_IdentifierSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    google_linked = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -45,9 +47,42 @@ class UserSerializer(serializers.ModelSerializer):
             "role",
             "email_verified_at",
             "phone_verified_at",
+            "google_linked",
             "created_at",
         ]
         read_only_fields = fields
+
+    def get_google_linked(self, obj) -> bool:
+        return bool(obj.google_id)
+
+
+class GoogleSignInSerializer(serializers.Serializer):
+    id_token = serializers.CharField(
+        help_text="The Google ID token (credential) the frontend received from Google."
+    )
+
+
+class GoogleVerifySerializer(GoogleSignInSerializer):
+    code = serializers.RegexField(
+        regex=r"^\d{6}$",
+        error_messages={"invalid": "The OTP must be 6 digits."},
+    )
+
+
+class GoogleSignInResponseSerializer(serializers.Serializer):
+    """Documentation only."""
+
+    status = serializers.ChoiceField(choices=["AUTHENTICATED", "OTP_REQUIRED"])
+    access = serializers.CharField(required=False, help_text="Only when AUTHENTICATED.")
+    refresh = serializers.CharField(
+        required=False, help_text="Only when AUTHENTICATED."
+    )
+    user = UserSerializer(required=False, help_text="Only when AUTHENTICATED.")
+    email = serializers.CharField(
+        required=False, help_text="Masked email the code was sent to (OTP_REQUIRED)."
+    )
+    expires_in_seconds = serializers.IntegerField(required=False)
+    resend_after_seconds = serializers.IntegerField(required=False)
 
 
 class AdminUserSerializer(serializers.ModelSerializer):

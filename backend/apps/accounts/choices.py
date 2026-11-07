@@ -14,3 +14,13 @@ class OTPPurpose(models.TextChoices):
 
     REGISTER = "REGISTER", "Registration"
     LOGIN = "LOGIN", "Login"
+    # Proves ownership of the email before a Google account is linked to it.
+    # Issued only by the Google sign-in flow, never by the public OTP endpoint.
+    GOOGLE_LINK = "GOOGLE_LINK", "Google account linking"
+
+
+# Purposes a client may request directly via POST /auth/otp/request/.
+PUBLIC_OTP_PURPOSES = [
+    (OTPPurpose.REGISTER.value, OTPPurpose.REGISTER.label),
+    (OTPPurpose.LOGIN.value, OTPPurpose.LOGIN.label),
+]

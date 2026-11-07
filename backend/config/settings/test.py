@@ -17,3 +17,7 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 SMS_BACKEND = "apps.accounts.services.sms.LocmemSMSBackend"
+
+# Tests never call Google; token verification is mocked.
+GOOGLE_OAUTH_CLIENT_ID = "test-client-id.apps.googleusercontent.com"
+GOOGLE_ALLOWED_AUDIENCES = [GOOGLE_OAUTH_CLIENT_ID]

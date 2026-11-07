@@ -1,0 +1,81 @@
+<!doctype html>
+<!--
+  DEVELOPMENT ONLY: manual tester for the Google Sign-In flow.
+
+  Run (from backend/):
+      python -m http.server 5173 --directory tools
+  then open http://localhost:5173/google_signin_tester.html
+  (http://localhost:5173 must be an "Authorised JavaScript origin" of the
+  OAuth client, and the Django dev server must be running on :8000).
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Google Sign-In tester</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    label, input, button { font-size: 1rem; }
+    input { padding: .4rem; width: 8rem; letter-spacing: .2rem; }
+    button { padding: .4rem .9rem; cursor: pointer; }
+    pre { background: #f4f4f4; padding: 1rem; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Google Sign-In tester</h1>
+  <p>Dev-only page. Signs in with Google, then calls the backend.</p>
+
+  <label>API base: <input id="api" style="width: 22rem; letter-spacing: 0" value="http://127.0.0.1:8000/api/v1/auth" /></label>
+  <label>Client ID: <input id="clientId" style="width: 22rem; letter-spacing: 0"
+    value="766488914055-gcbpbsnd62ae0aclf0tlu1b2cfjgmnp5.apps.googleusercontent.com" /></label>
+  <p><button onclick="init()">Load Google button</button></p>
+  <div id="gbtn"></div>
+
+  <div id="otpBox" class="hidden">
+    <h2>Step 2: enter the code emailed to <span id="maskedEmail"></span></h2>
+    <p>(In development the email is printed in the <code>runserver</code> terminal.)</p>
+    <input id="code" maxlength="6" placeholder="123456" />
+    <button onclick="verify()">Verify</button>
+  </div>
+
+  <h2>Response</h2>
+  <pre id="out">-</pre>
+
+  <script>
+    let idToken = null;
+    const $ = (id) => document.getElementById(id);
+    const show = (obj) => ($("out").textContent = JSON.stringify(obj, null, 2));
+
+    function init() {
+      google.accounts.id.initialize({ client_id: $("clientId").value, callback: onGoogle });
+      google.accounts.id.renderButton($("gbtn"), { theme: "outline", size: "large" });
+    }
+
+    async function call(path, body) {
+      const res = await fetch($("api").value + path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return { http: res.status, ...(await res.json()) };
+    }
+
+    async function onGoogle(resp) {
+      idToken = resp.credential;
+      const result = await call("/google/", { id_token: idToken });
+      show(result);
+      if (result.data && result.data.status === "OTP_REQUIRED") {
+        $("maskedEmail").textContent = result.data.email;
+        $("otpBox").classList.remove("hidden");
+      }
+    }
+
+    async function verify() {
+      show(await call("/google/verify/", { id_token: idToken, code: $("code").value.trim() }));
+      $("otpBox").classList.add("hidden");
+    }
+  </script>
+</body>
+</html>
