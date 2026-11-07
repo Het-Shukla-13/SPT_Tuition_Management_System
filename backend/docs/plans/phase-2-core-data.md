@@ -1,118 +1,135 @@
-# Phase 2: Core data modelling (design)
+# Phase 2: Core data modelling (design v2)
 
-Status: **draft for review**. Code starts after the open questions (end of file) are answered.
+Status: **agreed flow, final review before code.** Supersedes v1 (open self-signup + approval).
 
-Spec: sections 4 (student management), 9.4 (student profile), 12 (database architecture),
-edge-case register (Students), development rule 4 ("design relationships before models").
+Decisions (owner, 2026-11-07):
+- **One institute** (the owner's parents' tuition). No multi-institute support.
+- **Invite-only.** Nobody can create an account themselves. The institute adds people; they log in.
+- **One login can see several students; one student can be seen by several logins**
+  (Netflix-profiles style). Parents usually log in for younger kids; a kid can get their own
+  login later. Everyone linked to a student sees exactly what the student sees.
+- **Teachers** teach only: tests, notes, assignments, grading. They can't invite anyone or see fees.
 
-Conventions (from Labe1): integer PKs, `GlobalTimeStampedModel` / `AbstractTimeStampedModel`
-(soft delete), plural `db_table` names, `*_history` / `*Log` tables with `changed_by`,
-`created_by` / `updated_by` on records staff edit, services hold the logic, every change audited.
+Conventions (Labe1): integer PKs, `GlobalTimeStampedModel` / `AbstractTimeStampedModel`,
+plural `db_table`s, `*_history` tables with `changed_by`, `created_by`/`updated_by`, services
+hold logic, audit log for sensitive changes, per-session state on `UserSession` (like Labe1's
+`active_group`).
 
 ---
 
-## 1. Names: on `User` (all roles)
+## 1. Who logs in (`User`): roles and names
 
-| Field | Type | Notes |
+| Role | Who | Created by |
 |---|---|---|
-| `first_name` | char(150), blank | Like Labe1 (`AbstractUser`). |
-| `last_name` | char(150), blank | |
-| `profile_complete` | computed | `True` once `first_name` is set. Returned by `/auth/me/`. |
+| Owner (`is_superuser` + `ADMIN`) | Platform owner | `createsuperuser` (exists) |
+| `ADMIN` | Institute staff running it | Owner |
+| `TEACHER` *(new)* | Teaching staff | Admin |
+| `PORTAL` *(renames `STUDENT`)* | Parents / students who view linked students | Admin |
 
-- Google sign-up pre-fills both from Google's `given_name` / `family_name`.
-- OTP sign-up: frontend sees `profile_complete: false` and asks for the name.
-- The email is never stored as a name.
+`STUDENT` becomes `PORTAL` because the person logging in is often a parent. Existing rows are
+migrated. (Only the owner exists today.)
 
-## 2. `academics` app: reference data (admin-managed)
+New `User` fields:
 
-All have `is_active` (deactivate instead of delete) and are **PROTECT**ed from deletion while referenced.
+| Field | Purpose |
+|---|---|
+| `first_name`, `last_name` | Filled in by whoever creates the login (like Labe1's invite). Editable by the user in account settings. |
+| `invited_by` (FK User, null) | Who created the login |
+| `activated_at` (null) | Set on first successful login ("invite accepted", like Labe1's `last_login is None` check) |
 
-| Model (table) | Fields | Uniqueness |
+## 2. Invite-only (changes to Phase 1 behaviour)
+
+| Today | After |
+|---|---|
+| `otp/request` + `otp/verify` with `REGISTER` creates a STUDENT | **`REGISTER` removed** from public purposes. Unknown email/phone on `LOGIN` → nothing sent, same response (already so). |
+| Google step 2 creates an account if the email has none | **Google never creates accounts** (like Labe1). Unknown email → same `OTP_REQUIRED`-shaped response, but no code is sent, so it can't be used to probe. |
+| No way for staff to create logins | **Admin creates logins** (name, role, phone and/or email). An invite message goes out: "You've been added to <institute>. Log in with this number/email." |
+
+## 3. `academics` app: reference data (admin-managed)
+
+`is_active` everywhere (deactivate, never delete while referenced; FKs are `PROTECT`).
+
+| Model (table) | Fields | Unique |
 |---|---|---|
-| `Board` (`boards`) | `name` ("Central Board of Secondary Education"), `code` ("CBSE"), `is_active` | `code` unique (case-insensitive) |
-| `Standard` (`standards`) | `name` ("10th"), `level` (10, for sorting/promotion), `is_active` | `level` unique |
-| `Subject` (`subjects`) | `name` ("Mathematics"), `code` ("MATH"), `is_active` | `name` unique (case-insensitive) |
-| `Chapter` (`chapters`) | `board` FK, `standard` FK, `subject` FK, `number`, `name`, `is_active` | (`board`, `standard`, `subject`, `number`) |
-| `School` (`schools`) | `name`, `city`, `board` FK (nullable), `is_active` | (`name`, `city`) case-insensitive |
-| `AcademicYear` (`academic_years`) | `name` ("2026-27"), `start_date`, `end_date`, `is_current` | `name` unique; at most one `is_current` (partial unique) |
+| `Board` (`boards`) | `name`, `code` (CBSE) | `code` (ci) |
+| `Standard` (`standards`) | `name` ("10th"), `level` (10) | `level` |
+| `Subject` (`subjects`) | `name`, `code` | `name` (ci) |
+| `Chapter` (`chapters`) | `board`, `standard`, `subject`, `number`, `name` | (board, standard, subject, number) |
+| `School` (`schools`) | `name`, `city`, `board` (null) | (name, city) ci |
+| `AcademicYear` (`academic_years`) | `name` ("2026-27"), `start_date`, `end_date`, `is_current` | `name`; one `is_current` |
 
-Why chapters are scoped by board + standard + subject: "Chapter 3, Maths" differs between CBSE 10th
-and GSEB 10th, and tests/notes (Phase 3) will be tagged with chapters.
-
-Why `School` is a table, not free text: the spec wants filtering by school; free text produces
-"St. Xavier's" / "St Xaviers" / "st xavier" as three schools. Admins can add a school in one call.
-
-## 3. `students` app
+## 4. `students` app
 
 ### `StudentProfile` (`student_profiles`), soft-deletable
+The student as a person. **Not** a login.
 
 | Group | Fields |
 |---|---|
-| Identity | `user` **OneToOne** (PROTECT), `admission_number` (unique, auto e.g. `SPT-2026-0001`) |
-| Personal | `photo` (image, optional), `date_of_birth`, `gender` (optional), `address` |
-| Guardian | `guardian_name`, `guardian_relation`, `guardian_phone`, `guardian_email` (emergency contact) |
-| Academic (current) | `board` FK, `standard` FK, `school` FK (nullable), `admission_date` |
-| Status | `status`: `PENDING` / `ACTIVE` / `ON_HOLD` / `LEFT` |
-| Traceability | `created_by`, `updated_by`, `left_on`, `remarks` (admin-only) |
+| Identity | `admission_number` (unique, auto), `first_name`, `last_name`, `photo` (optional) |
+| Personal | `date_of_birth`, `gender`, `address` (optional) |
+| Contact on file | `guardian_name`, `guardian_phone`, `guardian_email` (for the institute to call; NOT a login) |
+| Academic (current) | `board`, `standard`, `school` (null), `admission_date` |
+| Status | `ACTIVE` / `ON_HOLD` / `LEFT`, `left_on` |
+| Admin-only | `remarks`, `created_by`, `updated_by` |
 
-- **One profile per account** (OneToOne), so two students can't share an account, and a student can't get two profiles.
-- **Same names are allowed** (spec edge case 1). On admin create, likely duplicates (same name + DOB, or
-  same guardian phone) are returned as a warning; the admin confirms with `confirm_duplicate: true`.
-- **Leaving** (`LEFT`) keeps everything (fees, tests, history); never hard-deleted.
-- **Portal access** (tests/notes/fees, later phases) requires `status = ACTIVE`.
+Same names allowed; likely duplicates (same name + DOB, or same guardian phone) are returned as a
+warning on create; admin confirms.
+
+### `StudentAccess` (`student_access`): which logins can see which students
+| Field | |
+|---|---|
+| `user` FK (PORTAL login), `student` FK | |
+| `granted_by`, `granted_at` | |
+| `revoked_by`, `revoked_at` (null = active) | unlinking keeps history |
+
+- Unique: one **active** link per (user, student).
+- A login only ever sees students with an active link **and** status `ACTIVE`
+  (`ON_HOLD`/`LEFT` → shown as such, no tests/notes/fees; exact rule finalised with those phases).
+- Checked in the database on every request: another student's id → `403`/`404`.
 
 ### `StudentAcademicHistory` (`student_academic_history`)
+`student`, `academic_year`, `board`, `standard`, `school`, `started_on`, `ended_on` (null = current),
+`reason` (ADMISSION / PROMOTION / SCHOOL_CHANGE / CORRECTION), `changed_by`.
+Changing board/standard/school closes the current row and opens a new one (one transaction).
 
-One row per period: `student` FK, `academic_year` FK, `board`, `standard`, `school`,
-`started_on`, `ended_on` (null = current), `reason` (`ADMISSION` / `PROMOTION` / `SCHOOL_CHANGE` / `CORRECTION`),
-`changed_by`.
+### Selected student per device
+`UserSession.selected_student` (FK, null), like Labe1's per-session `active_group`.
+Remembers the last picked student on that device; the API always takes the student id explicitly
+and re-checks access, so the stored choice is convenience, never a permission.
 
-Changing a student's board/standard/school closes the current row and opens a new one in the same
-transaction (spec edge cases 3-4, "preserve old academic history"). This also enables next year's
-"promote all 9th → 10th" (spec's optional *academic year promotion*).
+## 5. `AdmissionEnquiry` (`admission_enquiries`): public form
+`parent_name`, `phone`, `email`, `student_name`, `standard`, `board`, `message`,
+`status` (NEW / CONTACTED / ACCEPTED / REJECTED), `handled_by`, `notes`, `student` (set when converted).
+Public `POST` is throttled (and gets a CAPTCHA before launch). Never creates a login.
 
-Status changes and other profile edits go to the existing `audit_logs`.
+## 6. APIs
 
-## 4. APIs
+| Who | Endpoints |
+|---|---|
+| Public | `POST /public/enquiries/` |
+| Admin: logins | `/admin/users/`: existing list/detail/activate/deactivate/role/contact **+ create login (invite)**, search by phone/email |
+| Admin: reference data | `/academics/...` create/update/deactivate (everyone logged in can read active items) |
+| Admin: students | `/admin/students/`: list (search name/admission no./guardian phone; filter standard/board/school/status/year; sort; paginate), create (profile + link to existing or new login, one transaction), read, update, change standard/school (history), status, history |
+| Admin: access | `/admin/students/{id}/access/`: list / link login / unlink |
+| Admin: enquiries | `/admin/enquiries/`: list, update status/notes, convert → prefilled student |
+| Portal login | `GET /portal/students/` (my linked students = the picker), `GET /portal/students/{id}/` (profile), `POST /portal/students/{id}/select/` (remember on this device). Tests/notes/fees endpoints come in Phases 3-4 under the same `/portal/students/{id}/` prefix. |
+| Teacher | Read students (for assigning work, Phase 3). No fees, no invites, no contact edits. |
 
-**Reference data**: `/api/v1/academics/{boards,standards,subjects,chapters,schools,academic-years}/`
-- Any logged-in user: list/read active items (students need them for filters).
-- Admin: create / update / deactivate.
+Permission classes: `IsAdmin`, `IsTeacher`, `IsStaff` (admin or teacher), `IsPortalUser`, plus an
+object-level `HasStudentAccess`.
 
-**Students (admin)**: `/api/v1/admin/students/`
-- List: search (name, email, phone, admission no.), filter (standard, board, school, status, academic year),
-  sort (name, admission date, standard, recently added), paginated.
-- Create (admission): creates the `User` (email and/or phone) + profile + first history row in one
-  transaction; status `ACTIVE`.
-- Retrieve: full profile, sections A (personal) and B (academic). C-E (fees/tests/notes) are added in later phases.
-- Update; change standard/school (history); set status (approve / hold / left / re-activate); history list.
-
-**Student self**: `/api/v1/students/me/`
-- Read own profile.
-- Self-signup completion: submit name, board, standard, school → `PENDING` until an admin approves.
-- Edit only the fields the spec allows (see Q5).
-
-## 5. Edge cases covered by tests
-
-Duplicate profile for one account; two students same name; student reads/edits another student (IDOR);
-student edits academic/admin fields; change standard keeps history; leave with history intact;
-deactivating a board/standard in use; deleting a referenced reference row (blocked); admission number
-uniqueness under concurrent creates; pagination cap; filters with invalid values.
+## 7. Edge cases (tests)
+Stranger can't register (OTP or Google); invite login works on first OTP; sibling linking reuses a
+login; two parents linked; kid's own login sees only themselves; unlink removes access immediately
+and keeps history; login with zero active students sees nothing; student id tampering (IDOR);
+teacher can't see fees / invite; student leaves → history intact; change standard keeps history;
+duplicate-student warning; admission number unique under concurrency; referenced reference data
+can't be deleted; pagination cap.
 
 ---
 
-## Open questions (need the owner's decision)
-
-1. **Onboarding**: can students sign up themselves (→ `PENDING` → admin approves), or are they only
-   added by admins at admission? *Recommendation: both.*
-2. **Required fields** for a student. *Recommendation: required = first & last name, board, standard;
-   strongly suggested = guardian name + phone; optional = school, DOB, gender, address, photo.*
-3. **Parents**: store guardian contact on the profile now, separate parent accounts later (spec lists
-   parent accounts as a future feature)? *Recommendation: yes.*
-4. **Seed data**: which boards and standards does the institute teach (e.g. CBSE + GSEB, 5th-12th)?
-   Subjects? I'll load these as initial data.
-5. **What may a student edit themselves?** *Recommendation: photo and guardian details; name only while
-   `PENDING`; board/standard/school always admin-controlled (spec 9.4).*
-6. **Admission number**: auto-generate `SPT-<year>-<seq>`, a different format, or none?
-7. **Photos**: store now with local storage (served privately in Phase 6), or add photos in Phase 6?
-   *Recommendation: add the field now, private serving in Phase 6.*
+## Still to confirm (small)
+1. **Seed data:** which boards, standards and subjects does the tuition teach?
+2. **Required student fields:** first & last name, board, standard required; guardian name + phone
+   strongly suggested; rest optional. OK?
+3. **Admission number format:** `SPT-2026-0001`?
