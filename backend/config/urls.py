@@ -12,6 +12,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from apps.enquiries.urls import admin_urlpatterns as enquiry_admin_urls
 from apps.enquiries.urls import public_urlpatterns as enquiry_public_urls
+from apps.fees.urls import admin_urlpatterns as fees_admin_urls
+from apps.fees.urls import portal_urlpatterns as fees_portal_urls
 
 api_v1_patterns = [
     path("", include("apps.common.urls")),
@@ -21,7 +23,9 @@ api_v1_patterns = [
     path("admin/students/", include("apps.students.urls_admin")),
     path("portal/students/", include("apps.students.urls_portal")),
     path("portal/students/<int:student_id>/", include("apps.learning.urls_portal")),
+    path("portal/students/<int:student_id>/", include(fees_portal_urls)),
     path("staff/", include("apps.learning.urls_staff")),
+    path("admin/", include(fees_admin_urls)),
     path("public/enquiries/", include(enquiry_public_urls)),
     path("admin/enquiries/", include(enquiry_admin_urls)),
 ]

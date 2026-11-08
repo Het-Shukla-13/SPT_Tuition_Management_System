@@ -152,6 +152,7 @@ def admit_student(
     link_users: list[User],
     new_logins: list[dict],
     confirm_duplicate: bool = False,
+    fee: dict | None = None,
     ip=None,
 ) -> tuple[StudentProfile, dict]:
     """
@@ -207,6 +208,7 @@ def admit_student(
             reason=StudentAcademicHistory.Reason.ADMISSION,
             changed_by=actor,
         )
+        _open_fee_account(actor=actor, student=student, year=year, fee=fee or {}, ip=ip)
         StudentSubject.objects.bulk_create(
             StudentSubject(
                 student=student, subject=s, started_on=admission_date, changed_by=actor
@@ -239,6 +241,31 @@ def admit_student(
 
     logger.info("Student admitted: id=%s by actor_id=%s", student.pk, actor.pk)
     return student, invites
+
+
+def _open_fee_account(*, actor, student, year, fee: dict, ip) -> None:
+    """Agreed fee from the form, else the standard's fee structure for this year."""
+    from apps.fees.exceptions import FeeRequired
+    from apps.fees.models import FeeStructure
+    from apps.fees.services import create_account
+
+    agreed = fee.get("agreed_fee")
+    if agreed is None:
+        structure = FeeStructure.objects.filter(
+            academic_year=year, standard=student.standard, is_active=True
+        ).first()
+        if structure is None:
+            raise FeeRequired()
+        agreed = structure.total_fee
+    create_account(
+        actor=actor,
+        student=student,
+        academic_year=year,
+        agreed_fee=agreed,
+        opening_balance=fee.get("opening_balance") or 0,
+        opening_balance_reason=fee.get("opening_balance_reason", ""),
+        ip=ip,
+    )
 
 
 # ─────────────────────────────────────────────────────────────

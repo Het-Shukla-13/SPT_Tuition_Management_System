@@ -48,6 +48,13 @@ class AuditLog(models.Model):
         ASSIGNMENT_REVOKED = "ASSIGNMENT_REVOKED", "Assignment revoked"
         ASSIGNMENT_GRADED = "ASSIGNMENT_GRADED", "Marks entered"
         FILE_ACCESSED = "FILE_ACCESSED", "PDF opened / downloaded"
+        FEE_STRUCTURE_CHANGED = "FEE_STRUCTURE_CHANGED", "Fee structure created/changed"
+        FEE_ACCOUNT_CREATED = "FEE_ACCOUNT_CREATED", "Student fee account created"
+        FEE_ADJUSTED = "FEE_ADJUSTED", "Fee adjusted"
+        FEE_PAYMENT_RECORDED = "FEE_PAYMENT_RECORDED", "Payment recorded"
+        FEE_PAYMENT_REVERSED = "FEE_PAYMENT_REVERSED", "Payment reversed"
+        FEE_REFUNDED = "FEE_REFUNDED", "Refund recorded"
+        ROLLOVER_APPLIED = "ROLLOVER_APPLIED", "Year-end rollover for a student"
 
     action = models.CharField(max_length=64, choices=Action.choices, db_index=True)
     # SET_NULL: the trail must survive even if an account row is ever removed.

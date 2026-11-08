@@ -58,6 +58,7 @@ def payload(refs, **overrides):
         "standard": refs["tenth"].pk,
         "school": refs["school"].pk,
         "subjects": [refs["maths"].pk, refs["sci"].pk],
+        "agreed_fee": "25000",
         "new_logins": [
             {"first_name": "Priya", "last_name": "Shah", "phone": "9876543210"}
         ],

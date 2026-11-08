@@ -242,6 +242,24 @@ class AdmissionSerializer(_PersonalFields):
         default=False,
         help_text="Admit even if a similar student exists (after checking the warning).",
     )
+    agreed_fee = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=0,
+        required=False,
+        allow_null=True,
+        help_text="Agreed fee for this academic year. Defaults to the standard's fee structure.",
+    )
+    opening_balance = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        default=0,
+        help_text="Dues from before the app (+) or credit (-). Needs opening_balance_reason.",
+    )
+    opening_balance_reason = serializers.CharField(
+        required=False, allow_blank=True, default=""
+    )
 
     PROFILE_FIELDS = (
         "first_name",
@@ -262,6 +280,13 @@ class AdmissionSerializer(_PersonalFields):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        if (
+            attrs.get("opening_balance")
+            and not attrs.get("opening_balance_reason", "").strip()
+        ):
+            raise serializers.ValidationError(
+                {"opening_balance_reason": ["Say what the opening balance is for."]}
+            )
         ids = [s.pk for s in attrs["subjects"]]
         if len(ids) != len(set(ids)):
             raise serializers.ValidationError(
@@ -277,6 +302,11 @@ class AdmissionSerializer(_PersonalFields):
             "link_users": data["link_user_ids"],
             "new_logins": data["new_logins"],
             "confirm_duplicate": data["confirm_duplicate"],
+            "fee": {
+                "agreed_fee": data.get("agreed_fee"),
+                "opening_balance": data.get("opening_balance") or 0,
+                "opening_balance_reason": data.get("opening_balance_reason", ""),
+            },
         }
 
 
