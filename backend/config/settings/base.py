@@ -104,6 +104,16 @@ DATABASES = {"default": env.db("DATABASE_URL")}
 # and verify a reused connection is still alive before handing it out.
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
 DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
+# Fail fast instead of hanging: give up connecting after DB_CONNECT_TIMEOUT
+# seconds, and cancel any single query running longer than
+# DB_STATEMENT_TIMEOUT_MS (0 = no limit; migrations run with 0).
+_statement_timeout_ms = env.int("DB_STATEMENT_TIMEOUT_MS", default=30_000)
+DATABASES["default"].setdefault("OPTIONS", {}).update(
+    {
+        "connect_timeout": env.int("DB_CONNECT_TIMEOUT", default=5),
+        "options": f"-c statement_timeout={_statement_timeout_ms}",
+    }
+)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -180,7 +190,15 @@ MAX_UPLOAD_SIZE_MB = env.int("MAX_UPLOAD_SIZE_MB", default=20)
 # Secure by default: every endpoint requires a valid JWT unless the
 # view explicitly opts out (e.g. health check, OTP request).
 # ─────────────────────────────────────────────────────────────
+# Number of reverse proxies in front of Django that append to X-Forwarded-For
+# (1 behind our Caddy). 0 = trust only REMOTE_ADDR (direct connections, local
+# dev). Never set it higher than the real number of proxies: the extra entries
+# are client-controlled and would let anyone fake their IP past rate limits.
+TRUSTED_PROXY_COUNT = env.int("TRUSTED_PROXY_COUNT", default=0)
+
 REST_FRAMEWORK = {
+    "NUM_PROXIES": TRUSTED_PROXY_COUNT
+    or None,  # DRF throttles: same rule as client_ip()
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "apps.accounts.authentication.SessionJWTAuthentication",
     ],
@@ -394,3 +412,25 @@ if SENTRY_DSN:
         environment=env("SENTRY_ENVIRONMENT", default="development"),
         traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
     )
+
+# ─────────────────────────────────────────────────────────────
+# Backups & scheduled jobs (Phase 8)
+# ─────────────────────────────────────────────────────────────
+# Where `backup_database` writes dumps, how many it keeps (locally and in
+# Google Drive), and where the PostgreSQL client tools live ("" = on PATH;
+# on Windows e.g. "C:/Program Files/PostgreSQL/18/bin").
+BACKUP_DIR = Path(env("BACKUP_DIR", default=str(BASE_DIR / "backups")))
+BACKUP_KEEP = env.int("BACKUP_KEEP", default=14)
+BACKUP_TO_DRIVE = env.bool("BACKUP_TO_DRIVE", default=True)
+PG_BIN_DIR = env("PG_BIN_DIR", default="")
+
+# How long finished OTP challenges and ended login sessions are kept (audit
+# trail) before `purge_expired_records` deletes them.
+OTP_RETENTION_DAYS = env.int("OTP_RETENTION_DAYS", default=90)
+SESSION_RETENTION_DAYS = env.int("SESSION_RETENTION_DAYS", default=90)
+
+# Daily jobs run by `python manage.py run_scheduler` (times in TIME_ZONE).
+SCHEDULED_JOBS = [
+    {"command": "backup_database", "at": env("BACKUP_TIME", default="02:30")},
+    {"command": "purge_expired_records", "at": "03:15"},
+]

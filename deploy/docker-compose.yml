@@ -1,0 +1,116 @@
+# Production stack: one server runs everything.
+#
+#   Internet ──443──> caddy ──> web (gunicorn/Django) ──> db (PostgreSQL 18)
+#                                scheduler (nightly backup + cleanup) ──> db
+#
+# Usage (from this folder, with a filled-in .env next to this file):
+#   docker compose up -d --build      # build + start / update everything
+#   docker compose ps                 # all services should be "healthy"
+#   docker compose logs -f web        # follow the API logs
+# Full instructions: RUNBOOK.md
+
+name: tuition
+
+x-backend: &backend
+  build:
+    context: ../backend
+  image: tuition-backend:latest
+  env_file: .env
+  environment:
+    DJANGO_SETTINGS_MODULE: config.settings.production
+    DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    TRUSTED_PROXY_COUNT: "1" # exactly one proxy (Caddy) in front of Django
+    BACKUP_DIR: /app/backups
+  volumes:
+    - backups:/app/backups
+  restart: unless-stopped
+  logging: &logging
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" } # logs can never fill the disk
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Tuning; defaults suit a small server, raise them on the 24 GB Oracle box.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-256MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-1GB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-128MB}
+      - -c
+      - max_connections=50
+      - -c
+      - log_min_duration_statement=1000 # log queries slower than 1s
+      - -c
+      - idle_in_transaction_session_timeout=60000
+    volumes:
+      - pgdata:/var/lib/postgresql # PostgreSQL 18 images keep data under here
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    shm_size: 256mb
+    restart: unless-stopped
+    logging: *logging
+    # No `ports:` on purpose: the database is reachable only from this stack.
+
+  migrate:
+    <<: *backend
+    command: sh -c "python manage.py migrate --noinput && python manage.py createcachetable"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DB_STATEMENT_TIMEOUT_MS: "0" # migrations may legitimately run long
+    volumes: []
+    restart: "no"
+    healthcheck: { disable: true }
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    <<: *backend
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  scheduler:
+    <<: *backend
+    command: python manage.py run_scheduler
+    healthcheck: { disable: true }
+    stop_grace_period: 2m # let a running backup finish
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # HTTPS certificates: keep this volume!
+      - caddy_config:/config
+    depends_on:
+      web: { condition: service_healthy }
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  pgdata:
+  backups:
+  caddy_data:
+  caddy_config:

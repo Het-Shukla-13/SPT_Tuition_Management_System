@@ -67,6 +67,14 @@ ruff check . ; ruff format . # lint + format
 pre-commit install           # (run from repo root, once) auto-check on commit
 ```
 
+### 7. Production stack (Docker)
+Everything production needs lives in [`deploy/`](deploy/): `docker-compose.yml`
+(PostgreSQL 18, Django/gunicorn, the scheduler, Caddy for HTTPS), the
+`Caddyfile`, a commented `.env.example`, and [`RUNBOOK.md`](deploy/RUNBOOK.md)
+(deploy, logs, backups, restore, rollback, secret rotation, local trial).
+CI (`.github/workflows/backend-ci.yml`) runs lint, tests, schema validation,
+`pip-audit` and a production image build on every pull request.
+
 ---
 
 ## Backend layout

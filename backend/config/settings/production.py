@@ -8,7 +8,7 @@ proxy terminates TLS and sets X-Forwarded-Proto).
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F403
-from .base import ALLOWED_HOSTS, MIDDLEWARE, SECRET_KEY, STORAGES, env
+from .base import ALLOWED_HOSTS, EMAIL_BACKEND, MIDDLEWARE, SECRET_KEY, STORAGES, env
 
 DEBUG = False
 
@@ -25,9 +25,27 @@ if not ALLOWED_HOSTS:
 if len(SECRET_KEY) < 50 or SECRET_KEY.startswith("django-insecure"):
     raise ImproperlyConfigured("DJANGO_SECRET_KEY is too weak for production.")
 
+# Development backends print OTP codes to the server output, where anyone who
+# can read the logs could log in as anyone. Refuse them in production.
+_DEV_BACKENDS = ("console", "locmem", "filebased", "dummy")
+if any(name in EMAIL_BACKEND.lower() for name in _DEV_BACKENDS):
+    raise ImproperlyConfigured(
+        "EMAIL_BACKEND must be a real (SMTP) backend in production."
+    )
+# No SMS provider yet: phone OTP fails cleanly instead of printing codes.
+SMS_BACKEND = env(
+    "SMS_BACKEND", default="apps.accounts.services.sms.DisabledSMSBackend"
+)
+if any(name in SMS_BACKEND.lower() for name in _DEV_BACKENDS):
+    raise ImproperlyConfigured(
+        "SMS_BACKEND can't be a development backend in production."
+    )
+
 # HTTPS
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
+# Container health checks call the app directly over plain HTTP.
+SECURE_REDIRECT_EXEMPT = [r"^api/v1/health/"]
 SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=60 * 60 * 24 * 30)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 # Preload is effectively irreversible (browsers hard-code the domain), so it

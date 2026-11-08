@@ -23,6 +23,7 @@ htmlcov/
 backend/staticfiles/
 backend/media/
 backend/logs/
+backend/backups/
 *.sqlite3
 *.log
 

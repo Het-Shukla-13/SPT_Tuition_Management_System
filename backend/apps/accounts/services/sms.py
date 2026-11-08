@@ -4,6 +4,8 @@ Pluggable SMS sending, mirroring how Django's EMAIL_BACKEND works.
 settings.SMS_BACKEND names the class to use:
 - ConsoleSMSBackend  - development: prints the message to the terminal.
 - LocmemSMSBackend   - tests: keeps messages in memory for assertions.
+- DisabledSMSBackend - production without an SMS provider: every send fails
+  cleanly, so phone OTP answers "couldn't deliver" instead of printing codes.
 - (later) a real gateway backend for production.
 """
 
@@ -37,6 +39,13 @@ class LocmemSMSBackend(BaseSMSBackend):
 
     def send(self, to: str, message: str) -> None:
         LocmemSMSBackend.outbox.append({"to": to, "message": message})
+
+
+class DisabledSMSBackend(BaseSMSBackend):
+    """No SMS provider configured. Sending fails; nothing is printed or logged."""
+
+    def send(self, to: str, message: str) -> None:
+        raise SMSDeliveryError("SMS sending is not configured on this server.")
 
 
 def send_sms(to: str, message: str) -> None:

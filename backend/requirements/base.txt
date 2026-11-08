@@ -17,4 +17,5 @@ Pillow>=13,<14                         # image validation for student photos
 pypdf>=5,<7                           # rejects corrupted / fake PDFs on upload
 reportlab>=4.2,<5                      # PDF fee receipts
 google-auth-oauthlib>=1.2,<2            # one-time Google Drive connection (OAuth consent)
+gunicorn>=23,<24                       # production WSGI server
 sentry-sdk>=2.18,<3                    # optional crash reporting (only if SENTRY_DSN is set)

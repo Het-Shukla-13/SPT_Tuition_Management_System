@@ -187,6 +187,28 @@ class GoogleDriveStorage(Storage):
         # Deliberately no public URL: files are served only by permission-checked endpoints.
         raise NotImplementedError("Files are served through the API, never by URL.")
 
+    def list_files(self, name_prefix: str) -> list[str]:
+        """Storage names of files in our folder whose name starts with `name_prefix`, newest first."""
+        query = (
+            f"'{self.folder_id}' in parents and name contains '{name_prefix}' "
+            "and trashed=false"
+        )
+        response = self._call(
+            "GET",
+            API,
+            params={
+                "q": query,
+                "fields": "files(id,name)",
+                "orderBy": "createdTime desc",
+                "pageSize": 200,
+            },
+        )
+        return [
+            f"{PREFIX}{item['id']}"
+            for item in response.json().get("files", [])
+            if item["name"].startswith(name_prefix)  # "contains" is a word match
+        ]
+
     def create_folder(self, title: str) -> str:
         response = self._call(
             "POST",

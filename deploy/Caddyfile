@@ -1,0 +1,24 @@
+# Caddy: the HTTPS front door.
+#
+# SITE_ADDRESS (from .env) is the public hostname, e.g. spt-api.duckdns.org
+# or api.yourdomain.in. Caddy then gets a free Let's Encrypt certificate for it
+# and renews it automatically. With SITE_ADDRESS=localhost (local testing) it
+# uses its own local certificate instead (browsers will warn; that's expected).
+#
+# No access log on purpose: Django logs every request already, without the
+# query strings Caddy's log would include.
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# Uploads are capped at 20 MB by Django; allow some multipart overhead.
+	request_body {
+		max_size 25MB
+	}
+
+	header -Server
+
+	# Caddy replaces any client-sent X-Forwarded-For with the real client IP,
+	# which Django reads with TRUSTED_PROXY_COUNT=1.
+	reverse_proxy web:8000
+}
