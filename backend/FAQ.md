@@ -507,6 +507,42 @@ Logic: `apps/common/storage.py`, commands in `apps/common/management/commands/`.
 
 ---
 
+## 9d. Security hardening, logging & monitoring
+
+### Automated guards (fail CI if broken)
+- `apps/common/tests/test_security_audit.py` walks **every** URL pattern. Anonymous → `401` on all
+  non-public endpoints; PORTAL → `403` on `/admin/` + `/staff/`; TEACHER → `403` on `/admin/`;
+  ADMIN/TEACHER → `403` on `/portal/`; no role/method may cause a `5xx`. A new endpoint is covered
+  automatically. Making an endpoint public means adding its URL name to `PUBLIC` there — deliberately.
+- `apps/common/tests/test_query_counts.py`: list pages must run the same number of SQL queries for 2 or
+  6 rows (N+1 protection). Use `select_related`/`Prefetch(..., to_attr=...)`/`annotate` in the queryset
+  and read those attributes in serializers — never `.filter()` a relation inside `get_<field>`.
+
+### Response headers
+- All responses: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`,
+  `Permissions-Policy` (camera/mic/location/payment off), `X-Request-ID`.
+- `/api/` responses: `Cache-Control: no-store`. JSON under `/api/v1/` also gets
+  `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`. Files (PDFs, photos) and the
+  Swagger page don't, so browser viewers keep working.
+- Production: HTTPS redirect, secure cookies, HSTS 30 days. `SECURE_HSTS_PRELOAD` stays off until the
+  final domain is permanently on HTTPS (preload is near-impossible to undo).
+
+### Request logs
+- One line per request from logger `apps.requests`: method, path, status, duration, user id, request id.
+  **Never** query strings, bodies, headers or tokens.
+- Levels: `5xx` → ERROR, slower than `SLOW_REQUEST_MS` → WARNING `SLOW ...`, `4xx` → WARNING,
+  health checks → DEBUG (not shown at INFO), rest → INFO.
+- `LOG_FORMAT=json` prints one JSON object per line (for hosting log search).
+
+### Admin, errors, dependencies
+- Django admin URL comes from `DJANGO_ADMIN_URL` (default `admin/`); use something unguessable in production.
+- `SENTRY_DSN` (optional) enables error tracking with `send_default_pii=False`. Empty = disabled.
+- `pip-audit -r requirements/lock.txt` must report no known vulnerabilities before a release
+  (Phase 7 bumped Pillow 12 → 13 for this). `python manage.py check --deploy` with production settings
+  must be clean.
+
+---
+
 ## 10. Cross-cutting gotchas
 
 - **Soft delete is a silent default filter.** `User.objects` hides soft-deleted users;

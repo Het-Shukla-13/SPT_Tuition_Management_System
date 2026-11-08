@@ -60,6 +60,8 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "apps.common.middleware.RequestIDMiddleware",
+    "apps.common.middleware.RequestLoggingMiddleware",
+    "apps.common.middleware.SecurityHeadersMiddleware",
     "django.middleware.security.SecurityMiddleware",
     # (production.py inserts WhiteNoise here)
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -72,6 +74,9 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "config.urls"
+# Django admin site path. Change it in production (e.g. "control-7f3a/") so it
+# isn't found by bots scanning for /admin/.
+DJANGO_ADMIN_URL = env("DJANGO_ADMIN_URL", default="admin/")
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
@@ -342,6 +347,8 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@localhost")
 # traced across log lines. Never log OTPs, passwords or tokens.
 # ─────────────────────────────────────────────────────────────
 LOG_LEVEL = env("LOG_LEVEL", default="INFO")
+LOG_FORMAT = env("LOG_FORMAT", default="text")  # "json" on hosting platforms
+SLOW_REQUEST_MS = env.int("SLOW_REQUEST_MS", default=1000)
 
 LOGGING = {
     "version": 1,
@@ -353,11 +360,12 @@ LOGGING = {
         "standard": {
             "format": "%(asctime)s %(levelname)s [%(request_id)s] %(name)s: %(message)s",
         },
+        "json": {"()": "apps.common.log_formatters.JsonFormatter"},
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "standard",
+            "formatter": "json" if LOG_FORMAT == "json" else "standard",
             "filters": ["request_id"],
         },
     },
@@ -368,3 +376,21 @@ LOGGING = {
         "apps": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
     },
 }
+
+
+# ─────────────────────────────────────────────────────────────
+# Error monitoring (optional): set SENTRY_DSN (free tier) to receive crash
+# reports. Personal data is never sent (no IPs, cookies, headers or bodies).
+# ─────────────────────────────────────────────────────────────
+SENTRY_DSN = env("SENTRY_DSN", default="")
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        send_default_pii=False,
+        environment=env("SENTRY_ENVIRONMENT", default="development"),
+        traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
+    )

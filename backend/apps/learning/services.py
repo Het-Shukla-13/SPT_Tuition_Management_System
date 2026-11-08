@@ -5,7 +5,7 @@ import logging
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Max
+from django.db.models import Max, Prefetch
 from django.http import FileResponse, Http404
 from django.utils import timezone
 from pypdf import PdfReader
@@ -422,9 +422,21 @@ def portal_student(user, student_id: int) -> StudentProfile:
 def portal_test_assignments(student: StudentProfile):
     if not student.is_active:
         return TestAssignment.objects.none()
-    return TestAssignment.objects.filter(
-        student=student, revoked_at__isnull=True
-    ).select_related("test_paper__subject", "test_paper__standard", "test_paper__board")
+    return (
+        TestAssignment.objects.filter(student=student, revoked_at__isnull=True)
+        .select_related(
+            "test_paper__subject", "test_paper__standard", "test_paper__board"
+        )
+        .prefetch_related(
+            Prefetch(
+                "test_paper__files",
+                queryset=DocumentFile.objects.filter(
+                    kind=DocumentFile.Kind.ANSWER_KEY, is_current=True
+                ),
+                to_attr="current_answer_keys",
+            )
+        )
+    )
 
 
 def portal_note_assignments(student: StudentProfile):

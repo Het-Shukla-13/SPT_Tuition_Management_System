@@ -414,7 +414,13 @@ class PortalStudentSerializer(serializers.ModelSerializer):
         ]
 
     def get_subjects(self, obj) -> list[dict]:
-        current = obj.subjects.filter(ended_on__isnull=True).select_related("subject")
+        current = getattr(
+            obj, "current_subjects", None
+        )  # prefetched by the portal list
+        if current is None:
+            current = obj.subjects.filter(ended_on__isnull=True).select_related(
+                "subject"
+            )
         return [_SubjectRef(ss.subject).data for ss in current]
 
     def get_has_photo(self, obj) -> bool:

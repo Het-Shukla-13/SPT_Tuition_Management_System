@@ -8,7 +8,7 @@ Portal (parents / students), only for linked + ACTIVE students:
   /api/v1/portal/students/{student_id}/tests/...   /notes/...
 """
 
-from django.db.models import Q
+from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -81,8 +81,25 @@ class _ItemViewSet(viewsets.GenericViewSet):
         return self.read_serializer
 
     def get_queryset(self):
-        queryset = self.queryset.select_related(
-            "board", "standard", "subject", "academic_year"
+        queryset = (
+            self.queryset.select_related(
+                "board", "standard", "subject", "academic_year"
+            )
+            .prefetch_related(
+                "chapters",
+                Prefetch(
+                    "files",
+                    queryset=DocumentFile.objects.filter(is_current=True),
+                    to_attr="current_files",
+                ),
+            )
+            .annotate(
+                active_assignment_count=Count(
+                    "assignments",
+                    filter=Q(assignments__revoked_at__isnull=True),
+                    distinct=True,
+                )
+            )
         )
         if self.action == "list":
             archived = (

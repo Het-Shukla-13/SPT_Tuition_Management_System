@@ -356,7 +356,9 @@ class PaymentListView(generics.ListAPIView):
     def get_queryset(self):
         qs = LedgerEntry.objects.filter(
             entry_type=LedgerEntry.Type.PAYMENT
-        ).select_related("account__student", "account__academic_year", "recorded_by")
+        ).select_related(
+            "account__student", "account__academic_year", "recorded_by", "reversed_by"
+        )
         reversed_param = self.request.query_params.get("reversed")
         if reversed_param == "true":
             qs = qs.filter(reversed_by__isnull=False)
