@@ -18,7 +18,12 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.common.storage import DRIVE_SCOPES, TOKEN_URI, GoogleDriveStorage
+from apps.common.storage import (
+    DRIVE_SCOPES,
+    TOKEN_URI,
+    FileStorageUnavailable,
+    GoogleDriveStorage,
+)
 
 FOLDER_TITLE = "SPT Tuition - app files (do not edit)"
 
@@ -82,7 +87,12 @@ class Command(BaseCommand):
             storage = GoogleDriveStorage(
                 folder_id="", session_factory=lambda: AuthorizedSession(credentials)
             )
-            folder_id = storage.create_folder(FOLDER_TITLE)
+            try:
+                folder_id = storage.create_folder(FOLDER_TITLE)
+            except FileStorageUnavailable as exc:
+                raise CommandError(
+                    f"Signed in, but Drive refused: {exc.detail}"
+                ) from None
             values["GOOGLE_DRIVE_FOLDER_ID"] = folder_id
             self.stdout.write(f'Created Drive folder "{FOLDER_TITLE}".')
 

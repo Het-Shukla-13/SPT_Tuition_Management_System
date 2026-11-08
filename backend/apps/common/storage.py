@@ -47,6 +47,14 @@ class FileStorageUnavailable(ServiceUnavailableError):
     default_code = "FILE_STORAGE_UNAVAILABLE"
 
 
+class DriveApiDisabled(FileStorageUnavailable):
+    default_detail = (
+        "The Google Drive API is not enabled for this Google Cloud project. Enable it at "
+        "APIs & Services -> Library -> Google Drive API, wait a minute, then retry."
+    )
+    default_code = "DRIVE_API_DISABLED"
+
+
 def drive_configured() -> bool:
     return all(
         getattr(settings, name, "")
@@ -117,6 +125,9 @@ class GoogleDriveStorage(Storage):
             )
             if response.status_code == 404:
                 raise FileNotFoundError(url)
+            if response.status_code == 403 and "has not been used" in response.text:
+                # Clear message for the most common setup mistake.
+                raise DriveApiDisabled()
             raise FileStorageUnavailable()
         return response
 
