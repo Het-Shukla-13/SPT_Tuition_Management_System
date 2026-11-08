@@ -1,6 +1,6 @@
 # Phase 3: Tests & notes (design)
 
-Status: **draft, waiting on 4 owner decisions** (bottom). Spec: parts 3-5 (sections 5, 6, 7),
+Status: **agreed (owner, 2026-11-08)**, building. Spec: parts 3-5 (sections 5, 6, 7),
 9.2-9.3 (student view), 10.4 (file security), edge-case register (Tests/Notes/Files).
 
 ## Files: private by default
@@ -38,11 +38,16 @@ Status: **draft, waiting on 4 owner decisions** (bottom). Spec: parts 3-5 (secti
 Search/filter/sort per spec 5.2 / 6.2; pagination; audit log for uploads, replacements,
 assignments, revocations, grades.
 
-## Open decisions
-1. **Replacing an already-assigned PDF:** students see the **latest** version (old kept for
-   history), or each assignment stays **pinned** to the version it was given? *Rec: latest.*
-2. **Teachers:** can they work with **all** students/standards, or only the standards/subjects
-   assigned to them? *Rec: all for now (small institute); restrict later if needed.*
-3. **Marks:** record marks per test assignment now (teachers grade)? *Rec: yes.*
-4. **Student submissions** (students uploading answer sheets): needed, or tests are taken on paper
-   at the institute? *Rec: not now.*
+## Decisions (owner, 2026-11-08)
+1. **Replacing an assigned PDF:** students always see the **latest** version; old versions are kept.
+2. **Teachers** work with **all** students/standards.
+3. **Marks:** yes, recorded per test assignment by admins/teachers.
+4. **No student submissions**: tests are written on paper at the tuition.
+5. **Answer keys unlock automatically when the test is over**: each test assignment has
+   `test_starts_at` + `duration_minutes`; the key is visible to the student only after
+   `test_starts_at + duration`. No time set → never visible. No early release.
+6. **Phase 6 storage: Google Drive** (owner's account, 15 GB free, zero cost, no card). Files go in
+   a private Drive folder via the Drive API; the backend checks permission and streams the file, so
+   users never touch Drive. Accepted trade-offs: shares the owner's 15 GB, the Google connection
+   must occasionally be re-authorised, slower than a bucket. Phase 3 code stays on Django storages
+   (local disk now), so Phase 6 only swaps the storage backend.

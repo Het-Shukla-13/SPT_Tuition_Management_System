@@ -20,6 +20,8 @@ api_v1_patterns = [
     path("academics/", include("apps.academics.urls")),
     path("admin/students/", include("apps.students.urls_admin")),
     path("portal/students/", include("apps.students.urls_portal")),
+    path("portal/students/<int:student_id>/", include("apps.learning.urls_portal")),
+    path("staff/", include("apps.learning.urls_staff")),
     path("public/enquiries/", include(enquiry_public_urls)),
     path("admin/enquiries/", include(enquiry_admin_urls)),
 ]
