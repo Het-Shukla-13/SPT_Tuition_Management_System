@@ -495,3 +495,115 @@ def selected_student_id(*, user: User, session_id: str | None) -> int | None:
         .values_list("selected_student_id", flat=True)
         .first()
     )
+
+
+# ─────────────────────────────────────────────────────────────
+# Photo
+# ─────────────────────────────────────────────────────────────
+PHOTO_FORMATS = {"JPEG", "PNG", "WEBP"}
+PHOTO_MAX_SIDE = 800
+PHOTO_MAX_PIXELS = 40_000_000  # refuse "decompression bomb" images
+
+
+def _clean_photo(upload):
+    """
+    Validate, then re-encode as a new JPEG: resized, with all metadata (e.g. the
+    phone's GPS location) stripped, so nothing but pixels is ever stored.
+    """
+    import io
+
+    from django.core.files.base import ContentFile
+    from PIL import Image, UnidentifiedImageError
+
+    from apps.students.exceptions import InvalidPhoto, PhotoTooLarge
+
+    if upload.size > settings.MAX_PHOTO_SIZE_MB * 1024 * 1024:
+        raise PhotoTooLarge(
+            f"The photo is larger than {settings.MAX_PHOTO_SIZE_MB} MB."
+        )
+    try:
+        upload.seek(0)
+        image = Image.open(upload)
+        if image.format not in PHOTO_FORMATS:
+            raise InvalidPhoto()
+        if image.width * image.height > PHOTO_MAX_PIXELS:
+            raise PhotoTooLarge("The photo has too many pixels.")
+        image.verify()  # detects truncated/corrupt files
+        upload.seek(0)
+        image = Image.open(upload)
+        image = image.convert("RGB")
+        image.thumbnail((PHOTO_MAX_SIDE, PHOTO_MAX_SIDE))
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+        raise InvalidPhoto() from None
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=85, optimize=True)
+    return ContentFile(buffer.getvalue(), name="photo.jpg")
+
+
+def set_photo(
+    *, actor: User, student: StudentProfile, upload, ip=None
+) -> StudentProfile:
+    cleaned = _clean_photo(upload)
+    with transaction.atomic():
+        locked = StudentProfile.objects.select_for_update().get(pk=student.pk)
+        old_name = locked.photo.name if locked.photo else None
+        locked.photo.save("photo.jpg", cleaned, save=False)
+        locked.updated_by = actor
+        locked.save(update_fields=["photo", "updated_by", "updated_at"])
+        record(
+            AuditLog.Action.STUDENT_PHOTO_CHANGED,
+            actor=actor,
+            target=locked,
+            changes={"photo": "replaced" if old_name else "added"},
+            ip=ip,
+        )
+        if old_name:
+            storage = locked.photo.storage
+            transaction.on_commit(lambda: _delete_quietly(storage, old_name))
+    return locked
+
+
+def remove_photo(*, actor: User, student: StudentProfile, ip=None) -> StudentProfile:
+    from apps.students.exceptions import NoPhoto
+
+    with transaction.atomic():
+        locked = StudentProfile.objects.select_for_update().get(pk=student.pk)
+        if not locked.photo:
+            raise NoPhoto()
+        old_name, storage = locked.photo.name, locked.photo.storage
+        locked.photo = None
+        locked.updated_by = actor
+        locked.save(update_fields=["photo", "updated_by", "updated_at"])
+        record(
+            AuditLog.Action.STUDENT_PHOTO_CHANGED,
+            actor=actor,
+            target=locked,
+            changes={"photo": "removed"},
+            ip=ip,
+        )
+        transaction.on_commit(lambda: _delete_quietly(storage, old_name))
+    return locked
+
+
+def _delete_quietly(storage, name: str) -> None:
+    try:
+        storage.delete(name)
+    except Exception:
+        logger.warning("Could not delete old photo file %s", name, exc_info=True)
+
+
+def photo_response(student: StudentProfile):
+    from django.http import FileResponse
+
+    from apps.students.exceptions import NoPhoto
+
+    if not student.photo:
+        raise NoPhoto()
+    try:
+        handle = student.photo.open("rb")
+    except FileNotFoundError:
+        raise NoPhoto() from None
+    response = FileResponse(handle, content_type="image/jpeg")
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response

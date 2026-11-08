@@ -7,8 +7,10 @@ Portal: /api/v1/portal/students/...  (IsPortalUser; only linked students)
 
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework import generics
+from rest_framework import generics, serializers
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.views import APIView
 
 from apps.accounts.models import User
@@ -37,9 +39,12 @@ from apps.students.services import (
     get_linked_student,
     grant_access,
     linked_students,
+    photo_response,
+    remove_photo,
     revoke_access,
     select_student,
     selected_student_id,
+    set_photo,
     set_status,
     set_subjects,
     update_student,
@@ -394,3 +399,69 @@ class PortalStudentSelectView(APIView):
         return ApiResponse.success(
             message="Selected.", data={"selected_student_id": student.pk}
         )
+
+
+# ─────────────────────────────────────────────────────────────
+# Photo
+# ─────────────────────────────────────────────────────────────
+class PhotoUploadSerializer(serializers.Serializer):
+    photo = serializers.FileField(
+        help_text="JPEG, PNG or WebP. Stored as a resized JPEG."
+    )
+
+
+class AdminStudentPhotoView(APIView):
+    permission_classes = [IsAdmin]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(
+        tags=ADMIN_TAG,
+        summary="View the student's photo",
+        responses={(200, "image/jpeg"): OpenApiTypes.BINARY},
+    )
+    def get(self, request, pk: int):
+        return photo_response(_student(pk))
+
+    @extend_schema(
+        tags=ADMIN_TAG,
+        summary="Upload / replace the student's photo",
+        request={"multipart/form-data": PhotoUploadSerializer},
+        responses={
+            200: StudentDetailSerializer,
+            400: OpenApiResponse(description="INVALID_PHOTO / PHOTO_TOO_LARGE"),
+        },
+    )
+    def post(self, request, pk: int):
+        serializer = PhotoUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        student = set_photo(
+            actor=request.user,
+            student=_student(pk),
+            upload=serializer.validated_data["photo"],
+            ip=client_ip(request),
+        )
+        return ApiResponse.success(message="Photo saved.", data=_detail(student))
+
+    @extend_schema(
+        tags=ADMIN_TAG,
+        summary="Remove the student's photo",
+        request=None,
+        responses={200: StudentDetailSerializer},
+    )
+    def delete(self, request, pk: int):
+        student = remove_photo(
+            actor=request.user, student=_student(pk), ip=client_ip(request)
+        )
+        return ApiResponse.success(message="Photo removed.", data=_detail(student))
+
+
+class PortalStudentPhotoView(APIView):
+    permission_classes = [IsPortalUser]
+
+    @extend_schema(
+        tags=PORTAL_TAG,
+        summary="My student's photo",
+        responses={(200, "image/jpeg"): OpenApiTypes.BINARY},
+    )
+    def get(self, request, pk: int):
+        return photo_response(get_linked_student(request.user, pk))

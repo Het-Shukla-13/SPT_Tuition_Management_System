@@ -55,6 +55,7 @@ class AuditLog(models.Model):
         FEE_PAYMENT_REVERSED = "FEE_PAYMENT_REVERSED", "Payment reversed"
         FEE_REFUNDED = "FEE_REFUNDED", "Refund recorded"
         ROLLOVER_APPLIED = "ROLLOVER_APPLIED", "Year-end rollover for a student"
+        STUDENT_PHOTO_CHANGED = "STUDENT_PHOTO_CHANGED", "Student photo changed/removed"
 
     action = models.CharField(max_length=64, choices=Action.choices, db_index=True)
     # SET_NULL: the trail must survive even if an account row is ever removed.
