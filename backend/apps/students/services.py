@@ -9,7 +9,7 @@ import logging
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.http import Http404
 from django.utils import timezone
 
@@ -469,6 +469,15 @@ def linked_students(user: User):
             access_links__user=user, access_links__revoked_at__isnull=True
         )
         .select_related("board", "standard", "school")
+        .prefetch_related(
+            Prefetch(
+                "subjects",
+                queryset=StudentSubject.objects.filter(
+                    ended_on__isnull=True
+                ).select_related("subject"),
+                to_attr="current_subjects",
+            )
+        )
         .distinct()
     )
 

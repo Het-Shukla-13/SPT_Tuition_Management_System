@@ -30,7 +30,11 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
 SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=60 * 60 * 24 * 30)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = False
+# Preload is effectively irreversible (browsers hard-code the domain), so it
+# stays off until the final domain has run on HTTPS for a while.
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
+if not SECURE_HSTS_PRELOAD:
+    SILENCED_SYSTEM_CHECKS = ["security.W021"]
 
 # Cookies only over HTTPS
 SESSION_COOKIE_SECURE = True

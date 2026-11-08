@@ -35,7 +35,7 @@ api_v1_patterns = [
 ]
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    path(settings.DJANGO_ADMIN_URL, admin.site.urls),
     path("api/v1/", include(api_v1_patterns)),
 ]
 

@@ -47,9 +47,17 @@ class _ItemReadSerializer(serializers.ModelSerializer):
         return [f"{c.number}. {c.name}" for c in obj.chapters.all()]
 
     def get_files(self, obj) -> list[dict]:
-        return DocumentFileSerializer(obj.files.filter(is_current=True), many=True).data
+        current = getattr(obj, "current_files", None)  # prefetched by list views
+        if current is None:
+            current = obj.files.filter(is_current=True)
+        return DocumentFileSerializer(current, many=True).data
 
     def get_active_assignments(self, obj) -> int:
+        annotated = getattr(
+            obj, "active_assignment_count", None
+        )  # annotated by list views
+        if annotated is not None:
+            return annotated
         return obj.assignments.filter(revoked_at__isnull=True).count()
 
 
@@ -357,6 +365,9 @@ class PortalTestSerializer(serializers.ModelSerializer):
         return [f"{c.number}. {c.name}" for c in obj.test_paper.chapters.all()]
 
     def get_has_answer_key(self, obj) -> bool:
+        keys = getattr(obj.test_paper, "current_answer_keys", None)  # prefetched
+        if keys is not None:
+            return bool(keys)
         return obj.test_paper.files.filter(
             kind=DocumentFile.Kind.ANSWER_KEY, is_current=True
         ).exists()
