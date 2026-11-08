@@ -40,6 +40,14 @@ class AuditLog(models.Model):
             "Login's access to a student removed",
         )
         ENQUIRY_UPDATED = "ENQUIRY_UPDATED", "Admission enquiry updated"
+        DOCUMENT_UPLOADED = "DOCUMENT_UPLOADED", "Test paper / notes uploaded"
+        DOCUMENT_UPDATED = "DOCUMENT_UPDATED", "Test paper / notes details updated"
+        DOCUMENT_REPLACED = "DOCUMENT_REPLACED", "PDF replaced"
+        ASSIGNMENT_CREATED = "ASSIGNMENT_CREATED", "Assigned to a student"
+        ASSIGNMENT_UPDATED = "ASSIGNMENT_UPDATED", "Assignment updated"
+        ASSIGNMENT_REVOKED = "ASSIGNMENT_REVOKED", "Assignment revoked"
+        ASSIGNMENT_GRADED = "ASSIGNMENT_GRADED", "Marks entered"
+        FILE_ACCESSED = "FILE_ACCESSED", "PDF opened / downloaded"
 
     action = models.CharField(max_length=64, choices=Action.choices, db_index=True)
     # SET_NULL: the trail must survive even if an account row is ever removed.

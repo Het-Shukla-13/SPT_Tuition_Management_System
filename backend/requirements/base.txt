@@ -14,3 +14,4 @@ whitenoise>=6.9,<7                     # static files without a separate web ser
 google-auth>=2.35,<3                   # verifies Google Sign-In ID tokens
 requests>=2.32,<3                      # HTTP transport google-auth uses to fetch Google's keys
 Pillow>=11,<13                         # image validation for student photos
+pypdf>=5,<7                           # rejects corrupted / fake PDFs on upload

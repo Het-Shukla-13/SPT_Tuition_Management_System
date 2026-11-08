@@ -351,6 +351,48 @@ Everything is audited. Reference data in use can't be deleted (`PROTECT`).
   `GET/PATCH /{id}/` (`status` NEW/CONTACTED/ACCEPTED/REJECTED, `notes`, `student`). Linking a
   `student` (after admitting them through the admission form) marks it ACCEPTED. Audited.
 
+## 8. Tests & notes (`/api/v1/staff/...`, `/api/v1/portal/students/{id}/...`)
+
+Logic: `apps/learning/services.py`. Design: `docs/plans/phase-3-tests-notes.md`.
+
+### Who can do what?
+- **Admins and teachers** (`IsStaff`): upload, edit, replace PDFs, archive, assign, revoke, grade.
+- **Portal logins** (parents/students): only assignments of their **linked, ACTIVE** student.
+  Another student's id or assignment id → `404`.
+
+### How are files protected?
+- **No public file URLs.** PDFs are only served by `.../download/` endpoints after permission checks
+  (`Cache-Control: private, no-store`); every portal download is audited (`FILE_ACCESSED`).
+- Uploads: **PDF only, checked by content** (`%PDF-` signature + parsed by pypdf), so renamed
+  executables and corrupt PDFs are rejected (`INVALID_PDF`); max `MAX_UPLOAD_SIZE_MB` (`FILE_TOO_LARGE`).
+- Stored under random names; the DB keeps only the storage path. Local disk now, **Google Drive in Phase 6**.
+- The exact same PDF already uploaded elsewhere → `409 DUPLICATE_DOCUMENT` (resend `confirm_duplicate`).
+
+### Staff endpoints
+| Endpoint | Notes |
+|---|---|
+| `GET/POST /staff/tests/` | Archive list (search title/subject/chapter; filter board/standard/subject/semester/academic_year/chapters/school; sort; archived hidden unless `?is_archived=true`). POST = multipart upload: details + `file` (+ optional `answer_key`) |
+| `GET/PATCH /staff/tests/{id}/` | Details. Chapters must match the paper's board + standard + subject |
+| `POST /staff/tests/{id}/paper/` · `POST/DELETE .../answer-key/` | Replace PDF → **new version, old kept**; students always get the latest |
+| `GET .../versions/` · `GET .../download/?kind=PAPER\|ANSWER_KEY&version=&inline=` | |
+| `POST .../archive/` `{archived}` | Archived = hidden + can't be newly assigned; existing assignments stay |
+| `POST .../assign/` `{student_ids, test_starts_at?, duration_minutes?, remarks}` | Bulk; returns `assigned` + `failed` (`NOT_FOUND`, `STUDENT_NOT_ACTIVE`, `ALREADY_ASSIGNED`) |
+| Same for `/staff/notes/` (replace: `.../file/`) | No answer key / marks for notes |
+| `GET /staff/test-assignments/` `?student=&test_paper=&status=active\|revoked\|all` | Also `/staff/note-assignments/` |
+| `PATCH /staff/test-assignments/{id}/` | Change test time / duration / remarks |
+| `POST /staff/test-assignments/{id}/grade/` `{marks_obtained, grade_remarks}` | 0 ≤ marks ≤ `max_marks` (`MARKS_OUT_OF_RANGE`) |
+| `POST /staff/{test,note}-assignments/revoke/` `{assignment_ids}` | Bulk; rows kept (history). Revoke + reassign keeps both |
+
+### When can a student see the answer key?
+**Automatically once the test is over**: after `test_starts_at + duration` (the assignment's duration,
+else the paper's). No test time set → never. Before that → `403 ANSWER_KEY_LOCKED`; no key uploaded →
+`404 ANSWER_KEY_UNAVAILABLE`. Staff can reschedule the test time.
+
+### Portal endpoints
+`GET tests/` (assigned tests with dates, remarks, marks, `answer_key_available`), `GET tests/{id}/`,
+`GET tests/{id}/download/?kind=PAPER|ANSWER_KEY`, `GET notes/?search=&subject=&chapter=`,
+`GET notes/{id}/download/`. A student who is `ON_HOLD`/`LEFT` sees no tests/notes.
+
 ---
 
 ## 9. Cross-cutting gotchas
