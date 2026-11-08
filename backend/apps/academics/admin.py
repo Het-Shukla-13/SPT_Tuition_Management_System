@@ -44,4 +44,12 @@ class SchoolAdmin(admin.ModelAdmin):
 
 @admin.register(AcademicYear)
 class AcademicYearAdmin(admin.ModelAdmin):
-    list_display = ["name", "start_date", "end_date", "is_current", "is_active"]
+    list_display = [
+        "board",
+        "name",
+        "start_date",
+        "end_date",
+        "is_current",
+        "is_active",
+    ]
+    list_filter = ["board", "is_current"]

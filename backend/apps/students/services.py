@@ -54,10 +54,13 @@ PERSONAL_FIELDS = (
 # ─────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────
-def _current_year() -> AcademicYear:
-    year = AcademicYear.current()
+def _current_year(board) -> AcademicYear:
+    """The board's current academic year (each board has its own dates)."""
+    year = AcademicYear.current(board)
     if year is None:
-        raise NoCurrentAcademicYear()
+        raise NoCurrentAcademicYear(
+            f"Set a current academic year for {board} first (Academics → academic years)."
+        )
     return year
 
 
@@ -158,7 +161,7 @@ def admit_student(
     """
     invites: dict = {}
     with transaction.atomic():
-        year = _current_year()
+        year = _current_year(profile["board"])
         _ensure_active(
             profile["board"], profile["standard"], profile["school"], *subjects
         )
@@ -279,7 +282,7 @@ def change_academic(
     if (board, standard, school) == (locked.board, locked.standard, locked.school):
         raise NothingChanged()
     _ensure_active(board, standard, school)
-    year = _current_year()
+    year = _current_year(board)
     today = timezone.localdate()
 
     old = {
