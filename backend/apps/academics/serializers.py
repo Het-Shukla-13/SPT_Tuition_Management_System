@@ -116,14 +116,17 @@ class SchoolSerializer(_ReferenceSerializer):
 
 
 class AcademicYearSerializer(_ReferenceSerializer):
-    # Declared explicitly so DRF doesn't attach a field-level unique validator
-    # for the "single current year" constraint (save() handles the switch).
+    # Declared explicitly so DRF doesn't attach unique validators for the
+    # "one current year per board" constraint (save() handles the switch).
     is_current = serializers.BooleanField(required=False, default=False)
+    board_code = serializers.CharField(source="board.code", read_only=True)
 
     class Meta:
         model = AcademicYear
         fields = [
             "id",
+            "board",
+            "board_code",
             "name",
             "start_date",
             "end_date",
@@ -150,14 +153,26 @@ class AcademicYearSerializer(_ReferenceSerializer):
             raise serializers.ValidationError(
                 {"is_current": ["An inactive year can't be current."]}
             )
+        board = attrs.get("board", getattr(self.instance, "board", None))
+        name = attrs.get("name", getattr(self.instance, "name", None))
+        clash = AcademicYear.objects.filter(board=board, name__iexact=name)
+        if self.instance is not None:
+            clash = clash.exclude(pk=self.instance.pk)
+        if board is not None and name and clash.exists():
+            raise serializers.ValidationError(
+                {"name": [f"{board} already has an academic year called {name}."]}
+            )
         return attrs
 
     @transaction.atomic
     def save(self, **kwargs):
-        # Only one current year: switching it on here switches the old one off
-        # first (the database also enforces "at most one current").
+        # One current year per board: switching it on here switches that
+        # board's old one off first (the database also enforces it).
         if self.validated_data.get("is_current"):
-            others = AcademicYear.objects.select_for_update().filter(is_current=True)
+            board = self.validated_data.get("board") or self.instance.board
+            others = AcademicYear.objects.select_for_update().filter(
+                board=board, is_current=True
+            )
             if self.instance is not None:
                 others = others.exclude(pk=self.instance.pk)
             others.update(is_current=False)

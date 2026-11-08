@@ -109,20 +109,29 @@ class _ItemWriteSerializer(serializers.ModelSerializer):
     academic_year = serializers.PrimaryKeyRelatedField(
         queryset=AcademicYear.objects.all(),
         required=False,
-        help_text="Defaults to the current academic year.",
+        help_text="Defaults to the board's current academic year.",
     )
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        if self.instance is None and not attrs.get("academic_year"):
-            current = AcademicYear.current()
+        board = attrs.get("board", getattr(self.instance, "board", None))
+        if (
+            self.instance is None
+            and not attrs.get("academic_year")
+            and board is not None
+        ):
+            current = AcademicYear.current(board)
             if current is None:
                 raise serializers.ValidationError(
-                    {"academic_year": ["No current academic year is set."]}
+                    {"academic_year": [f"No current academic year is set for {board}."]}
                 )
             attrs["academic_year"] = current
+        year = attrs.get("academic_year", getattr(self.instance, "academic_year", None))
+        if year is not None and board is not None and year.board_id != board.pk:
+            raise serializers.ValidationError(
+                {"academic_year": ["This academic year belongs to a different board."]}
+            )
         # Chapters must belong to the item's board + standard + subject.
-        board = attrs.get("board", getattr(self.instance, "board", None))
         standard = attrs.get("standard", getattr(self.instance, "standard", None))
         subject = attrs.get("subject", getattr(self.instance, "subject", None))
         for chapter in attrs.get("chapters", []):

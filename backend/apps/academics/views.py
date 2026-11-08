@@ -106,5 +106,5 @@ class SchoolViewSet(_ReferenceViewSet):
 class AcademicYearViewSet(_ReferenceViewSet):
     queryset = AcademicYear.objects.all()
     serializer_class = AcademicYearSerializer
-    filterset_fields = ["is_current", "is_active"]
+    filterset_fields = ["board", "is_current", "is_active"]
     ordering_fields = ["start_date", "name"]

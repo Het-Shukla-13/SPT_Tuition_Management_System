@@ -130,19 +130,31 @@ class School(ReferenceModel):
 
 
 class AcademicYear(ReferenceModel):
-    name = models.CharField(max_length=20, unique=True, help_text='e.g. "2026-27"')
+    """
+    One board's academic year, e.g. CBSE 2026-27. Boards start and end on
+    different dates that change every year, so the admin enters each board's
+    year manually. Each board has at most one current year.
+    """
+
+    board = models.ForeignKey(
+        Board, on_delete=models.PROTECT, related_name="academic_years"
+    )
+    name = models.CharField(max_length=20, help_text='e.g. "2026-27"')
     start_date = models.DateField()
     end_date = models.DateField()
     is_current = models.BooleanField(default=False)
 
     class Meta:
         db_table = "academic_years"
-        ordering = ["-start_date"]
+        ordering = ["board__code", "-start_date"]
         constraints = [
             models.UniqueConstraint(
-                fields=["is_current"],
+                fields=["board", "name"], name="academic_years_unique_name_per_board"
+            ),
+            models.UniqueConstraint(
+                fields=["board"],
                 condition=Q(is_current=True),
-                name="academic_years_single_current",
+                name="academic_years_one_current_per_board",
             ),
             models.CheckConstraint(
                 condition=Q(end_date__gt=models.F("start_date")),
@@ -151,8 +163,8 @@ class AcademicYear(ReferenceModel):
         ]
 
     def __str__(self) -> str:
-        return self.name
+        return f"{self.board} {self.name}"
 
     @classmethod
-    def current(cls) -> "AcademicYear | None":
-        return cls.objects.filter(is_current=True).first()
+    def current(cls, board) -> "AcademicYear | None":
+        return cls.objects.filter(board=board, is_current=True).first()

@@ -59,7 +59,8 @@ class TestSeedData:
             "Gujarati",
             "Hindi",
         }
-        assert AcademicYear.current().name == "2026-27"
+        for code in ("CBSE", "GSEB", "ICSE"):  # one current year per board
+            assert AcademicYear.current(Board.objects.get(code=code)).name == "2026-27"
 
 
 @pytest.mark.django_db
@@ -183,10 +184,12 @@ class TestDeactivation:
 
 @pytest.mark.django_db
 class TestAcademicYear:
-    def test_making_a_year_current_switches_the_old_one_off(self, admin):
+    def test_making_a_year_current_switches_only_that_boards_old_one_off(self, admin):
+        cbse, gseb = Board.objects.get(code="CBSE"), Board.objects.get(code="GSEB")
         response = client_for(admin).post(
             f"{BASE}academic-years/",
             {
+                "board": cbse.pk,
                 "name": "2027-28",
                 "start_date": "2027-04-01",
                 "end_date": "2028-03-31",
@@ -195,13 +198,47 @@ class TestAcademicYear:
             format="json",
         )
         assert response.status_code == 201
-        assert AcademicYear.current().name == "2027-28"
-        assert AcademicYear.objects.filter(is_current=True).count() == 1
+        assert AcademicYear.current(cbse).name == "2027-28"
+        assert AcademicYear.current(gseb).name == "2026-27"  # other boards untouched
+        assert AcademicYear.objects.filter(board=cbse, is_current=True).count() == 1
+
+    def test_boards_have_their_own_dates(self, admin):
+        gseb = Board.objects.get(code="GSEB")
+        year = AcademicYear.current(gseb)
+        response = client_for(admin).patch(
+            f"{BASE}academic-years/{year.pk}/",
+            {"start_date": "2026-06-10", "end_date": "2027-04-30"},
+            format="json",
+        )
+        assert response.status_code == 200
+        assert (
+            AcademicYear.current(Board.objects.get(code="CBSE")).start_date.month == 4
+        )
+
+    def test_same_name_twice_for_one_board_rejected(self, admin):
+        cbse = Board.objects.get(code="CBSE")
+        response = client_for(admin).post(
+            f"{BASE}academic-years/",
+            {
+                "board": cbse.pk,
+                "name": "2026-27",
+                "start_date": "2026-04-01",
+                "end_date": "2027-03-31",
+            },
+            format="json",
+        )
+        assert response.status_code == 400
+        assert "name" in response.json()["errors"]
 
     def test_end_must_be_after_start(self, admin):
         response = client_for(admin).post(
             f"{BASE}academic-years/",
-            {"name": "bad", "start_date": "2027-04-01", "end_date": "2027-03-01"},
+            {
+                "board": Board.objects.get(code="CBSE").pk,
+                "name": "bad",
+                "start_date": "2027-04-01",
+                "end_date": "2027-03-01",
+            },
             format="json",
         )
         assert response.status_code == 400

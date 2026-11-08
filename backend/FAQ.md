@@ -393,9 +393,76 @@ else the paper's). No test time set → never. Before that → `403 ANSWER_KEY_L
 `GET tests/{id}/download/?kind=PAPER|ANSWER_KEY`, `GET notes/?search=&subject=&chapter=`,
 `GET notes/{id}/download/`. A student who is `ON_HOLD`/`LEFT` sees no tests/notes.
 
+## 9. Fees, academic years per board, year-end rollover
+
+Logic: `apps/fees/services.py`, `apps/fees/rollover.py`. Design: `docs/plans/phase-4-fees.md`.
+**Admins only**; teachers and portal logins get `403` on fee admin endpoints.
+
+### Academic years
+Each **board has its own academic years** (dates typed in by the admin every year) and **its own current
+year**. Student history, tests/notes and fee accounts use the student's board's year.
+
+### How are fees stored?
+- `FeeStructure`: standard fee per standard in a board's year. **Only a suggestion** for new admissions;
+  editing it never changes existing students.
+- `StudentFeeAccount`: one per student per academic year (created at admission with `agreed_fee`, default =
+  fee structure, else `FEE_REQUIRED`; optional `opening_balance` + reason for dues from before the app).
+- `LedgerEntry`: **append-only** money records: CHARGE, ADJUSTMENT (+/-), PAYMENT, REVERSAL, REFUND,
+  CARRY_OUT. **Never edited or deleted.** Totals are always computed from entries.
+
+### What do total / paid / pending / status mean?
+`total = opening_balance + agreed fee + adjustments`; `paid = payments - reversals - refunds`;
+`due = total + carried - paid`. `pending = due if > 0`, `credit = -due if < 0`.
+Status: `PAID`, `PARTIAL`, `PENDING`, `CREDIT` (overpaid), `CARRIED_FORWARD` (moved to next year).
+`is_overdue` = dues after the year's end date; `is_ending_soon` = dues within 30 days of it.
+
+### How are mistakes and duplicates handled? (spec 8.6)
+- **Double "Save":** send an `Idempotency-Key` header with each payment; the same key again returns the
+  original payment (200) instead of recording it twice. The same key on another account → `409 IDEMPOTENCY_CONFLICT`.
+- **Wrong payment:** `POST /admin/fees/entries/{id}/reverse/` `{reason}`, then record the right one. Once per payment
+  (`ALREADY_REVERSED`), payments only (`NOT_A_PAYMENT`).
+- **Fee changed:** `POST .../agreed-fee/` `{agreed_fee, reason}` → recorded as an adjustment of the difference.
+- **Concession / extra charge:** `POST .../adjustments/` `{amount (+/-), reason}`.
+- **Refund:** `POST .../refunds/`, at most what was actually paid (`REFUND_TOO_LARGE`).
+- **Overpayment** becomes credit and is carried into next year at rollover.
+- Every write locks the account row (two admins at once can't corrupt totals) and is audited.
+
+### Validation
+Amount > 0 (≤ 2 decimals) → `INVALID_AMOUNT`; date not in the future → `FUTURE_DATE`; method CASH/UPI/
+BANK_TRANSFER/CHEQUE/OTHER (OTHER needs remarks → `NOTE_REQUIRED`); reasons required for adjustments,
+reversals, refunds; agreed fee ≥ 0; one account per student per year.
+
+### Endpoints
+| Endpoint | Notes |
+|---|---|
+| `/admin/fee-structures/` | CRUD (no delete); filter year/board/standard |
+| `GET /admin/fees/accounts/` | Fees table. `?status=PAID\|PARTIAL\|PENDING\|CREDIT\|CARRIED_FORWARD\|OVERDUE\|ENDING_SOON`, `pending_min/max`, `paid_min/max`, `total_min/max`, `academic_year`, `academic_year__board`, `student__standard`, `student__school`, `student__status`, `student__admission_date__gte/lte`; search name/admission no./guardian phone; `ordering=-pending\|total\|paid\|credit\|last_payment_date\|student__first_name\|student__standard__level` |
+| `GET /admin/fees/accounts/{id}/` | Totals + full ledger |
+| `GET /admin/fees/students/{student_id}/accounts/` | Every year of one student |
+| `POST .../payments/` · `.../adjustments/` · `.../agreed-fee/` · `.../refunds/` | See above |
+| `GET /admin/fees/payments/` | All payments: `entry_date__gte/lte`, `method`, `amount__gte/lte`, `recorded_by`, `reversed=true\|false`, search |
+| `GET /admin/fees/payments/{id}/receipt/` | PDF receipt (`RCPT-<year>-NNNNN`; shows "REVERSED" if reversed) |
+| `GET /portal/students/{id}/fees/` · `.../fees/receipts/{entry_id}/` | Parents/students: read-only, every year; remarks only if `visible_to_student` |
+
+### Year-end rollover (per board)
+1. Admin creates the board's next academic year (dates for that year) and its fee structures.
+2. `POST /admin/rollover/preview/` `{board, to_year}` → each ACTIVE student with `suggested_action`
+   (`PROMOTE` to the next standard, or `COMPLETE` if already in the last standard), suggested fee and
+   balance to carry.
+3. `POST /admin/rollover/apply/` `{board, to_year, items: [{student_id, action, agreed_fee?}], make_current}`.
+   Per student (own transaction): `PROMOTE`/`REPEAT` → history row closed + new one, new fee account with the
+   old **dues or credit carried forward** (old account becomes `CARRIED_FORWARD`); `LEAVE` → status `LEFT`;
+   `COMPLETE` → status `COMPLETED` (old dues stay on the old account). Report of `done` / `failed`
+   (`ALREADY_ROLLED_OVER`, `FEE_REQUIRED`, `NOT_ELIGIBLE`, `NO_NEXT_STANDARD`). `WRONG_BOARD_YEAR` if the year
+   isn't that board's. `make_current` (default true) makes it the board's current year.
+
+### Reminders
+"Ending soon / overdue" show in the fees table now. Automatic SMS/email reminders need a daily job:
+switched on at deployment (Phase 8).
+
 ---
 
-## 9. Cross-cutting gotchas
+## 10. Cross-cutting gotchas
 
 - **Soft delete is a silent default filter.** `User.objects` hides soft-deleted users;
   `User.all_objects` includes them. A soft-deleted user still owns their email/phone.

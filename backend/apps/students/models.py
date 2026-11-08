@@ -35,6 +35,7 @@ class StudentProfile(AbstractTimeStampedModel):
         ACTIVE = "ACTIVE", "Active"
         ON_HOLD = "ON_HOLD", "On hold"
         LEFT = "LEFT", "Left the institute"
+        COMPLETED = "COMPLETED", "Course completed"
 
     class Gender(models.TextChoices):
         MALE = "MALE", "Male"
@@ -187,6 +188,7 @@ class StudentAcademicHistory(GlobalTimeStampedModel):
     class Reason(models.TextChoices):
         ADMISSION = "ADMISSION", "Admission"
         PROMOTION = "PROMOTION", "Promotion to the next standard"
+        REPEAT = "REPEAT", "Repeating the same standard"
         SCHOOL_CHANGE = "SCHOOL_CHANGE", "Changed school"
         BOARD_CHANGE = "BOARD_CHANGE", "Changed board"
         CORRECTION = "CORRECTION", "Correction of a mistake"

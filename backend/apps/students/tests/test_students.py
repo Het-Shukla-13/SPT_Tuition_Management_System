@@ -58,6 +58,7 @@ def payload(refs, **overrides):
         "standard": refs["tenth"].pk,
         "school": refs["school"].pk,
         "subjects": [refs["maths"].pk, refs["sci"].pk],
+        "agreed_fee": "25000",
         "new_logins": [
             {"first_name": "Priya", "last_name": "Shah", "phone": "9876543210"}
         ],
@@ -95,7 +96,7 @@ class TestAdmission:
         student = StudentProfile.objects.get()
         history = StudentAcademicHistory.objects.get(student=student)
         assert history.reason == "ADMISSION" and history.ended_on is None
-        assert history.academic_year == AcademicYear.current()
+        assert history.academic_year == AcademicYear.current(refs["cbse"])
 
         parent = User.objects.get(phone="+919876543210")
         assert parent.role == User.Role.PORTAL and parent.invited_by == admin
@@ -180,7 +181,7 @@ class TestAdmission:
         assert not StudentAcademicHistory.objects.exists()
 
     def test_needs_a_current_academic_year(self, admin, refs):
-        AcademicYear.objects.update(is_current=False)
+        AcademicYear.objects.filter(board=refs["cbse"]).update(is_current=False)
         response = client_for(admin).post(ADMIN_URL, payload(refs), format="json")
         assert response.json()["error_code"] == "NO_CURRENT_ACADEMIC_YEAR"
 

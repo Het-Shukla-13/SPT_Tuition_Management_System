@@ -155,7 +155,7 @@ class TestUploads:
             DocumentFile.objects.filter(test_paper=paper).values_list("kind", flat=True)
         )
         assert kinds == {"PAPER", "ANSWER_KEY"}
-        assert paper.academic_year == AcademicYear.current()  # default
+        assert paper.academic_year == AcademicYear.current(ref["cbse"])  # board default
         assert AuditLog.objects.filter(action="DOCUMENT_UPLOADED").exists()
 
     def test_portal_user_cannot_upload(self, ref):
