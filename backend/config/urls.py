@@ -10,6 +10,8 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from apps.dashboard.urls import portal_urlpatterns as dashboard_portal_urls
+from apps.dashboard.urls import staff_urlpatterns as dashboard_staff_urls
 from apps.enquiries.urls import admin_urlpatterns as enquiry_admin_urls
 from apps.enquiries.urls import public_urlpatterns as enquiry_public_urls
 from apps.fees.urls import admin_urlpatterns as fees_admin_urls
@@ -24,6 +26,8 @@ api_v1_patterns = [
     path("portal/students/", include("apps.students.urls_portal")),
     path("portal/students/<int:student_id>/", include("apps.learning.urls_portal")),
     path("portal/students/<int:student_id>/", include(fees_portal_urls)),
+    path("portal/students/<int:student_id>/", include(dashboard_portal_urls)),
+    path("staff/", include(dashboard_staff_urls)),
     path("staff/", include("apps.learning.urls_staff")),
     path("admin/", include(fees_admin_urls)),
     path("public/enquiries/", include(enquiry_public_urls)),

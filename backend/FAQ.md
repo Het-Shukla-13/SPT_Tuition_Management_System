@@ -460,6 +460,23 @@ reversals, refunds; agreed fee ≥ 0; one account per student per year.
 "Ending soon / overdue" show in the fees table now. Automatic SMS/email reminders need a daily job:
 switched on at deployment (Phase 8).
 
+## 9b. Dashboards
+
+Logic: `apps/dashboard/services.py`. Every number is computed from the real records on each request
+(no stored counters). Money is returned as exact strings (`"26000.00"`).
+
+- `GET /api/v1/staff/dashboard/?board=&days=30` (**admins and teachers**):
+  - `students`: active / on hold / left / completed, new admissions in the last `days` (1-366),
+    active students per standard, 5 most recent admissions.
+  - `learning`: tests in the next 7 days, **tests over but not graded yet**, 5 newest test papers and notes.
+  - `fees` (**admins only**, teachers never get this key): for each board's **current** year (or `?board=`):
+    accounts, students with pending fees, fully paid, total outstanding, total collected, total credit,
+    overdue, ending soon with dues, 5 most recent payments.
+- `GET /api/v1/portal/students/{id}/overview/` (parent/student home screen, linked student only, else `404`):
+  student details, next 5 upcoming tests, 5 latest results, 5 latest notes, current year's fees
+  (total, paid, pending, credit, status, overdue, due date) and pending across all years.
+  A student who isn't ACTIVE shows no tests/notes.
+
 ---
 
 ## 10. Cross-cutting gotchas
