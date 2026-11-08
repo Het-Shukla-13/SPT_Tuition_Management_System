@@ -16,3 +16,4 @@ requests>=2.32,<3                      # HTTP transport google-auth uses to fetc
 Pillow>=11,<13                         # image validation for student photos
 pypdf>=5,<7                           # rejects corrupted / fake PDFs on upload
 reportlab>=4.2,<5                      # PDF fee receipts
+google-auth-oauthlib>=1.2,<2            # one-time Google Drive connection (OAuth consent)

@@ -146,6 +146,25 @@ STORAGES = {
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
 
+# Google Drive file storage (Phase 6). When all four are set, uploaded files
+# (PDFs, photos) go to a private folder in the owner's Drive instead of the
+# local disk. Set up with: python manage.py google_drive_connect
+GOOGLE_DRIVE_CLIENT_ID = env("GOOGLE_DRIVE_CLIENT_ID", default="")
+GOOGLE_DRIVE_CLIENT_SECRET = env("GOOGLE_DRIVE_CLIENT_SECRET", default="")
+GOOGLE_DRIVE_REFRESH_TOKEN = env("GOOGLE_DRIVE_REFRESH_TOKEN", default="")
+GOOGLE_DRIVE_FOLDER_ID = env("GOOGLE_DRIVE_FOLDER_ID", default="")
+if all(
+    (
+        GOOGLE_DRIVE_CLIENT_ID,
+        GOOGLE_DRIVE_CLIENT_SECRET,
+        GOOGLE_DRIVE_REFRESH_TOKEN,
+        GOOGLE_DRIVE_FOLDER_ID,
+    )
+):
+    STORAGES["default"] = {"BACKEND": "apps.common.storage.GoogleDriveStorage"}
+
+MAX_PHOTO_SIZE_MB = env.int("MAX_PHOTO_SIZE_MB", default=5)
+
 # Requests above these sizes are rejected before reaching our code.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5 MB non-file request body
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # larger uploads stream to temp files

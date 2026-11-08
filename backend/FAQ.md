@@ -477,6 +477,34 @@ Logic: `apps/dashboard/services.py`. Every number is computed from the real reco
   (total, paid, pending, credit, status, overdue, due date) and pending across all years.
   A student who isn't ACTIVE shows no tests/notes.
 
+## 9c. File storage (Google Drive) and student photos
+
+Logic: `apps/common/storage.py`, commands in `apps/common/management/commands/`.
+
+### Where are files stored?
+- **Google Drive** (owner's account, one private folder) once `GOOGLE_DRIVE_CLIENT_ID`, `_CLIENT_SECRET`,
+  `_REFRESH_TOKEN` and `_FOLDER_ID` are all set in `.env`; otherwise the local disk (`backend/media`).
+  Tests always use local disk.
+- Google scope **`drive.file`**: the app sees only files it created, never the rest of the owner's Drive.
+- Records store only the key (`gdrive/<drive-file-id>`). Files are **never shared or given public links**:
+  the backend downloads them after its own permission checks and streams them (`no-store`).
+- Google unreachable, or the connection revoked/expired → `503 FILE_STORAGE_UNAVAILABLE`, and the log says
+  to run `python manage.py google_drive_connect` again.
+
+### Setup / maintenance commands
+- `python manage.py google_drive_connect`: opens the browser, owner allows access; creates the Drive folder
+  (if not set) and writes the refresh token + folder id into `.env` (never printed). Re-run to reconnect.
+- `python manage.py migrate_files_to_drive [--dry-run]`: copies files saved on disk before Drive was
+  connected (all PDF versions, student photos) into Drive and points the records at them. Safe to re-run.
+
+### Student photos
+- Admin: `POST /admin/students/{id}/photo/` (multipart `photo`), `GET` (view), `DELETE` (remove).
+- Portal: `GET /portal/students/{id}/photo/` (linked student only, else `404`).
+- JPEG/PNG/WebP, max `MAX_PHOTO_SIZE_MB` (5 MB) → `PHOTO_TOO_LARGE`; anything else or fake/corrupt
+  images → `INVALID_PHOTO`. Every photo is **re-encoded as a new JPEG**, at most 800 px, with all metadata
+  (e.g. GPS location) stripped. Replacing/removing deletes the old file after the change commits. Audited.
+- `has_photo` appears in student detail and portal responses.
+
 ---
 
 ## 10. Cross-cutting gotchas

@@ -21,3 +21,9 @@ SMS_BACKEND = "apps.accounts.services.sms.LocmemSMSBackend"
 # Tests never call Google; token verification is mocked.
 GOOGLE_OAUTH_CLIENT_ID = "test-client-id.apps.googleusercontent.com"
 GOOGLE_ALLOWED_AUDIENCES = [GOOGLE_OAUTH_CLIENT_ID]
+
+# Tests never talk to Google Drive: files go to local (temporary) storage.
+STORAGES = {
+    **STORAGES,  # noqa: F405
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+}

@@ -9,6 +9,7 @@ from apps.students.views import (
     AdminStudentDetailView,
     AdminStudentHistoryView,
     AdminStudentListView,
+    AdminStudentPhotoView,
     AdminStudentStatusView,
     AdminStudentSubjectsView,
 )
@@ -45,5 +46,8 @@ urlpatterns = [
         "<int:pk>/access/<int:user_id>/",
         AdminStudentAccessRevokeView.as_view(),
         name="admin-student-access-revoke",
+    ),
+    path(
+        "<int:pk>/photo/", AdminStudentPhotoView.as_view(), name="admin-student-photo"
     ),
 ]

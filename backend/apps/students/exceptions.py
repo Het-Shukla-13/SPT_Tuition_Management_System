@@ -38,3 +38,19 @@ class AccessNotFound(AppException):
 class NothingChanged(AppException):
     default_detail = "Nothing to change: the student already has these details."
     default_code = "NOTHING_CHANGED"
+
+
+class InvalidPhoto(AppException):
+    default_detail = "The photo must be a JPEG, PNG or WebP image."
+    default_code = "INVALID_PHOTO"
+
+
+class PhotoTooLarge(AppException):
+    default_detail = "The photo is too large."
+    default_code = "PHOTO_TOO_LARGE"
+
+
+class NoPhoto(AppException):
+    status_code = 404
+    default_detail = "This student has no photo."
+    default_code = "NOT_FOUND"

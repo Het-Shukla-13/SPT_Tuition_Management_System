@@ -5,6 +5,7 @@ from django.urls import path
 from apps.students.views import (
     PortalStudentDetailView,
     PortalStudentListView,
+    PortalStudentPhotoView,
     PortalStudentSelectView,
 )
 
@@ -15,5 +16,8 @@ urlpatterns = [
         "<int:pk>/select/",
         PortalStudentSelectView.as_view(),
         name="portal-student-select",
+    ),
+    path(
+        "<int:pk>/photo/", PortalStudentPhotoView.as_view(), name="portal-student-photo"
     ),
 ]

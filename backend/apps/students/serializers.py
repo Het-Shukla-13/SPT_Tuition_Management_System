@@ -122,6 +122,7 @@ class StudentListSerializer(serializers.ModelSerializer):
 
 class StudentDetailSerializer(StudentListSerializer):
     subjects = serializers.SerializerMethodField()
+    has_photo = serializers.SerializerMethodField()
     logins = serializers.SerializerMethodField()
 
     class Meta(StudentListSerializer.Meta):
@@ -136,8 +137,12 @@ class StudentDetailSerializer(StudentListSerializer):
             "remarks",
             "subjects",
             "logins",
+            "has_photo",
             "updated_at",
         ]
+
+    def get_has_photo(self, obj) -> bool:
+        return bool(obj.photo)
 
     def get_subjects(self, obj) -> list[dict]:
         current = obj.subjects.filter(ended_on__isnull=True).select_related("subject")
@@ -389,6 +394,7 @@ class PortalStudentSerializer(serializers.ModelSerializer):
     is_selected = serializers.SerializerMethodField(
         help_text="The student this device picked last."
     )
+    has_photo = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentProfile
@@ -404,11 +410,15 @@ class PortalStudentSerializer(serializers.ModelSerializer):
             "admission_date",
             "subjects",
             "is_selected",
+            "has_photo",
         ]
 
     def get_subjects(self, obj) -> list[dict]:
         current = obj.subjects.filter(ended_on__isnull=True).select_related("subject")
         return [_SubjectRef(ss.subject).data for ss in current]
+
+    def get_has_photo(self, obj) -> bool:
+        return bool(obj.photo)
 
     def get_is_selected(self, obj) -> bool:
         return obj.pk == self.context.get("selected_student_id")
