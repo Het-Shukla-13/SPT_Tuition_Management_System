@@ -1,0 +1,80 @@
+/*
+ * Chalkboard design tokens: the ONLY place colours, fonts and radii are defined.
+ * Components use the token names (bg-primary, text-muted, border-line, ...),
+ * never raw hex values, so the whole look changes from this file.
+ */
+@import "tailwindcss";
+@import "@fontsource-variable/plus-jakarta-sans";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans Variable", "Noto Sans Gujarati", system-ui, sans-serif;
+
+  /* Brand */
+  --color-primary: #1e4d40; /* chalkboard green */
+  --color-primary-hover: #163a30;
+  --color-primary-foreground: #ffffff;
+  --color-primary-tint: #e3eee9; /* selected rows, chips */
+  --color-board: #17352d; /* sidebar, portal header */
+  --color-board-line: #2d5e50;
+  --color-board-hover: #21463b;
+  --color-board-text: #e8efec;
+  --color-board-muted: #a9bdb5;
+  --color-chalk: #f2c14e; /* small highlights only */
+
+  /* Surfaces & text */
+  --color-ground: #f4f6f4; /* page background */
+  --color-surface: #ffffff; /* cards */
+  --color-subtle: #f8faf9; /* table headers, hover */
+  --color-ink: #17201d; /* main text */
+  --color-muted: #5b6661; /* secondary text (6:1 on white) */
+  --color-line: #dde2df; /* borders */
+  --color-line-strong: #c9d1cd; /* inputs */
+
+  /* Status: background + text pairs, all >= 4.5:1 */
+  --color-success-bg: #e6f4ec;
+  --color-success: #1f7a4d;
+  --color-warning-bg: #fff1dc;
+  --color-warning: #8a4b00;
+  --color-danger-bg: #fde8e6;
+  --color-danger: #b42318;
+  --color-info-bg: #e6eef8;
+  --color-info: #1d5fa8;
+  --color-neutral-bg: #eceeed;
+  --color-neutral: #4a5550;
+
+  --radius-control: 10px;
+  --radius-card: 14px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-ground font-sans text-ink antialiased;
+  }
+  /* Money and marks line up in columns. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Down-arrow for NativeSelect (drawn with the muted text colour). */
+  .select-chevron {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235B6661' stroke-width='2' stroke-linecap='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 12px center;
+  }
+}
