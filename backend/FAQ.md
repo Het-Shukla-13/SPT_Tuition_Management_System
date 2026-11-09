@@ -593,6 +593,32 @@ Full operations guide: `deploy/RUNBOOK.md`. The business-relevant rules:
 
 ---
 
+## 9f. Frontend integration (Phase 9)
+
+The frontend's contract lives in `docs/frontend/`: `api-guide.md` (rules for every endpoint: envelope,
+pagination/filters, login flow, files, idempotency) and `error-codes.md` (generated, every code + what
+the UI does). Swagger has the exact per-endpoint shapes.
+
+### Login tokens in the browser
+- Access token (15 min) in the JSON body, kept in memory only. Refresh token in an **HttpOnly cookie**
+  (`tms_refresh`, `SameSite=Lax`, path `/api/v1/auth/`), invisible to JavaScript, so an XSS bug can't
+  steal a long-lived login.
+- `token/refresh/` with no body uses the cookie and requires `X-Requested-With` (CSRF guard); no token
+  at all → `401` (show login). A dead cookie is cleared. Logout / logout-all clear it.
+- `REFRESH_TOKEN_IN_BODY`: development `True` (Swagger), production `False`.
+- **The web app and the API must be on the same site** (one hostname, or subdomains of one domain), or
+  Safari drops the cookie. This decides the 8b layout.
+
+### Guards
+- Every endpoint x role x method answers with the envelope; unknown `/api/` URLs and bad Host headers
+  too (`handler404/400/403/500`). Lists carry the standard pagination `meta` (3 small per-user lists
+  excepted). `test_api_contract.py`.
+- `python manage.py error_codes` regenerates `docs/frontend/error-codes.md`; a test fails if it's stale.
+- `test_e2e_journeys.py`: admission of siblings → teacher test/answer key/marks/note → payment (double
+  click) → parent login, reload, child switch, sees everything; logout and deactivation end sessions.
+
+---
+
 ## 10. Cross-cutting gotchas
 
 - **Soft delete is a silent default filter.** `User.objects` hides soft-deleted users;
