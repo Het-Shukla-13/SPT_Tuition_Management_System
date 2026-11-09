@@ -1,0 +1,5 @@
+dist
+node_modules
+openapi/schema.yaml
+src/lib/api/schema.d.ts
+package-lock.json
