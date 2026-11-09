@@ -11,3 +11,7 @@ REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [
     "rest_framework.renderers.JSONRenderer",
     "rest_framework.renderers.BrowsableAPIRenderer",
 ]
+
+# Local http://localhost has no HTTPS; keep Swagger's body-token flow working.
+REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=False)
+REFRESH_TOKEN_IN_BODY = env.bool("REFRESH_TOKEN_IN_BODY", default=True)

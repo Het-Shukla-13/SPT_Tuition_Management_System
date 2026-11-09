@@ -13,6 +13,7 @@ from apps.accounts.serializers import (
     GoogleVerifySerializer,
     UserSerializer,
 )
+from apps.accounts.services.auth_cookies import token_response
 from apps.accounts.services.google import (
     complete_google_sign_in,
     start_google_sign_in,
@@ -26,9 +27,13 @@ from apps.common.throttling import ResilientScopedRateThrottle
 GOOGLE_TAG = ["Auth: Google"]
 
 
-def _login_payload(request, user) -> dict:
+def _login_response(request, user, message: str):
     tokens = issue_tokens(user, ip=client_ip(request), user_agent=user_agent(request))
-    return {"status": "AUTHENTICATED", **tokens, "user": UserSerializer(user).data}
+    return token_response(
+        message=message,
+        tokens=tokens,
+        extra={"status": "AUTHENTICATED", "user": UserSerializer(user).data},
+    )
 
 
 class GoogleSignInView(APIView):
@@ -71,10 +76,7 @@ class GoogleSignInView(APIView):
             raw_token=serializer.validated_data["id_token"], ip=client_ip(request)
         )
         if result.user is not None:
-            return ApiResponse.success(
-                message="Signed in with Google.",
-                data=_login_payload(request, result.user),
-            )
+            return _login_response(request, result.user, "Signed in with Google.")
         return ApiResponse.success(
             message="Enter the verification code sent to your email to finish signing in.",
             data={
@@ -119,10 +121,7 @@ class GoogleVerifyView(APIView):
             code=serializer.validated_data["code"],
             ip=client_ip(request),
         )
-        return ApiResponse.success(
-            message="Google account linked. Signed in.",
-            data=_login_payload(request, user),
-        )
+        return _login_response(request, user, "Google account linked. Signed in.")
 
 
 class GoogleUnlinkView(APIView):

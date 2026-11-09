@@ -48,3 +48,10 @@ if settings.ENABLE_API_DOCS:
             name="api-docs",
         ),
     ]
+
+# JSON error pages for /api/ (unknown URL, bad Host header, crash in
+# middleware...): the frontend always gets the standard envelope, never HTML.
+handler400 = "apps.common.error_views.bad_request"
+handler403 = "apps.common.error_views.permission_denied"
+handler404 = "apps.common.error_views.page_not_found"
+handler500 = "apps.common.error_views.server_error"

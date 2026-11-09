@@ -70,7 +70,7 @@ def _detail(student: StudentProfile) -> dict:
 @extend_schema(tags=ADMIN_TAG)
 class AdminStudentListView(generics.ListAPIView):
     """
-    ?search=   name, admission no., guardian phone/email, linked login's phone/email
+    ?search=   name, admission no., guardian name/phone/email, linked login's phone/email
     ?standard= ?board= ?school= ?status=
     ?ordering= first_name | last_name | admission_date | standard__level | created_at
     """
@@ -101,6 +101,7 @@ class AdminStudentListView(generics.ListAPIView):
                 Q(first_name__icontains=term)
                 | Q(last_name__icontains=term)
                 | Q(admission_number__icontains=term)
+                | Q(guardian_name__icontains=term)
                 | Q(guardian_phone__icontains=term)
                 | Q(guardian_email__icontains=term)
                 | active_login

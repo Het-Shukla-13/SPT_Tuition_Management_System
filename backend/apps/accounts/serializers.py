@@ -212,7 +212,13 @@ class AuthTokensSerializer(serializers.Serializer):
     """Response shape of a successful OTP verification (documentation only)."""
 
     access = serializers.CharField()
-    refresh = serializers.CharField()
+    refresh = serializers.CharField(
+        required=False,
+        help_text=(
+            "Only when REFRESH_TOKEN_IN_BODY is on (development). "
+            "Browsers receive it as an HttpOnly cookie."
+        ),
+    )
     user = UserSerializer()
 
 
@@ -220,15 +226,24 @@ class TokenPairSerializer(serializers.Serializer):
     """Response shape of a token refresh (documentation only)."""
 
     access = serializers.CharField()
-    refresh = serializers.CharField()
+    refresh = serializers.CharField(
+        required=False,
+        help_text=(
+            "Only when REFRESH_TOKEN_IN_BODY is on (development). "
+            "Browsers receive it as an HttpOnly cookie."
+        ),
+    )
 
 
 class TokenRefreshSerializer(serializers.Serializer):
     refresh = serializers.CharField(
+        required=False,
+        allow_blank=True,
         help_text=(
+            "Omit in browsers (the HttpOnly cookie is used). "
             "The current refresh token. Rotation is on: the response carries a NEW "
             "refresh token; store it and discard this one."
-        )
+        ),
     )
 
 

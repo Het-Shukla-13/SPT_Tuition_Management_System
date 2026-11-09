@@ -52,7 +52,7 @@ def payload(refs, **overrides):
         "first_name": "Aarav",
         "last_name": "Shah",
         "date_of_birth": "2011-05-10",
-        "guardian_name": "Priya Shah",
+        "guardian_name": "Kavita Shah",
         "guardian_phone": "98765 43210",
         "board": refs["cbse"].pk,
         "standard": refs["tenth"].pk,
@@ -485,3 +485,32 @@ class TestAdmissionLoginsWithoutSMS:
     def test_login_with_email_accepted(self, admin, refs):
         login = {"first_name": "Priya", "last_name": "Shah", "email": "p@example.com"}
         admit(admin, refs, new_logins=[login])
+
+
+@pytest.mark.django_db
+class TestStudentSearch:
+    @pytest.mark.parametrize(
+        "term",
+        ["riya", "PATEL", "Meena", "98111"],  # name, surname, guardian, phone
+    )
+    def test_finds_by_name_guardian_or_phone(self, admin, refs, term):
+        admit(admin, refs, new_logins=[])  # Aarav Shah, guardian Priya
+        admit(
+            admin,
+            refs,
+            first_name="Riya",
+            last_name="Patel",
+            guardian_name="Meena Patel",
+            guardian_phone="98111 22233",
+            new_logins=[],
+        )
+        response = client_for(admin).get(f"{ADMIN_URL}?search={term}")
+        names = [s["first_name"] for s in response.json()["data"]]
+        assert names == ["Riya"]
+
+    def test_finds_by_admission_number(self, admin, refs):
+        student = admit(admin, refs, new_logins=[])
+        response = client_for(admin).get(
+            f"{ADMIN_URL}?search={student.admission_number}"
+        )
+        assert [s["id"] for s in response.json()["data"]] == [student.pk]
