@@ -195,9 +195,10 @@ class TestRefreshRotation:
         assert response.status_code == 401
         assert response.json()["error_code"] == "TOKEN_NOT_VALID"
 
-    def test_refresh_requires_field(self):
+    def test_refresh_without_any_token_means_log_in(self):
+        # No body and no cookie (e.g. a fresh browser): 401, so the app shows login.
         response = APIClient().post(REFRESH_URL, {}, format="json")
-        assert response.status_code == 400
+        assert response.status_code == 401
 
 
 @pytest.mark.django_db

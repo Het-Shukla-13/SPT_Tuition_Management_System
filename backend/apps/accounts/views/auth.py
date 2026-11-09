@@ -6,6 +6,7 @@ shape the response. All decisions live in apps/accounts/services/.
 from django.conf import settings
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiResponse, extend_schema
+from rest_framework.exceptions import APIException, NotAuthenticated
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
@@ -20,6 +21,11 @@ from apps.accounts.serializers import (
     TokenRefreshSerializer,
     UserSerializer,
     UserSessionSerializer,
+)
+from apps.accounts.services.auth_cookies import (
+    clear_refresh_cookie,
+    refresh_from_request,
+    token_response,
 )
 from apps.accounts.services.otp import request_otp, verify_otp
 from apps.accounts.services.sessions import SID_CLAIM, revoke_session
@@ -114,9 +120,10 @@ class OTPVerifyView(APIView):
         tokens = issue_tokens(
             user, ip=client_ip(request), user_agent=user_agent(request)
         )
-        return ApiResponse.success(
+        return token_response(
             message="Verified successfully.",
-            data={**tokens, "user": UserSerializer(user).data},
+            tokens=tokens,
+            extra={"user": UserSerializer(user).data},
         )
 
 
@@ -137,7 +144,10 @@ class TokenRefreshView(APIView):
             "refresh token stops working. Two refreshes with the same token within "
             "a short grace window (e.g. two tabs) both receive the same new pair. "
             "Re-using an old refresh token after that window ends the whole session "
-            "(theft protection)."
+            "(theft protection).\n\n"
+            "Browsers: send no body; the refresh token is read from the HttpOnly "
+            "login cookie, and the `X-Requested-With` header is required. The new "
+            "refresh token is set as the cookie again."
         ),
         request=TokenRefreshSerializer,
         responses={
@@ -148,10 +158,21 @@ class TokenRefreshView(APIView):
         },
     )
     def post(self, request):
-        serializer = TokenRefreshSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        tokens = rotate_refresh_token(serializer.validated_data["refresh"])
-        return ApiResponse.success(message="Token refreshed.", data=tokens)
+        try:
+            serializer = TokenRefreshSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            raw = refresh_from_request(
+                request, serializer.validated_data.get("refresh")
+            )
+            if not raw:
+                raise NotAuthenticated("No refresh token: please log in.")
+            tokens = rotate_refresh_token(raw)
+        except APIException as exc:
+            response = self.handle_exception(exc)
+            if response.status_code == 401:
+                clear_refresh_cookie(response)  # dead token: don't keep sending it
+            return response
+        return token_response(message="Token refreshed.", tokens=tokens)
 
 
 class LogoutView(APIView):
@@ -175,7 +196,9 @@ class LogoutView(APIView):
             session_id=_current_session_id(request),
             raw_refresh=serializer.validated_data.get("refresh"),
         )
-        return ApiResponse.success(message="Logged out successfully.")
+        response = ApiResponse.success(message="Logged out successfully.")
+        clear_refresh_cookie(response)
+        return response
 
 
 class LogoutAllView(APIView):
@@ -190,9 +213,11 @@ class LogoutAllView(APIView):
     )
     def post(self, request):
         count = logout_everywhere(request.user)
-        return ApiResponse.success(
+        response = ApiResponse.success(
             message="Logged out of all devices.", data={"sessions_ended": count}
         )
+        clear_refresh_cookie(response)
+        return response
 
 
 class SessionListView(APIView):

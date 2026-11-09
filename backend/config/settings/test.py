@@ -27,3 +27,6 @@ STORAGES = {
     **STORAGES,  # noqa: F405
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
 }
+
+# Most tests read the refresh token from the body; cookie tests switch this off.
+REFRESH_TOKEN_IN_BODY = True

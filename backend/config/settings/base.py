@@ -335,7 +335,20 @@ SPECTACULAR_SETTINGS = {
 # CORS / CSRF — the frontend origin(s) allowed to call the API
 # ─────────────────────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
-CORS_ALLOW_CREDENTIALS = True  # needed later for an HttpOnly refresh-token cookie
+CORS_ALLOW_CREDENTIALS = True  # the frontend sends the HttpOnly refresh-token cookie
+# Headers the frontend's JavaScript may read: the request id (for error reports)
+# and Content-Disposition (file names of downloads).
+CORS_EXPOSE_HEADERS = ["X-Request-ID", "Content-Disposition"]
+
+# Refresh token cookie (see apps/accounts/services/auth_cookies.py).
+REFRESH_COOKIE_NAME = "tms_refresh"
+REFRESH_COOKIE_PATH = "/api/v1/auth/"  # sent only to the auth endpoints
+REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=True)
+# "Lax" needs the frontend and API on the same site (see the Phase 9 plan).
+REFRESH_COOKIE_SAMESITE = env("REFRESH_COOKIE_SAMESITE", default="Lax")
+REFRESH_COOKIE_DOMAIN = env("REFRESH_COOKIE_DOMAIN", default=None)
+# Also return the refresh token in JSON bodies (Swagger/dev convenience).
+REFRESH_TOKEN_IN_BODY = env.bool("REFRESH_TOKEN_IN_BODY", default=False)
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 # ─────────────────────────────────────────────────────────────
