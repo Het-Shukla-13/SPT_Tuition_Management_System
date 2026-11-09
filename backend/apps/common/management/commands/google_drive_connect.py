@@ -25,7 +25,7 @@ from apps.common.storage import (
     GoogleDriveStorage,
 )
 
-FOLDER_TITLE = "SPT Tuition - app files (do not edit)"
+FOLDER_TITLE = "Chalkboard (Sai Personal Tuitions) - app files (do not edit)"
 
 
 def _write_env(path: Path, values: dict) -> None:
