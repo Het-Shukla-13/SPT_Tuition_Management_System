@@ -269,6 +269,8 @@ Logic: `apps/accounts/services/contact.py`.
 `DELETE me/contact/email/` or `DELETE me/contact/phone/`. Only if the other one remains
 (`LAST_CONTACT_METHOD` otherwise; the DB also enforces "email or phone required"). The removed
 address is notified.
+While SMS is off (production without an SMS provider), the **email** can't be removed by the user
+or an admin (`EMAIL_REQUIRED`): it's the only way that login can receive a code. The phone can.
 
 ### A student lost access to their email/phone. What now? (spec §2.5)
 An admin calls `POST /api/v1/admin/users/{id}/contact/` `{channel, identifier}` (or `identifier: null`
@@ -576,6 +578,14 @@ Full operations guide: `deploy/RUNBOOK.md`. The business-relevant rules:
 - `EMAIL_BACKEND` / `SMS_BACKEND` is a development backend (console, locmem...): those print OTP codes to
   logs. With no SMS provider configured, production uses `DisabledSMSBackend`: phone OTP answers
   `OTP_DELIVERY_FAILED` and nothing is printed.
+
+### Every login needs an email while SMS is off
+- `sms_enabled()` is false only with `DisabledSMSBackend`. While it's false:
+  - inviting a login (`POST /admin/users/`, admission `new_logins`) without an email is rejected with
+    `errors.email`. A phone given alongside is saved, ready for when SMS is switched on.
+  - removing a login's email is refused (`EMAIL_REQUIRED`), for both self-service and admin.
+- Student **profiles** never need an email: the email belongs to the login (usually the parent's).
+- Configuring an SMS provider lifts both rules automatically; phone-only logins work again.
 
 ### Database safety limits
 - Connecting gives up after `DB_CONNECT_TIMEOUT` (5 s); any single query is cancelled after

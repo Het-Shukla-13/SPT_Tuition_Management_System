@@ -48,6 +48,17 @@ class DisabledSMSBackend(BaseSMSBackend):
         raise SMSDeliveryError("SMS sending is not configured on this server.")
 
 
+def sms_enabled() -> bool:
+    """False while no SMS provider is configured (production's DisabledSMSBackend)."""
+    return not issubclass(import_string(settings.SMS_BACKEND), DisabledSMSBackend)
+
+
+# Shown when a login would have no way to sign in (no SMS, so email is required).
+EMAIL_REQUIRED_MESSAGE = (
+    "SMS isn't enabled yet, so this login needs an email address to sign in."
+)
+
+
 def send_sms(to: str, message: str) -> None:
     backend = import_string(settings.SMS_BACKEND)()
     backend.send(to, message)

@@ -467,3 +467,21 @@ class TestAccessAndPortal:
         assert client_for(teacher).get(PORTAL_URL).status_code == 403
         assert client_for(parent).get(ADMIN_URL).status_code == 403
         assert client_for(parent).get(f"{ADMIN_URL}{student.pk}/").status_code == 403
+
+
+# ─── no SMS provider: new logins need an email ───────────────
+@pytest.mark.django_db
+class TestAdmissionLoginsWithoutSMS:
+    @pytest.fixture(autouse=True)
+    def _sms_off(self, settings):
+        settings.SMS_BACKEND = "apps.accounts.services.sms.DisabledSMSBackend"
+
+    def test_phone_only_login_rejected(self, admin, refs):
+        response = client_for(admin).post(ADMIN_URL, payload(refs), format="json")
+        assert response.status_code == 400
+        assert "email" in str(response.json()["errors"])
+        assert not StudentProfile.objects.exists()
+
+    def test_login_with_email_accepted(self, admin, refs):
+        login = {"first_name": "Priya", "last_name": "Shah", "email": "p@example.com"}
+        admit(admin, refs, new_logins=[login])
