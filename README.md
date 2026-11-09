@@ -1,4 +1,4 @@
-# SPT Tuition Management System
+# Chalkboard: Sai Personal Tuitions management system
 
 A tuition-institute management platform: OTP / Google sign-in, student
 management, test-paper and notes archives with per-student assignment,

@@ -279,7 +279,7 @@ SESSION_MAX_LIFETIME_DAYS = env.int("SESSION_MAX_LIFETIME_DAYS", default=30)
 # ─────────────────────────────────────────────────────────────
 # OTP authentication
 # ─────────────────────────────────────────────────────────────
-INSTITUTE_NAME = env("INSTITUTE_NAME", default="SPT Tuition Classes")
+INSTITUTE_NAME = env("INSTITUTE_NAME", default="Sai Personal Tuitions")
 
 OTP_LENGTH = 6
 OTP_TTL_SECONDS = env.int("OTP_TTL_SECONDS", default=300)  # 5 minutes
@@ -317,7 +317,7 @@ ENABLE_API_DOCS = env.bool("ENABLE_API_DOCS", default=True)
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Tuition Management System API",
-    "DESCRIPTION": "Backend API for the SPT Tuition Management System.",
+    "DESCRIPTION": "Backend API for Chalkboard, the app of Sai Personal Tuitions.",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
