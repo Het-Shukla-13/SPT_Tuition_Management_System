@@ -1,0 +1,19 @@
+# Keep the image small and free of secrets / local state.
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+media/
+staticfiles/
+backups/
+logs/
+*.log
+*.sqlite3
+.git

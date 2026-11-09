@@ -151,6 +151,16 @@ class LastContactMethod(AppException):
     default_code = "LAST_CONTACT_METHOD"
 
 
+class EmailRequiredWithoutSMS(AppException):
+    """SMS is off: removing the email would leave the login unable to sign in."""
+
+    default_detail = (
+        "You can't remove the email: SMS isn't enabled yet, so it's the only "
+        "way this account can sign in."
+    )
+    default_code = "EMAIL_REQUIRED"
+
+
 class InviteAlreadyAccepted(AppException):
     default_detail = "This person has already logged in; no invite is needed."
     default_code = "INVITE_ALREADY_ACCEPTED"

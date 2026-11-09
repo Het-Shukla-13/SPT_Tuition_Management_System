@@ -28,6 +28,7 @@ from apps.accounts.exceptions import (
     ContactInUse,
     ContactNotSet,
     ContactUnchanged,
+    EmailRequiredWithoutSMS,
     LastContactMethod,
 )
 from apps.accounts.identifiers import mask_identifier, user_field_for
@@ -38,6 +39,7 @@ from apps.accounts.services.otp_delivery import (
     deliver_contact_changed_notice,
 )
 from apps.accounts.services.otp_rate_limit import reserve_otp_request
+from apps.accounts.services.sms import sms_enabled
 from apps.audit.models import AuditLog
 from apps.audit.services import record
 
@@ -139,6 +141,14 @@ def complete_contact_change(
     return updated
 
 
+def _ensure_can_remove(user: User, channel: str) -> None:
+    """A login must keep a way to sign in: some contact, and an email while SMS is off."""
+    if not getattr(user, user_field_for(_other_channel(channel))):
+        raise LastContactMethod()
+    if channel == OTPChannel.EMAIL and not sms_enabled():
+        raise EmailRequiredWithoutSMS()
+
+
 # ─────────────────────────────────────────────────────────────
 # Self-service remove
 # ─────────────────────────────────────────────────────────────
@@ -149,8 +159,7 @@ def remove_contact(*, user: User, channel: str, ip=None) -> User:
     old_value = getattr(locked, field)
     if not old_value:
         raise ContactNotSet()
-    if not getattr(locked, user_field_for(_other_channel(channel))):
-        raise LastContactMethod()
+    _ensure_can_remove(locked, channel)
 
     setattr(locked, field, None)
     setattr(locked, f"{field}_verified_at", None)
@@ -191,8 +200,7 @@ def admin_set_contact(
     if identifier is None:
         if not old_value:
             raise ContactNotSet()
-        if not getattr(locked, user_field_for(_other_channel(channel))):
-            raise LastContactMethod()
+        _ensure_can_remove(locked, channel)
     else:
         if identifier == old_value:
             raise ContactUnchanged()

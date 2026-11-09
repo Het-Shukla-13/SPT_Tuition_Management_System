@@ -5,6 +5,7 @@ from apps.academics.models import Board, School, Standard, Subject
 from apps.accounts.choices import OTPChannel
 from apps.accounts.identifiers import normalize_identifier, normalize_phone
 from apps.accounts.models import User
+from apps.accounts.services.sms import EMAIL_REQUIRED_MESSAGE, sms_enabled
 from apps.students.models import (
     StudentAcademicHistory,
     StudentAccess,
@@ -191,6 +192,8 @@ class NewLoginSerializer(serializers.Serializer):
                     errors[field] = exc.messages
         if not errors and not attrs["email"] and not attrs["phone"]:
             errors["non_field_errors"] = ["Give an email, a phone number, or both."]
+        elif not errors and not attrs["email"] and not sms_enabled():
+            errors["email"] = [EMAIL_REQUIRED_MESSAGE]
         if errors:
             raise serializers.ValidationError(errors)
         return attrs

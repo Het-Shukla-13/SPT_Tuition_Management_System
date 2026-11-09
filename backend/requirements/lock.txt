@@ -26,6 +26,7 @@ Faker==40.44.0
 filelock==4.2.9
 google-auth==2.62.1
 google-auth-oauthlib==1.5.0
+gunicorn==23.0.0
 identify==2.6.20
 idna==3.20
 inflection==0.5.1

@@ -4,6 +4,7 @@ from rest_framework import serializers
 from apps.accounts.choices import PUBLIC_OTP_PURPOSES, OTPChannel
 from apps.accounts.identifiers import normalize_identifier
 from apps.accounts.models import User, UserSession
+from apps.accounts.services.sms import EMAIL_REQUIRED_MESSAGE, sms_enabled
 
 
 def _otp_code_field():
@@ -177,6 +178,8 @@ class InviteUserSerializer(_NameFieldsMixin):
                 errors[field] = exc.messages
         if not errors and not attrs["email"] and not attrs["phone"]:
             errors["non_field_errors"] = ["Give an email, a phone number, or both."]
+        elif not errors and not attrs["email"] and not sms_enabled():
+            errors["email"] = [EMAIL_REQUIRED_MESSAGE]
         if errors:
             raise serializers.ValidationError(errors)
         return attrs

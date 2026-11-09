@@ -269,6 +269,8 @@ Logic: `apps/accounts/services/contact.py`.
 `DELETE me/contact/email/` or `DELETE me/contact/phone/`. Only if the other one remains
 (`LAST_CONTACT_METHOD` otherwise; the DB also enforces "email or phone required"). The removed
 address is notified.
+While SMS is off (production without an SMS provider), the **email** can't be removed by the user
+or an admin (`EMAIL_REQUIRED`): it's the only way that login can receive a code. The phone can.
 
 ### A student lost access to their email/phone. What now? (spec §2.5)
 An admin calls `POST /api/v1/admin/users/{id}/contact/` `{channel, identifier}` (or `identifier: null`
@@ -540,6 +542,54 @@ Logic: `apps/common/storage.py`, commands in `apps/common/management/commands/`.
 - `pip-audit -r requirements/lock.txt` must report no known vulnerabilities before a release
   (Phase 7 bumped Pillow 12 → 13 for this). `python manage.py check --deploy` with production settings
   must be clean.
+
+---
+
+## 9e. Running in production (Phase 8a)
+
+Full operations guide: `deploy/RUNBOOK.md`. The business-relevant rules:
+
+### Stack
+- One Docker image runs every backend role: `web` (gunicorn, 2 processes x 4 threads), the one-off
+  `migrate` step, and `scheduler`. Caddy in front does HTTPS; PostgreSQL 18 has no public port.
+- Works on any Linux server with Docker; nothing in the code is tied to a hosting company.
+
+### Scheduled jobs (`python manage.py run_scheduler`, India time)
+| Time | Job | What |
+|---|---|---|
+| 02:30 (`BACKUP_TIME`) | `backup_database` | `pg_dump` to the `backups` volume + private Drive folder; keeps newest `BACKUP_KEEP` (14) in each |
+| 03:15 | `purge_expired_records` | Deletes OTP challenges older than 90 days, sessions that ended 90+ days ago, expired JWT records. Active sessions never touched |
+
+- No Celery/Redis: a handful of daily jobs don't justify them. Each job is a normal management command,
+  so it can be run by hand too. A failing job is logged and the scheduler carries on.
+- Backup failure is logged at ERROR (visible in Sentry if enabled). A failed dump leaves no partial file.
+
+### Restore
+- `restore_database <file> --confirm <db name>` (or `--drive gdrive/<id>`). The database name must be
+  typed, so nobody restores over the wrong database by accident. One transaction: all or nothing.
+
+### Client IPs behind the proxy
+- `TRUSTED_PROXY_COUNT=1` in production (Caddy). Audit logs, OTP `requested_ip` and every rate limit use
+  the real visitor IP from `X-Forwarded-For`, read from the right, so visitors can't fake it.
+- Leave it at 0 locally (no proxy), or anyone could send a fake header.
+
+### Production refuses to start when
+- `DJANGO_SECRET_KEY` is weak / `DJANGO_ALLOWED_HOSTS` empty (Phase 7), or
+- `EMAIL_BACKEND` / `SMS_BACKEND` is a development backend (console, locmem...): those print OTP codes to
+  logs. With no SMS provider configured, production uses `DisabledSMSBackend`: phone OTP answers
+  `OTP_DELIVERY_FAILED` and nothing is printed.
+
+### Every login needs an email while SMS is off
+- `sms_enabled()` is false only with `DisabledSMSBackend`. While it's false:
+  - inviting a login (`POST /admin/users/`, admission `new_logins`) without an email is rejected with
+    `errors.email`. A phone given alongside is saved, ready for when SMS is switched on.
+  - removing a login's email is refused (`EMAIL_REQUIRED`), for both self-service and admin.
+- Student **profiles** never need an email: the email belongs to the login (usually the parent's).
+- Configuring an SMS provider lifts both rules automatically; phone-only logins work again.
+
+### Database safety limits
+- Connecting gives up after `DB_CONNECT_TIMEOUT` (5 s); any single query is cancelled after
+  `DB_STATEMENT_TIMEOUT_MS` (30 s). Migrations run without the query limit.
 
 ---
 
