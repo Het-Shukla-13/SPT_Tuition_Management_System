@@ -1,6 +1,6 @@
 import { LogOutIcon, MenuIcon } from "lucide-react";
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router";
+import { Link, NavLink, Outlet, useNavigate } from "react-router";
 
 import { staffNavFor } from "@/app/navigation";
 import { Logo } from "@/components/shared/Logo";
@@ -96,10 +96,14 @@ function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) 
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chalk text-sm font-extrabold text-board">
           {initials(name)}
         </span>
-        <span className="flex min-w-0 flex-1 flex-col">
+        <Link
+          to="/staff/account"
+          onClick={onNavigate}
+          className="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg hover:underline"
+        >
           <span className="truncate text-sm font-bold text-white">{name}</span>
-          <span className="text-xs text-board-muted">{ROLE_LABEL[user.role]}</span>
-        </span>
+          <span className="text-xs text-board-muted">{ROLE_LABEL[user.role]} · My account</span>
+        </Link>
         <button
           type="button"
           aria-label="Log out"

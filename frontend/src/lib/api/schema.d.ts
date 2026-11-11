@@ -822,6 +822,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/devices/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My trusted devices */
+        get: operations["auth_devices_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/devices/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop trusting one of my devices
+         * @description Its next login needs an emailed code again. Doesn't log it out.
+         */
+        delete: operations["auth_devices_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/google/": {
         parameters: {
             query?: never;
@@ -879,6 +916,66 @@ export interface paths {
          * @description Links the Google account to the invited account that owns the email and logs in. Later Google sign-ins are one-click. Google never creates accounts.
          */
         post: operations["auth_google_verify_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log in with email + password
+         * @description - Trusted device (this browser passed a code within the last 90 days): `status: AUTHENTICATED`, tokens as for any login.
+         *     - New device: `status: OTP_REQUIRED`, a code is emailed; send it with the returned `login_ticket` to `login/verify/`.
+         *
+         *     Any wrong email/password (or an account without a password yet) gives the same `INVALID_CREDENTIALS`. 5 wrong passwords lock the email for 15 minutes (`LOGIN_LOCKED`).
+         */
+        post: operations["auth_login_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login/resend/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Email a new code for a pending new-device login */
+        post: operations["auth_login_resend_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login/verify/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finish a new-device login with the emailed code
+         * @description Logs in and trusts this device for 90 days.
+         */
+        post: operations["auth_login_verify_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1010,8 +1107,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Request a login code
-         * @description Invite-only: accounts are created by the institute, never here. Sends a one-time login code if this email/phone has an active account; for any other address nothing is sent, and the response is identical either way, so this endpoint can't be used to discover who has an account.
+         * Request a login code (phone only)
+         * @description Phone login: an SMS code every time. Email logins use `login/` (password) and get `EMAIL_LOGIN_NEEDS_PASSWORD` here.
+         *
+         *     Invite-only: accounts are created by the institute, never here. Sends a one-time login code if this phone has an active account; for any other address nothing is sent, and the response is identical either way, so this endpoint can't be used to discover who has an account.
          *
          *     Limits: one request per identifier per cooldown period, a cap per hour, and a per-IP limit.
          */
@@ -1036,6 +1135,66 @@ export interface paths {
          * @description Logs into the existing account and returns access + refresh tokens. The first successful login activates an invited account.
          */
         post: operations["auth_otp_verify_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/change/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change my password
+         * @description Your other devices are logged out and will need a code next time; this device stays logged in and trusted.
+         */
+        post: operations["auth_password_change_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/reset/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set or reset password: email a code
+         * @description For a first password (invited users have none) and for a forgotten one. The answer is the same whether or not the email has an account.
+         */
+        post: operations["auth_password_reset_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/reset/confirm/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set or reset password: code + new password
+         * @description Sets the password and logs in, trusting this device. Every OTHER session and trusted device of the account ends (the old password may be known).
+         */
+        post: operations["auth_password_reset_confirm_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2300,6 +2459,31 @@ export interface components {
             /** Format: date-time */
             granted_at?: string;
         };
+        LoginRequest: {
+            email: string;
+            password: string;
+        };
+        /** @description Documentation only. */
+        LoginResult: {
+            status: components["schemas"]["GoogleSignInStatusEnum"];
+            /** @description Only when AUTHENTICATED. */
+            access?: string;
+            /** @description Only when AUTHENTICATED. */
+            user?: components["schemas"]["User"];
+            /** @description Masked email the code went to (OTP_REQUIRED). */
+            email?: string;
+            /** @description OTP_REQUIRED: send back with the code to login/verify/ (or to login/resend/). */
+            login_ticket?: string;
+            expires_in_seconds?: number;
+            resend_after_seconds?: number;
+        };
+        LoginTicketRequest: {
+            login_ticket: string;
+        };
+        LoginVerifyRequest: {
+            login_ticket: string;
+            code: string;
+        };
         LogoutRequest: {
             /** @description Optional. If sent, it must belong to the logged-in user. */
             refresh?: string;
@@ -2832,6 +3016,18 @@ export interface components {
                 /** @example false */
                 has_previous?: boolean;
             };
+        };
+        PasswordChangeRequest: {
+            current_password: string;
+            new_password: string;
+        };
+        PasswordResetConfirmRequest: {
+            email: string;
+            code: string;
+            new_password: string;
+        };
+        PasswordResetRequestRequest: {
+            email: string;
         };
         /**
          * @description Adds case-insensitive uniqueness checks. DRF can't derive validators from
@@ -3470,6 +3666,18 @@ export interface components {
         TokenRefreshRequest: {
             /** @description Omit in browsers (the HttpOnly cookie is used). The current refresh token. Rotation is on: the response carries a NEW refresh token; store it and discard this one. */
             refresh?: string;
+        };
+        TrustedDevice: {
+            readonly id: number;
+            /** @description Browser / device description. */
+            label?: string;
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: date-time */
+            last_used_at?: string;
+            /** Format: date-time */
+            expires_at: string;
+            readonly is_current: boolean;
         };
         User: {
             readonly id: number;
@@ -5430,6 +5638,52 @@ export interface operations {
             };
         };
     };
+    auth_devices_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustedDevice"][];
+                };
+            };
+        };
+    };
+    auth_devices_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_google_create: {
         parameters: {
             query?: never;
@@ -5562,6 +5816,143 @@ export interface operations {
             };
             /** @description GOOGLE_ACCOUNT_CONFLICT */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OTP_ATTEMPTS_EXCEEDED / THROTTLED */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_login_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+                "multipart/form-data": components["schemas"]["LoginRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResult"];
+                };
+            };
+            /** @description VALIDATION_ERROR / INVALID_CREDENTIALS */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ACCOUNT_DISABLED */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description LOGIN_LOCKED / OTP_REQUEST_LIMIT_REACHED / THROTTLED */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OTP_DELIVERY_FAILED */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_login_resend_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginTicketRequest"];
+                "multipart/form-data": components["schemas"]["LoginTicketRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["LoginTicketRequest"];
+            };
+        };
+        responses: {
+            /** @description Code sent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description LOGIN_TICKET_INVALID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OTP_COOLDOWN / OTP_REQUEST_LIMIT_REACHED */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_login_verify_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginVerifyRequest"];
+                "multipart/form-data": components["schemas"]["LoginVerifyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["LoginVerifyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthTokens"];
+                };
+            };
+            /** @description VALIDATION_ERROR / OTP_INVALID / OTP_EXPIRED / LOGIN_TICKET_INVALID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ACCOUNT_DISABLED */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5857,6 +6248,128 @@ export interface operations {
                 };
             };
             /** @description VALIDATION_ERROR / OTP_INVALID / OTP_EXPIRED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ACCOUNT_DISABLED */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OTP_ATTEMPTS_EXCEEDED / THROTTLED */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_password_change_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeRequest"];
+                "multipart/form-data": components["schemas"]["PasswordChangeRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Password changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VALIDATION_ERROR / WRONG_PASSWORD */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description LOGIN_LOCKED / THROTTLED */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_password_reset_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequestRequest"];
+                "multipart/form-data": components["schemas"]["PasswordResetRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PasswordResetRequestRequest"];
+            };
+        };
+        responses: {
+            /** @description Request accepted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OTP_COOLDOWN / OTP_REQUEST_LIMIT_REACHED / THROTTLED */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OTP_DELIVERY_FAILED */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_password_reset_confirm_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirmRequest"];
+                "multipart/form-data": components["schemas"]["PasswordResetConfirmRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PasswordResetConfirmRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthTokens"];
+                };
+            };
+            /** @description VALIDATION_ERROR (weak password: errors.new_password) / OTP_INVALID / OTP_EXPIRED */
             400: {
                 headers: {
                     [name: string]: unknown;

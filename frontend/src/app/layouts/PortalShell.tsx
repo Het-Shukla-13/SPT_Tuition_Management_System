@@ -1,4 +1,8 @@
-import { NavLink, Outlet } from "react-router";
+import { Link, NavLink, Outlet } from "react-router";
+
+import { LogoMark } from "@/components/shared/Logo";
+import { useCurrentUser } from "@/features/auth/session";
+import { initials } from "@/lib/format";
 
 import { PORTAL_NAV } from "@/app/navigation";
 import { cn } from "@/lib/utils";
@@ -8,8 +12,26 @@ import { cn } from "@/lib/utils";
  * screens) with a bottom tab bar that stays in thumb reach.
  */
 export function PortalShell() {
+  const user = useCurrentUser();
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[520px] flex-col bg-ground sm:border-x sm:border-line">
+      <header className="flex h-14 items-center justify-between bg-board px-4">
+        <Link
+          to="/portal"
+          className="flex items-center gap-2.5 text-white"
+          aria-label="Chalkboard home"
+        >
+          <LogoMark className="size-8" />
+          <span className="text-base font-extrabold">Chalkboard</span>
+        </Link>
+        <Link
+          to="/portal/account"
+          aria-label="My account"
+          className="flex size-11 items-center justify-center rounded-full bg-board-hover text-sm font-extrabold text-white"
+        >
+          {initials(`${user.first_name} ${user.last_name}`)}
+        </Link>
+      </header>
       <div className="flex flex-1 flex-col pb-24">
         <Outlet />
       </div>

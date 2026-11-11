@@ -1,11 +1,13 @@
 import { createBrowserRouter, type RouteObject } from "react-router";
 
 import { ComingSoon } from "@/components/shared/ComingSoon";
+import { AccountPage } from "@/features/auth/pages/AccountPage";
+import { LoginPage } from "@/features/auth/pages/LoginPage";
+import { ResetPasswordPage } from "@/features/auth/pages/ResetPasswordPage";
 
 import { HomeRedirect, NotFound, RequireAuth } from "./guards";
 import { PortalShell } from "./layouts/PortalShell";
 import { StaffShell } from "./layouts/StaffShell";
-import { LoginPlaceholder } from "./LoginPlaceholder";
 
 /**
  * Every URL of the app. Pages not built yet show <ComingSoon>, so the menus
@@ -15,6 +17,7 @@ const staffRoutes: RouteObject[] = [
   { index: true, element: <ComingSoon title="Dashboard" step="F7" /> },
   { path: "tests", element: <ComingSoon title="Tests" step="F4" /> },
   { path: "notes", element: <ComingSoon title="Notes" step="F4" /> },
+  { path: "account", element: <AccountPage /> },
 ];
 
 const adminOnlyRoutes: RouteObject[] = [
@@ -30,11 +33,13 @@ const portalRoutes: RouteObject[] = [
   { path: "tests", element: <ComingSoon title="Tests" step="F6" /> },
   { path: "notes", element: <ComingSoon title="Notes" step="F6" /> },
   { path: "fees", element: <ComingSoon title="Fees" step="F6" /> },
+  { path: "account", element: <AccountPage /> },
 ];
 
 export const routes: RouteObject[] = [
   { path: "/", element: <HomeRedirect /> },
-  { path: "/login", element: <LoginPlaceholder /> },
+  { path: "/login", element: <LoginPage /> },
+  { path: "/reset-password", element: <ResetPasswordPage /> },
   {
     path: "/staff",
     element: <RequireAuth roles={["ADMIN", "TEACHER"]} />,
