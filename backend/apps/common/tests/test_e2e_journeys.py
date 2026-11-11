@@ -6,17 +6,16 @@ standards, subjects) and the first admin account are the only things created
 directly, as in a real installation.
 """
 
-import re
 from datetime import timedelta
 
 import pytest
-from django.core import mail
 from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.academics.models import Board, Chapter, Standard, Subject
 from apps.accounts.models import User
+from apps.accounts.tests.helpers import PASSWORD, last_emailed_code, make_user
 from apps.learning.tests.test_learning import body, upload
 
 API = "/api/v1/"
@@ -31,20 +30,42 @@ def _browser_like(settings, tmp_path):
 
 
 class Browser:
-    """An APIClient that logs in by email OTP and keeps the access token in memory."""
+    """An APIClient that logs in like the real app and keeps the access token in memory."""
 
     def __init__(self):
         self.client = APIClient()  # holds cookies, like a browser
 
-    def login(self, email: str):
-        body_ = {"channel": "EMAIL", "identifier": email, "purpose": "LOGIN"}
-        assert self.post("auth/otp/request/", body_).status_code == 200
-        code = re.search(r"\b(\d{6})\b", mail.outbox[-1].body).group(1)
-        response = self.post("auth/otp/verify/", {**body_, "code": code})
-        assert response.status_code == 200, response.json()
-        assert "refresh" not in response.json()["data"]  # cookie only
-        self._use(response.json()["data"]["access"])
-        return response.json()["data"]["user"]
+    def _code(self):
+        return last_emailed_code()
+
+    def login(self, email: str, password: str = PASSWORD):
+        """Email + password; on a new device, the emailed code too."""
+        cache.clear()  # past earlier resend cooldowns
+        response = self.post("auth/login/", {"email": email, "password": password})
+        data = self.data(response)
+        if data["status"] == "OTP_REQUIRED":
+            response = self.post(
+                "auth/login/verify/",
+                {"login_ticket": data["login_ticket"], "code": self._code()},
+            )
+        return self._finish(response)
+
+    def set_first_password(self, email: str, password: str = PASSWORD):
+        """An invited user's first visit: "Set or reset password"."""
+        cache.clear()
+        self.data(self.post("auth/password/reset/", {"email": email}))
+        response = self.post(
+            "auth/password/reset/confirm/",
+            {"email": email, "code": self._code(), "new_password": password},
+        )
+        return self._finish(response)
+
+    def _finish(self, response):
+        data = self.data(response)
+        assert data["status"] == "AUTHENTICATED"
+        assert "refresh" not in data  # cookie only
+        self._use(data["access"])
+        return data["user"]
 
     def reload(self):
         """A page reload: the in-memory token is gone; the cookie restores the login."""
@@ -72,7 +93,7 @@ class Browser:
 
 @pytest.fixture
 def owner_browser(db):
-    User.objects.create_user(email="owner@example.com", role=User.Role.ADMIN)
+    make_user("owner@example.com", role=User.Role.ADMIN)
     browser = Browser()
     browser.login("owner@example.com")
     return browser
@@ -128,7 +149,7 @@ def test_parent_journey_two_children_tests_notes_fees(owner_browser, refs):
     riya = admit(admin, school["id"], refs, "Riya", link_user_ids=[parent_id])
 
     # ── Teacher: test + answer key, assign (test already over), grade; a note ──
-    User.objects.create_user(email="teacher@example.com", role=User.Role.TEACHER)
+    make_user("teacher@example.com", role=User.Role.TEACHER)
     teacher = Browser()
     teacher.login("teacher@example.com")
     paper = teacher.data(
@@ -200,7 +221,7 @@ def test_parent_journey_two_children_tests_notes_fees(owner_browser, refs):
 
     # ── Parent logs in, reloads the page, picks a child ──
     parent = Browser()
-    parent.login("kavita@example.com")
+    parent.set_first_password("kavita@example.com")  # invited: no password yet
     assert parent.reload().status_code == 200
     children = parent.data(parent.get("portal/students/"))
     assert {c["first_name"] for c in children} == {"Aarav", "Riya"}
@@ -244,7 +265,7 @@ def test_parent_journey_two_children_tests_notes_fees(owner_browser, refs):
 def test_session_lifecycle_logout_and_deactivation(owner_browser, settings):
     settings.OTP_RESEND_COOLDOWN_SECONDS = 0  # logs the same parent in twice
     admin = owner_browser
-    User.objects.create_user(email="kavita@example.com")
+    make_user("kavita@example.com")
 
     # Logout ends the session: a reload can't log back in.
     parent = Browser()

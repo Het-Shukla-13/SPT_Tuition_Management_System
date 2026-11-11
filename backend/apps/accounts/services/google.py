@@ -1,15 +1,18 @@
 """
-Google Sign-In (spec 2.3 / 2.4), "option C": an email OTP the first time a
-Google account is linked, one-click afterwards.
+Google Sign-In (spec 2.3 / 2.4): an emailed code the first time a Google
+account is linked AND on every new device (Phase 1.5); one tap on a trusted
+device.
 
 Flow:
-1. start_google_sign_in(id_token)
-   - Google account already linked to a user  -> log in (tokens).
-   - Not linked yet                            -> email a GOOGLE_LINK code to
-     the Google account's email, bound to this Google account (`sub`).
+1. start_google_sign_in(id_token, device_token)
+   - Linked to a user and this browser is trusted for them -> log in (tokens).
+   - Linked, but a new device -> email a code to the account's email.
+   - Not linked yet           -> email a code to the Google account's email.
+   Both codes are bound to this Google account (`sub`).
 2. complete_google_sign_in(id_token, code)
-   - Code correct and issued for this Google account -> link it to the
-     invited user who owns that email, then log in.
+   - Code correct and issued for this Google account -> (link it to the
+     invited user who owns that email, if not linked yet), log in; the view
+     then trusts this device.
 
 Invite-only: Google NEVER creates accounts. For an email with no account,
 step 1 sends nothing but answers the same way.
@@ -46,6 +49,7 @@ from apps.accounts.exceptions import (
 )
 from apps.accounts.identifiers import normalize_email
 from apps.accounts.models import OTPChallenge, User
+from apps.accounts.services.devices import is_trusted
 from apps.accounts.services.otp import issue_challenge, verify_otp
 from apps.accounts.services.otp_rate_limit import reserve_otp_request
 from apps.audit.models import AuditLog
@@ -106,14 +110,33 @@ class GoogleStartResult:
     email: str  # where a code was (or would be) sent
 
 
-def start_google_sign_in(*, raw_token: str, ip: str | None = None) -> GoogleStartResult:
+def start_google_sign_in(
+    *, raw_token: str, device_token: str | None = None, ip: str | None = None
+) -> GoogleStartResult:
     identity = verify_google_id_token(raw_token)
 
     linked = User.all_objects.filter(google_id=identity.sub).first()
     if linked is not None:
         if linked.is_deleted or not linked.is_active:
             raise AccountDisabled()
-        return GoogleStartResult(user=linked, email=identity.email)
+        if is_trusted(linked, device_token):
+            return GoogleStartResult(user=linked, email=identity.email)
+        if not linked.email:
+            raise GoogleNotLinked("This account has no email for the device check.")
+        # New device: prove it with a code sent to the ACCOUNT's email.
+        reserve_otp_request(
+            channel=OTPChannel.EMAIL,
+            identifier=linked.email,
+            purpose=OTPPurpose.GOOGLE_LINK,
+        )
+        issue_challenge(
+            channel=OTPChannel.EMAIL,
+            identifier=linked.email,
+            purpose=OTPPurpose.GOOGLE_LINK,
+            ip=ip,
+            context={"google_sub": identity.sub},
+        )
+        return GoogleStartResult(user=None, email=linked.email)
 
     # Not linked yet: prove ownership of the email with a code. Same limits
     # as every other OTP (cooldown, hourly cap, fail closed).
@@ -148,18 +171,34 @@ def complete_google_sign_in(
     # The same Google sign-in must finish the flow: the code is bound to this
     # Google account, so a code issued for a different one is "not found".
     identity = verify_google_id_token(raw_token)
+    linked = User.all_objects.filter(google_id=identity.sub).first()
 
     def link(challenge: OTPChallenge) -> User:
+        if linked is not None:
+            return _already_linked(linked.pk)
         return _link(identity, ip=ip)
 
     return verify_otp(
         channel=OTPChannel.EMAIL,
-        identifier=identity.email,
+        # A linked account's code went to the account's own email.
+        identifier=linked.email
+        if linked is not None and linked.email
+        else identity.email,
         purpose=OTPPurpose.GOOGLE_LINK,
         code=code,
         context_match={"google_sub": identity.sub},
         complete=link,
     )
+
+
+def _already_linked(user_id: int) -> User:
+    """New-device check of an already-linked account: just re-check it's usable."""
+    user = User.all_objects.select_for_update().filter(pk=user_id).first()
+    if user is None or user.is_deleted:
+        raise OTPInvalid()
+    if not user.is_active:
+        raise AccountDisabled()
+    return user
 
 
 def _link(identity: GoogleIdentity, *, ip: str | None) -> User:
@@ -201,8 +240,9 @@ def _link(identity: GoogleIdentity, *, ip: str | None) -> User:
 def unlink_google(*, user: User, ip: str | None = None) -> User:
     """
     Always safe: every Google-linked account has a verified email, so the
-    user can still log in with an email OTP. Existing sessions stay valid.
-    The next Google sign-in will need an email code again.
+    user can still log in with email + password (or set one with an emailed
+    code). Existing sessions stay valid. The next Google sign-in will need an
+    email code again.
     """
     user = User.objects.select_for_update().get(pk=user.pk)
     if not user.google_id:

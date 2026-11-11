@@ -25,7 +25,8 @@ from apps.accounts.exceptions import (
     InviteAlreadyAccepted,
     LastAdminProtected,
 )
-from apps.accounts.models import User, UserSession
+from apps.accounts.models import TrustedDevice, User, UserSession
+from apps.accounts.services.devices import revoke_trusted_devices
 from apps.accounts.services.otp_delivery import OTPDeliveryError, deliver_invite
 from apps.accounts.services.sessions import revoke_all_sessions
 from apps.audit.models import AuditLog
@@ -73,6 +74,7 @@ def deactivate_user(*, actor: User, target: User, ip: str | None = None) -> User
     target.is_active = False
     target.save(update_fields=["is_active", "updated_at"])
     revoke_all_sessions(target, UserSession.RevokeReason.ACCOUNT_DEACTIVATED)
+    revoke_trusted_devices(target, TrustedDevice.RevokeReason.ACCOUNT_DEACTIVATED)
     record(
         AuditLog.Action.USER_DEACTIVATED,
         actor=actor,
@@ -119,6 +121,7 @@ def change_role(*, actor: User, target: User, role: str, ip: str | None = None) 
     target.role = role
     target.save(update_fields=["role", "updated_at"])
     revoke_all_sessions(target, UserSession.RevokeReason.ROLE_CHANGED)
+    revoke_trusted_devices(target, TrustedDevice.RevokeReason.ROLE_CHANGED)
     record(
         AuditLog.Action.USER_ROLE_CHANGED,
         actor=actor,

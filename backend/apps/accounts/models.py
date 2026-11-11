@@ -3,8 +3,9 @@ The User model: *who can authenticate*.
 
 Deliberately minimal. Student details live in StudentProfile, money in fee
 models, etc. (see the spec's "separate concepts" principle). A user signs in
-with an email OR a phone number (OTP-based), so both are optional
-individually but at least one must exist.
+with email + password (plus an emailed code on new devices), Google, or a
+phone OTP, so email and phone are optional individually but at least one
+must exist.
 """
 
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
@@ -74,8 +75,9 @@ class User(AbstractTimeStampedModel, AbstractBaseUser, PermissionsMixin):
     objects = UserManager()  # hides soft-deleted users
     all_objects = models.Manager()  # includes soft-deleted users (audits, admin)
 
-    # Used by the Django admin login and createsuperuser. Regular users
-    # authenticate through OTP, not passwords.
+    # Email + password login (Phase 1.5) and the Django admin both use
+    # AbstractBaseUser's hashed `password`. Invited users have no usable
+    # password until they set one through the emailed-code flow.
     USERNAME_FIELD = "email"
     EMAIL_FIELD = "email"
     REQUIRED_FIELDS: list[str] = []
@@ -199,6 +201,7 @@ class UserSession(GlobalTimeStampedModel):
         LIFETIME_EXCEEDED = "LIFETIME_EXCEEDED", "Maximum session lifetime reached"
         ACCOUNT_DEACTIVATED = "ACCOUNT_DEACTIVATED", "Account deactivated"
         ROLE_CHANGED = "ROLE_CHANGED", "Role changed"
+        PASSWORD_CHANGED = "PASSWORD_CHANGED", "Password changed or reset"
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sessions")
     session_id = models.CharField(
@@ -247,6 +250,68 @@ class UserSession(GlobalTimeStampedModel):
 
     def __str__(self) -> str:
         return f"Session #{self.pk} of user {self.user_id}"
+
+    @property
+    def is_active(self) -> bool:
+        return self.revoked_at is None and self.expires_at > timezone.now()
+
+
+class TrustedDeviceQuerySet(models.QuerySet):
+    def active(self):
+        return self.filter(revoked_at__isnull=True, expires_at__gt=timezone.now())
+
+
+class TrustedDevice(GlobalTimeStampedModel):
+    """
+    A browser that has passed the emailed-code check for this user (Phase 1.5).
+
+    On a trusted device a correct password (or Google) logs straight in; on
+    any other device an emailed code is needed first. The browser keeps a
+    random token in an HttpOnly cookie; only its SHA-256 hash is stored here,
+    so a database leak doesn't let anyone pose as a trusted device.
+
+    One browser (one cookie) can be trusted by several people, e.g. a shared
+    family laptop: one row per (user, token).
+    """
+
+    class RevokeReason(models.TextChoices):
+        REMOVED = "REMOVED", "Removed by the user"
+        PASSWORD_CHANGED = "PASSWORD_CHANGED", "Password changed"
+        PASSWORD_RESET = "PASSWORD_RESET", "Password reset"
+        LOGOUT_ALL = "LOGOUT_ALL", "Logged out of all devices"
+        ACCOUNT_DEACTIVATED = "ACCOUNT_DEACTIVATED", "Account deactivated"
+        ROLE_CHANGED = "ROLE_CHANGED", "Role changed"
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="trusted_devices"
+    )
+    token_hash = models.CharField(
+        max_length=64, help_text="SHA-256 of the cookie token."
+    )
+    label = models.CharField(
+        max_length=512, blank=True, help_text="Browser / device description."
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    expires_at = models.DateTimeField()
+    last_used_at = models.DateTimeField(default=timezone.now)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.CharField(
+        max_length=32, choices=RevokeReason.choices, blank=True
+    )
+
+    objects = TrustedDeviceQuerySet.as_manager()
+
+    class Meta:
+        db_table = "trusted_devices"
+        ordering = ["-last_used_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "token_hash"], name="trusted_devices_one_row_per_user"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Trusted device #{self.pk} of user {self.user_id}"
 
     @property
     def is_active(self) -> bool:

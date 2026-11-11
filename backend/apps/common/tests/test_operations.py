@@ -13,7 +13,7 @@ from django.db import connection
 from django.test import RequestFactory
 from django.utils import timezone
 
-from apps.accounts.models import OTPChallenge, User, UserSession
+from apps.accounts.models import OTPChallenge, TrustedDevice, User, UserSession
 from apps.accounts.services.sms import DisabledSMSBackend, SMSDeliveryError
 from apps.common import backups
 from apps.common.management.commands.run_scheduler import next_run, parse_at, run_job
@@ -116,8 +116,17 @@ def test_purge_keeps_recent_and_active_records(settings):
     )
     active = session("s4", expires_at=now + timedelta(days=5))
 
+    old_device = TrustedDevice.objects.create(
+        user=user, token_hash="a" * 64, expires_at=now - timedelta(days=95)
+    )
+    live_device = TrustedDevice.objects.create(
+        user=user, token_hash="b" * 64, expires_at=now + timedelta(days=30)
+    )
+
     out = StringIO()
     call_command("purge_expired_records", stdout=out)
+    assert not TrustedDevice.objects.filter(pk=old_device.pk).exists()
+    assert TrustedDevice.objects.filter(pk=live_device.pk).exists()
 
     assert not OTPChallenge.objects.filter(pk=old_otp.pk).exists()
     assert OTPChallenge.objects.filter(pk=new_otp.pk).exists()

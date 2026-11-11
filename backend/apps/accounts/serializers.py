@@ -2,8 +2,9 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from apps.accounts.choices import PUBLIC_OTP_PURPOSES, OTPChannel
+from apps.accounts.exceptions import EmailLoginNeedsPassword
 from apps.accounts.identifiers import normalize_identifier
-from apps.accounts.models import User, UserSession
+from apps.accounts.models import TrustedDevice, User, UserSession
 from apps.accounts.services.sms import EMAIL_REQUIRED_MESSAGE, sms_enabled
 
 
@@ -41,6 +42,12 @@ class _IdentifierSerializer(_ChannelIdentifierSerializer):
         default="LOGIN",
         help_text="Only LOGIN: accounts are created by the institute (invite-only).",
     )
+
+    def validate(self, attrs):
+        # Phase 1.5: email logins use a password; a code alone is phone-only.
+        if attrs.get("channel") == OTPChannel.EMAIL:
+            raise EmailLoginNeedsPassword()
+        return super().validate(attrs)
 
 
 class OTPRequestSerializer(_IdentifierSerializer):
@@ -274,3 +281,91 @@ class UserSessionSerializer(serializers.ModelSerializer):
 
     def get_is_current(self, obj) -> bool:
         return obj.session_id == self.context.get("current_session_id")
+
+
+# ── Password login (Phase 1.5) ───────────────────────────────
+class _EmailField(serializers.CharField):
+    """An email, normalised (trimmed, lower-case) like every stored email."""
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("max_length", 254)
+        super().__init__(**kwargs)
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        try:
+            return normalize_identifier(OTPChannel.EMAIL, value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages) from None
+
+
+def _password_field(**kwargs):
+    return serializers.CharField(
+        max_length=128,
+        trim_whitespace=False,
+        style={"input_type": "password"},
+        **kwargs,
+    )
+
+
+class LoginSerializer(serializers.Serializer):
+    email = _EmailField()
+    password = _password_field()
+
+
+class LoginTicketSerializer(serializers.Serializer):
+    login_ticket = serializers.CharField(max_length=512)
+
+
+class LoginVerifySerializer(LoginTicketSerializer):
+    code = _otp_code_field()
+
+
+class LoginResultSerializer(serializers.Serializer):
+    """Documentation only."""
+
+    status = serializers.ChoiceField(choices=["AUTHENTICATED", "OTP_REQUIRED"])
+    access = serializers.CharField(required=False, help_text="Only when AUTHENTICATED.")
+    user = UserSerializer(required=False, help_text="Only when AUTHENTICATED.")
+    email = serializers.CharField(
+        required=False, help_text="Masked email the code went to (OTP_REQUIRED)."
+    )
+    login_ticket = serializers.CharField(
+        required=False,
+        help_text="OTP_REQUIRED: send back with the code to login/verify/ (or to login/resend/).",
+    )
+    expires_in_seconds = serializers.IntegerField(required=False)
+    resend_after_seconds = serializers.IntegerField(required=False)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = _EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    email = _EmailField()
+    code = _otp_code_field()
+    new_password = _password_field()
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    current_password = _password_field()
+    new_password = _password_field()
+
+
+class TrustedDeviceSerializer(serializers.ModelSerializer):
+    is_current = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TrustedDevice
+        fields = [
+            "id",
+            "label",
+            "created_at",
+            "last_used_at",
+            "expires_at",
+            "is_current",
+        ]
+
+    def get_is_current(self, obj) -> bool:
+        return obj.token_hash == self.context.get("current_hash")

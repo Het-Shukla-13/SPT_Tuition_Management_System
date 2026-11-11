@@ -16,6 +16,7 @@ from google.auth import exceptions as google_exceptions
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User, UserSession
+from apps.accounts.tests.helpers import PASSWORD, make_user
 from apps.audit.models import AuditLog
 
 GOOGLE_URL = "/api/v1/auth/google/"
@@ -175,17 +176,19 @@ class TestFirstGoogleLogin:
         assert response.status_code == 400
         assert "purpose" in response.json()["errors"]
 
-    def test_login_otp_cannot_complete_google_link(self):
-        User.objects.create_user(email="alice@gmail.com")
-        APIClient().post(
-            OTP_REQUEST_URL,
-            {"channel": "EMAIL", "identifier": "alice@gmail.com", "purpose": "LOGIN"},
+    def test_password_login_code_cannot_complete_google_link(self):
+        # A new-device code from a password login is for that login only.
+        make_user("alice@gmail.com")
+        response = APIClient().post(
+            "/api/v1/auth/login/",
+            {"email": "alice@gmail.com", "password": PASSWORD},
             format="json",
         )
-        login_code = emailed_code()
+        assert response.json()["data"]["status"] == "OTP_REQUIRED"
 
-        response = verify(APIClient(), login_code)
+        response = verify(APIClient(), emailed_code())
         assert response.json()["error_code"] == "OTP_INVALID"
+        assert User.objects.get().google_id is None
 
     def test_cooldown_applies(self):
         invite_alice()
@@ -197,17 +200,34 @@ class TestFirstGoogleLogin:
 
 @pytest.mark.django_db
 class TestLinkedGoogleLogin:
-    def test_second_login_is_one_click(self):
-        first_google_login()
+    def test_same_device_is_one_click(self):
+        client = APIClient()  # keeps the trusted-device cookie, like a browser
+        first_google_login(client)
         mail.outbox.clear()
 
-        response = start(APIClient())
+        response = start(client)
 
         data = response.json()["data"]
         assert data["status"] == "AUTHENTICATED"
         assert data["access"] and data["refresh"]
         assert mail.outbox == []
         assert UserSession.objects.count() == 2  # two logins, two sessions
+
+    def test_new_device_needs_a_code_to_the_account_email(self):
+        first_google_login()
+        mail.outbox.clear()
+        new_device = APIClient()
+
+        response = start(new_device)
+        data = response.json()["data"]
+        assert data["status"] == "OTP_REQUIRED"
+        assert mail.outbox[-1].to == ["alice@gmail.com"]
+
+        response = verify(new_device, emailed_code())
+        assert response.json()["data"]["status"] == "AUTHENTICATED"
+        assert response.cookies["tms_device"].value  # now trusted
+        cache.clear()
+        assert start(new_device).json()["data"]["status"] == "AUTHENTICATED"
 
     def test_disabled_account_refused(self):
         first_google_login()

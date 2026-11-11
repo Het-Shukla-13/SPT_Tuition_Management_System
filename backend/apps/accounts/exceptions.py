@@ -170,3 +170,39 @@ class InvalidRefreshToken(AppException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "The refresh token is invalid."
     default_code = "INVALID_REFRESH_TOKEN"
+
+
+# ── Password login (Phase 1.5) ───────────────────────────────
+class InvalidCredentials(AppException):
+    # One message for every failure (unknown email, wrong password, no password
+    # set yet, deleted account), so the login form never reveals who has an account.
+    default_detail = (
+        "Email or password is incorrect. First time here or forgot your password? "
+        'Use "Set or reset password".'
+    )
+    default_code = "INVALID_CREDENTIALS"
+
+
+class LoginLocked(_WaitException):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    default_detail = (
+        "Too many wrong passwords. Please wait a few minutes and try again."
+    )
+    default_code = "LOGIN_LOCKED"
+
+
+class LoginTicketInvalid(AppException):
+    default_detail = (
+        "This sign-in has expired. Please enter your email and password again."
+    )
+    default_code = "LOGIN_TICKET_INVALID"
+
+
+class WrongPassword(AppException):
+    default_detail = "Your current password is incorrect."
+    default_code = "WRONG_PASSWORD"
+
+
+class EmailLoginNeedsPassword(AppException):
+    default_detail = "Log in with your email and password."
+    default_code = "EMAIL_LOGIN_NEEDS_PASSWORD"

@@ -16,14 +16,53 @@ All endpoints are under `/api/v1/`. Every response uses the envelope
 (`POST /api/v1/admin/users/`, section 3), with the person's name already filled in. There is no
 public registration, and Google sign-in never creates accounts.
 
-### How does an invited person log in?
-Passwordless, with a one-time code (OTP) by email or SMS:
+### How does an invited person log in? (Phase 1.5)
+Design: `docs/plans/phase-1-5-password-login.md`. Logic: `apps/accounts/services/passwords.py`.
 
-1. `POST otp/request/` `{channel: EMAIL|PHONE, identifier}` (`purpose` is optional; only `LOGIN` exists)
-2. `POST otp/verify/` `{channel, identifier, code}` → `{access, refresh, user}`
+| Login | Trusted device | New device |
+|---|---|---|
+| Email + password (`POST login/`) | `status: AUTHENTICATED` + tokens | `status: OTP_REQUIRED` + `login_ticket`; code emailed → `POST login/verify/` `{login_ticket, code}` → tokens, device trusted 90 days |
+| Google (`POST google/`) | `AUTHENTICATED` | `OTP_REQUIRED`; code emailed → `POST google/verify/` → tokens, device trusted |
+| Phone (`otp/request/` + `otp/verify/`, `channel: PHONE`) | SMS code every time (no password, no device trust) | same |
 
-The first successful login sets `users.activated_at` ("invite accepted") and marks that email/phone
-verified. Logic: `apps/accounts/services/otp.py`.
+- **First password / forgot password** are one flow: `POST password/reset/` `{email}` (same answer
+  whether or not the email exists) → code emailed → `POST password/reset/confirm/`
+  `{email, code, new_password}` → logged in, device trusted. Invited users have no password until
+  they do this; the office never sees or sets passwords.
+- An email code alone never logs in: `otp/request/` with `channel: EMAIL` answers
+  `EMAIL_LOGIN_NEEDS_PASSWORD`.
+- The first successful login sets `users.activated_at` ("invite accepted").
+
+### What is a "trusted device"?
+A browser that passed the emailed code for that user. It keeps a random token in the HttpOnly
+`tms_device` cookie (path `/api/v1/auth/`, 90 days); the server stores only its SHA-256
+(`trusted_devices`). One browser can be trusted by several family members (one row each).
+Trust **survives logout**. It ends after `TRUSTED_DEVICE_DAYS` (90), or when: the password is
+changed (all other devices) or reset (all devices), "log out of all devices", the user removes it
+(`DELETE devices/{id}/`), deactivation, or a role change. `GET devices/` lists them (`is_current`).
+
+### What stops password guessing?
+- Every failure (unknown email, wrong password, no password yet, deleted account) returns the same
+  `400 INVALID_CREDENTIALS`, with a dummy hash check so timing doesn't differ either.
+- `LOGIN_MAX_FAILURES` (5) wrong passwords for an email → `429 LOGIN_LOCKED` for
+  `LOGIN_LOCKOUT_SECONDS` (15 min), even with the right password. Counted **per email** in the
+  cache, so unknown emails lock exactly the same way (no account discovery). Plus a per-IP limit
+  (`THROTTLE_RATE_LOGIN`, 60/hour).
+- New passwords must pass Django's validators (8+ characters, not common, not all digits, not
+  similar to the name/email); failures come back as `errors.new_password`.
+
+### Why the `login_ticket`?
+The new-device code is emailed only after a correct password. Without a ticket, someone who can
+read the inbox (but not the password) could grab the code the real user just requested and finish
+the login on their own device. The ticket (signed, 15 min) goes only to the browser that typed the
+password, and the code only works together with it (`LOGIN_TICKET_INVALID` otherwise). Logging in
+again within the resend cooldown moves the pending code to the newest ticket instead of emailing
+again; a second new device within a minute gets `429 OTP_COOLDOWN` (show a countdown).
+
+### Changing the password (logged in)
+`POST password/change/` `{current_password, new_password}`: other sessions end, other devices need
+a code next time; this session and device stay. Wrong current password → `WRONG_PASSWORD` (counts
+toward the lockout). A Google-only user without a password is told to use "Set or reset password".
 
 ### Does `otp/request/` tell me whether an account exists?
 No, by design (spec §10.1, account enumeration). The response is always the same
@@ -38,7 +77,9 @@ Cooldowns and limits also apply identically in every row, so they reveal nothing
 
 ### Can a code be used for something else?
 No. A code only works for the `purpose` (and `channel` + `identifier`, and bound context) it was
-issued for: login codes can't link Google or change contact details, and vice versa.
+issued for: `LOGIN` (phone), `NEW_DEVICE` (bound to a login ticket), `SET_PASSWORD`,
+`GOOGLE_LINK` (bound to a Google account), `CONTACT_CHANGE`. A new-device code can't link Google,
+a password-reset code can't log in on a new device, and so on.
 
 ### What are the OTP rules?
 | Rule | Default | Setting |
@@ -82,14 +123,16 @@ and sends it to us; we verify it with Google's official library (signature, expi
 that it was issued for **our** client ID: `GOOGLE_OAUTH_CLIENT_ID`).
 
 1. `POST google/` `{id_token}`
-   - Google account already linked → `status: AUTHENTICATED` + `access`, `refresh`, `user`.
+   - Linked and this browser is trusted for that account → `status: AUTHENTICATED` + tokens.
+   - Linked, new device → `status: OTP_REQUIRED`; the code goes to the **account's** email.
    - Not linked yet → `status: OTP_REQUIRED`, `email` (masked). A 6-digit code is emailed
      to the Google account's address.
 2. `POST google/verify/` `{id_token, code}` (same Google token) → links the Google account to the
    invited account that owns that email, then logs in. **Google never creates accounts**: for an
 email with no login, step 1 answers `OTP_REQUIRED` as usual but sends nothing.
 
-Every later Google sign-in is one click. Each one starts its own session, like any login.
+Completing step 2 also trusts the device: later Google sign-ins there are one click. Each one
+starts its own session, like any login.
 
 ### Why an email code the first time, if Google already verified the email?
 A Google account can carry an email address its creator doesn't own (non-Gmail addresses).
@@ -104,7 +147,7 @@ a code sent for one Google account can't complete the link for another.
 | `GOOGLE_EMAIL_NOT_VERIFIED` | 400 | Google says the email isn't verified |
 | `ACCOUNT_DISABLED` | 403 | The linked account is deactivated or deleted |
 | `GOOGLE_ACCOUNT_CONFLICT` | 409 | The email's account is already linked to a *different* Google account |
-| `GOOGLE_UNAVAILABLE` | 503 | Couldn't reach Google; use email/phone OTP instead |
+| `GOOGLE_UNAVAILABLE` | 503 | Couldn't reach Google; use email + password instead |
 | `GOOGLE_NOT_CONFIGURED` | 503 | `GOOGLE_OAUTH_CLIENT_ID` isn't set on the server |
 Plus all the usual OTP errors/limits on the code (cooldown, attempts, expiry).
 
@@ -112,12 +155,12 @@ If the email belongs to a disabled/deleted account, step 1 still answers `OTP_RE
 nothing, so the response doesn't reveal the account's state.
 
 ### Can I request a `GOOGLE_LINK` code myself, or use a login code to link Google?
-No. `GOOGLE_LINK` codes are only issued by `google/`; `otp/request/` accepts only
+No. `GOOGLE_LINK` codes are only issued by `google/`; `otp/request/` accepts only phone
 `LOGIN`, and codes only work for the purpose they were issued for.
 
 ### How do I unlink Google?
-`POST google/unlink/` (authenticated). Email OTP login keeps working; current sessions stay; the
-next Google sign-in needs an email code again. `GET me/` shows `google_linked`.
+`POST google/unlink/` (authenticated). Email + password keeps working (or set a password with an
+emailed code); current sessions stay; the next Google sign-in needs an email code again. `GET me/` shows `google_linked`.
 Linking and unlinking are recorded in the audit log.
 
 **Not stored:** the raw Google token (unlike Labe1). Only Google's account id (`users.google_id`).

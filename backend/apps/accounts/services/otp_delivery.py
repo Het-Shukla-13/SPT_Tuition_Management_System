@@ -49,6 +49,8 @@ def deliver_otp(*, channel: str, to: str, code: str, purpose: str) -> None:
         OTPPurpose.LOGIN: "login",
         OTPPurpose.GOOGLE_LINK: "Google sign-in verification",
         OTPPurpose.CONTACT_CHANGE: "contact verification",
+        OTPPurpose.NEW_DEVICE: "new device sign-in",
+        OTPPurpose.SET_PASSWORD: "password setup",
     }[purpose]
     context = _context(code=code, action=action)
     _send(

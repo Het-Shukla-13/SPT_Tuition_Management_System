@@ -1,5 +1,8 @@
 """
-End-to-end tests for OTP registration/login and JWT lifecycle.
+End-to-end tests for OTP login and the JWT lifecycle.
+
+Since Phase 1.5 a code alone logs in only by PHONE (email logins use a
+password, see test_password_login.py), so these OTP tests run over SMS.
 
 Each test name states the behaviour the spec requires (sections 2 and 10.1).
 """
@@ -28,7 +31,7 @@ PHONE = "+919876543210"
 
 
 # ─── helpers ─────────────────────────────────────────────────
-def otp_request(client, identifier=EMAIL, channel="EMAIL", purpose="LOGIN", **extra):
+def otp_request(client, identifier=PHONE, channel="PHONE", purpose="LOGIN", **extra):
     payload = {
         "channel": channel,
         "identifier": identifier,
@@ -39,7 +42,7 @@ def otp_request(client, identifier=EMAIL, channel="EMAIL", purpose="LOGIN", **ex
 
 
 def otp_verify(
-    client, code, identifier=EMAIL, channel="EMAIL", purpose="LOGIN", **extra
+    client, code, identifier=PHONE, channel="PHONE", purpose="LOGIN", **extra
 ):
     payload = {
         "channel": channel,
@@ -51,10 +54,6 @@ def otp_verify(
     return client.post(VERIFY_URL, payload, format="json")
 
 
-def code_from_email():
-    return re.search(r"\b(\d{6})\b", mail.outbox[-1].body).group(1)
-
-
 def code_from_sms():
     return re.search(r"\b(\d{6})\b", LocmemSMSBackend.outbox[-1]["message"]).group(1)
 
@@ -63,7 +62,7 @@ def wrong_code(code):
     return "000000" if code != "000000" else "111111"
 
 
-def invite(identifier=EMAIL, **fields) -> User:
+def invite(identifier=PHONE, **fields) -> User:
     """Create a login the way the institute does (invite-only)."""
     fields.setdefault("first_name", "Test")
     fields.setdefault("last_name", "Student")
@@ -71,12 +70,12 @@ def invite(identifier=EMAIL, **fields) -> User:
     return User.objects.create_user(**{kind: identifier}, **fields)
 
 
-def register(client, identifier=EMAIL):
-    """Invite a login and log it in; returns the tokens + user payload."""
-    if not User.all_objects.filter(email=identifier).exists():
+def register(client, identifier=PHONE):
+    """Invite a login and log it in (SMS code); returns the tokens + user payload."""
+    if not User.all_objects.filter(phone=identifier).exists():
         invite(identifier)
     otp_request(client, identifier=identifier)
-    response = otp_verify(client, code_from_email(), identifier=identifier)
+    response = otp_verify(client, code_from_sms(), identifier=identifier)
     assert response.status_code == 200, response.json()
     return response.json()["data"]
 
@@ -101,7 +100,7 @@ class TestInviteOnly:
             "expires_in_seconds": 300,
             "resend_after_seconds": 60,
         }
-        response = otp_verify(api_client, code_from_email())
+        response = otp_verify(api_client, code_from_sms())
 
         assert response.status_code == 200
         data = response.json()["data"]
@@ -110,15 +109,15 @@ class TestInviteOnly:
         assert data["user"]["role"] == "PORTAL"
         user.refresh_from_db()
         assert user.activated_at is not None
-        assert user.email_verified_at is not None
+        assert user.phone_verified_at is not None
 
     def test_stranger_cannot_create_an_account(self, api_client):
-        response = otp_request(api_client, identifier="stranger@example.com")
+        response = otp_request(api_client, identifier="+919000000099")
 
         assert response.status_code == 200  # same answer as for a real user
-        assert mail.outbox == []
+        assert LocmemSMSBackend.outbox == []
         assert (
-            otp_verify(api_client, "123456", identifier="stranger@example.com").json()[
+            otp_verify(api_client, "123456", identifier="+919000000099").json()[
                 "error_code"
             ]
             == "OTP_INVALID"
@@ -133,9 +132,9 @@ class TestInviteOnly:
     def test_purpose_defaults_to_login(self, api_client):
         invite()
         api_client.post(
-            REQUEST_URL, {"channel": "EMAIL", "identifier": EMAIL}, format="json"
+            REQUEST_URL, {"channel": "PHONE", "identifier": PHONE}, format="json"
         )
-        assert len(mail.outbox) == 1
+        assert len(LocmemSMSBackend.outbox) == 1
 
     def test_phone_login_normalises_bare_indian_number(self, api_client):
         invite(PHONE)
@@ -148,15 +147,18 @@ class TestInviteOnly:
         assert response.status_code == 200
         assert User.objects.get(phone=PHONE).phone_verified_at is not None
 
-    def test_email_is_normalised_to_lowercase(self, api_client):
-        invite()
-        otp_request(api_client, identifier="  Student@Example.COM ")
-        assert mail.outbox[-1].to == [EMAIL]
+    def test_email_code_login_is_refused(self, api_client):
+        # Phase 1.5: an email code alone never logs in; email uses a password.
+        invite(EMAIL)
+        for call in (otp_request, lambda c, **kw: otp_verify(c, "123456", **kw)):
+            response = call(api_client, identifier=EMAIL, channel="EMAIL")
+            assert response.json()["error_code"] == "EMAIL_LOGIN_NEEDS_PASSWORD"
+        assert mail.outbox == []
 
     def test_role_in_payload_is_ignored(self, api_client):
         invite()
         otp_request(api_client, role="ADMIN")
-        response = otp_verify(api_client, code_from_email(), role="ADMIN")
+        response = otp_verify(api_client, code_from_sms(), role="ADMIN")
 
         assert response.json()["data"]["user"]["role"] == "PORTAL"
         assert not User.objects.filter(role=User.Role.ADMIN).exists()
@@ -166,8 +168,8 @@ class TestInviteOnly:
         otp_request(api_client)
         assert not OTPChallenge.objects.exists()
 
-    def test_invalid_email_rejected(self, api_client):
-        response = otp_request(api_client, identifier="not-an-email")
+    def test_invalid_identifier_rejected(self, api_client):
+        response = otp_request(api_client, identifier="not-a-number")
         assert response.status_code == 400
         assert "identifier" in response.json()["errors"]
 
@@ -189,13 +191,13 @@ class TestLogin:
         user = invite()
         otp_request(api_client, purpose="LOGIN")
 
-        response = otp_verify(api_client, code_from_email(), purpose="LOGIN")
+        response = otp_verify(api_client, code_from_sms(), purpose="LOGIN")
 
         assert response.status_code == 200
         assert response.json()["data"]["user"]["id"] == user.id
         user.refresh_from_db()
         assert user.last_login is not None
-        assert user.email_verified_at is not None
+        assert user.phone_verified_at is not None
 
     def test_login_unknown_identity_same_response_nothing_sent(self, api_client):
         response = otp_request(api_client, purpose="LOGIN")
@@ -204,7 +206,7 @@ class TestLogin:
         assert response.json()["message"] == (
             "If the details are valid, a verification code has been sent."
         )
-        assert mail.outbox == []
+        assert LocmemSMSBackend.outbox == []
         assert User.objects.count() == 0
 
     def test_login_otp_cannot_create_an_account(self, api_client):
@@ -229,14 +231,14 @@ class TestLogin:
     def test_inactive_user_gets_no_otp(self, api_client):
         invite(is_active=False)
         otp_request(api_client, purpose="LOGIN")
-        assert mail.outbox == []
+        assert LocmemSMSBackend.outbox == []
 
     def test_user_disabled_after_otp_sent_is_refused(self, api_client):
         user = invite()
         otp_request(api_client, purpose="LOGIN")
         User.objects.filter(pk=user.pk).update(is_active=False)
 
-        response = otp_verify(api_client, code_from_email(), purpose="LOGIN")
+        response = otp_verify(api_client, code_from_sms(), purpose="LOGIN")
         assert response.status_code == 403
         assert response.json()["error_code"] == "ACCOUNT_DISABLED"
 
@@ -251,11 +253,11 @@ class TestOTPHardening:
     def test_code_is_stored_hashed(self, api_client):
         otp_request(api_client)
         challenge = OTPChallenge.objects.get()
-        assert code_from_email() not in challenge.code_hash
+        assert code_from_sms() not in challenge.code_hash
 
     def test_wrong_code_counts_attempt(self, api_client):
         otp_request(api_client)
-        response = otp_verify(api_client, wrong_code(code_from_email()))
+        response = otp_verify(api_client, wrong_code(code_from_sms()))
 
         assert response.status_code == 400
         assert response.json()["error_code"] == "OTP_INVALID"
@@ -263,7 +265,7 @@ class TestOTPHardening:
 
     def test_locks_after_max_attempts_even_with_correct_code(self, api_client):
         otp_request(api_client)
-        code = code_from_email()
+        code = code_from_sms()
         for _ in range(4):
             otp_verify(api_client, wrong_code(code))
 
@@ -279,12 +281,12 @@ class TestOTPHardening:
         otp_request(api_client)
         OTPChallenge.objects.update(expires_at=timezone.now() - timedelta(seconds=1))
 
-        response = otp_verify(api_client, code_from_email())
+        response = otp_verify(api_client, code_from_sms())
         assert response.json()["error_code"] == "OTP_EXPIRED"
 
     def test_code_cannot_be_reused(self, api_client):
         otp_request(api_client)
-        code = code_from_email()
+        code = code_from_sms()
         assert otp_verify(api_client, code).status_code == 200
 
         response = otp_verify(api_client, code)
@@ -292,10 +294,10 @@ class TestOTPHardening:
 
     def test_new_request_invalidates_previous_code(self, api_client):
         otp_request(api_client)
-        first_code = code_from_email()
+        first_code = code_from_sms()
         expire_cooldown()
         otp_request(api_client)
-        second_code = code_from_email()
+        second_code = code_from_sms()
 
         if first_code != second_code:
             assert (
@@ -313,14 +315,12 @@ class TestOTPHardening:
         assert body["error_code"] == "OTP_COOLDOWN"
         assert 0 < body["errors"]["retry_after_seconds"] <= 60
         assert int(response["Retry-After"]) > 0
-        assert len(mail.outbox) == 1
+        assert len(LocmemSMSBackend.outbox) == 1
 
     def test_cooldown_applies_even_when_no_account_exists(self, api_client):
         # Otherwise the cooldown itself would reveal whether an account exists.
-        otp_request(api_client, identifier="nobody@example.com")
-        assert (
-            otp_request(api_client, identifier="nobody@example.com").status_code == 429
-        )
+        otp_request(api_client, identifier="+919000000098")
+        assert otp_request(api_client, identifier="+919000000098").status_code == 429
 
     def test_hourly_cap_per_identifier(self, api_client, settings):
         settings.OTP_RESEND_COOLDOWN_SECONDS = 0
@@ -335,9 +335,9 @@ class TestOTPHardening:
     def test_per_ip_throttle(self, api_client):
         rates = {"otp_request": "2/hour", "otp_verify": "60/hour"}
         with mock.patch.object(ResilientScopedRateThrottle, "THROTTLE_RATES", rates):
-            otp_request(api_client, identifier="a@example.com")
-            otp_request(api_client, identifier="b@example.com")
-            response = otp_request(api_client, identifier="c@example.com")
+            otp_request(api_client, identifier="+919000000001")
+            otp_request(api_client, identifier="+919000000002")
+            response = otp_request(api_client, identifier="+919000000003")
 
         assert response.status_code == 429
         assert response.json()["error_code"] == "THROTTLED"
@@ -360,7 +360,7 @@ class TestOTPHardening:
 
         assert response.status_code == 503
         assert response.json()["error_code"] == "OTP_TEMPORARILY_UNAVAILABLE"
-        assert mail.outbox == []
+        assert LocmemSMSBackend.outbox == []
 
     def test_throttle_store_down_fails_closed_with_503(self, api_client):
         broken = mock.Mock()
@@ -392,7 +392,7 @@ class TestTokens:
 
         response = api_client.get(ME_URL)
         assert response.status_code == 200
-        assert response.json()["data"]["email"] == EMAIL
+        assert response.json()["data"]["phone"] == PHONE
 
     def test_garbage_token_rejected(self, api_client):
         api_client.credentials(HTTP_AUTHORIZATION="Bearer not.a.jwt")
@@ -439,8 +439,8 @@ class TestTokens:
         assert response.json()["error_code"] == "TOKEN_NOT_VALID"
 
     def test_cannot_revoke_someone_elses_refresh_token(self, api_client):
-        victim = register(api_client, identifier="victim@example.com")
-        attacker = register(api_client, identifier="attacker@example.com")
+        victim = register(api_client, identifier="+919000000011")
+        attacker = register(api_client, identifier="+919000000012")
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {attacker['access']}")
 
         response = api_client.post(
@@ -451,7 +451,7 @@ class TestTokens:
 
     def test_soft_deleted_user_tokens_stop_working(self, api_client):
         tokens = register(api_client)
-        User.objects.get(email=EMAIL).soft_delete()
+        User.objects.get(phone=PHONE).soft_delete()
 
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
         assert api_client.get(ME_URL).status_code == 401
@@ -469,6 +469,6 @@ class TestTokens:
         claims = jwt.decode(tokens["access"], options={"verify_signature": False})
         assert claims["role"] == "PORTAL"
         assert (
-            claims["user_id"] == str(User.objects.get(email=EMAIL).id)
-            or claims["user_id"] == User.objects.get(email=EMAIL).id
+            claims["user_id"] == str(User.objects.get(phone=PHONE).id)
+            or claims["user_id"] == User.objects.get(phone=PHONE).id
         )

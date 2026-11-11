@@ -31,10 +31,12 @@ PAGE_META = {
 }
 METHODS = ["get", "post", "put", "patch", "delete"]
 
-# Small, bounded lists returned whole (meta is null): a user's own sessions,
+# Small, bounded lists returned whole (meta is null): a user's own sessions
+# and trusted devices,
 # one student's fee accounts, a parent's children.
 UNPAGINATED_LISTS = {
     "/api/v1/auth/sessions/",
+    "/api/v1/auth/devices/",
     "/api/v1/admin/fees/students/1/accounts/",
     "/api/v1/portal/students/",
 }

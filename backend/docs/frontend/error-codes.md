@@ -12,6 +12,7 @@ details. Branch on `error_code`, never on `message` text.
 | 400 | `BAD_REQUEST` | The request could not be processed. | Show `message`. |
 | 400 | `CONTACT_NOT_SET` | There is no email/phone of this type on the account. | Show `message`. |
 | 400 | `CONTACT_UNCHANGED` | This is already the email/phone on your account. | Show `message`. |
+| 400 | `EMAIL_LOGIN_NEEDS_PASSWORD` | Log in with your email and password. | Bug in the frontend: email logins use auth/login/. |
 | 400 | `EMAIL_REQUIRED` | You can't remove the email: SMS isn't enabled yet, so it's the only way this account can sign in. | Show `message`: an email is needed while SMS is off. |
 | 400 | `FEE_REQUIRED` | Enter the agreed fee (no fee structure exists for this standard and year). | Show `message`. |
 | 400 | `FILE_TOO_LARGE` | The file is too large. | Show `message`. |
@@ -20,12 +21,14 @@ details. Branch on `error_code`, never on `message` text.
 | 400 | `GOOGLE_NOT_LINKED` | No Google account is linked to this account. | Show `message`. |
 | 400 | `INACTIVE_REFERENCE` | One of the selected items is deactivated. | Show `message`. |
 | 400 | `INVALID_AMOUNT` | The amount must be more than zero. | Show `message`. |
+| 400 | `INVALID_CREDENTIALS` | Email or password is incorrect. First time here or forgot your password? Use "Set or reset password". | Show `message` under the form; offer "Set or reset password". |
 | 400 | `INVALID_PDF` | The file must be a valid PDF. | Show `message`. |
 | 400 | `INVALID_PHOTO` | The photo must be a JPEG, PNG or WebP image. | Show `message`. |
 | 400 | `INVALID_REFRESH_TOKEN` | The refresh token is invalid. | Show `message`. |
 | 400 | `INVITE_ALREADY_ACCEPTED` | This person has already logged in; no invite is needed. | Show `message`. |
 | 400 | `ITEM_ARCHIVED` | This item is archived and can't be assigned. | Show `message`. |
 | 400 | `LAST_CONTACT_METHOD` | You can't remove this: an account needs at least one email or phone to log in. | Show `message`. |
+| 400 | `LOGIN_TICKET_INVALID` | This sign-in has expired. Please enter your email and password again. | Go back to the email + password step. |
 | 400 | `MARKS_OUT_OF_RANGE` | Marks must be between 0 and the paper's maximum marks. | Show `message`. |
 | 400 | `NOTE_REQUIRED` | A reason / note is required. | Show `message`. |
 | 400 | `NOTHING_CHANGED` | Nothing to change: the student already has these details. | Show `message`. |
@@ -41,6 +44,7 @@ details. Branch on `error_code`, never on `message` text.
 | 400 | `REFUND_TOO_LARGE` | The refund is more than what was paid. | Show `message`. |
 | 400 | `VALIDATION_ERROR` | Validation failed. | Show each entry of `errors` (field -> messages) next to its form field. |
 | 400 | `WRONG_BOARD_YEAR` | That academic year belongs to a different board. | Show `message`. |
+| 400 | `WRONG_PASSWORD` | Your current password is incorrect. | Show `message` under the current-password field. |
 | 401 | `AUTHENTICATION_FAILED` | Incorrect authentication credentials. | Call `token/refresh/` once and retry; if that fails, go to the login page. |
 | 401 | `GOOGLE_TOKEN_INVALID` | The Google sign-in could not be verified. Please try again. | Call `token/refresh/` once and retry; if that fails, go to the login page. |
 | 401 | `NOT_AUTHENTICATED` | Authentication credentials were not provided. | Call `token/refresh/` once and retry; if that fails, go to the login page. |
@@ -69,6 +73,7 @@ details. Branch on `error_code`, never on `message` text.
 | 409 | `LAST_ADMIN` | This is the last active administrator and cannot be demoted or deactivated. | Show `message`; the data changed or already exists. |
 | 409 | `POSSIBLE_DUPLICATE_STUDENT` | A similar student already exists. Check the list in `errors`; send confirm_duplicate: true to admit anyway. | Show the candidates in `errors`; resend with `confirm_duplicate: true` if the admin confirms. |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Unsupported media type "{media_type}" in request. | Bug in the frontend: send JSON or multipart form data. |
+| 429 | `LOGIN_LOCKED` | Too many wrong passwords. Please wait a few minutes and try again. | Show `message` with a countdown from `errors.retry_after_seconds`. |
 | 429 | `OTP_ATTEMPTS_EXCEEDED` | Too many incorrect attempts. Please request a new OTP. | Ask the user to request a new code. |
 | 429 | `OTP_COOLDOWN` | Please wait before requesting another OTP. | Show a countdown from `errors.retry_after_seconds`, then enable 'Resend'. |
 | 429 | `OTP_REQUEST_LIMIT_REACHED` | Too many OTP requests. Please try again later. | Show `message`; wait `errors.retry_after_seconds` before retrying. |

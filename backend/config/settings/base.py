@@ -230,6 +230,8 @@ REST_FRAMEWORK = {
         # Per-IP limits on the public OTP endpoints (fail closed).
         "otp_request": env("THROTTLE_RATE_OTP_REQUEST", default="20/hour"),
         "otp_verify": env("THROTTLE_RATE_OTP_VERIFY", default="60/hour"),
+        # Per-IP limit on password logins (on top of the per-email lockout).
+        "login": env("THROTTLE_RATE_LOGIN", default="60/hour"),
         # Per-user limit on starting an email/phone change (also limits
         # probing which addresses are already registered).
         "enquiry": env("THROTTLE_RATE_ENQUIRY", default="5/hour"),
@@ -286,6 +288,16 @@ OTP_TTL_SECONDS = env.int("OTP_TTL_SECONDS", default=300)  # 5 minutes
 OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)  # per OTP
 OTP_RESEND_COOLDOWN_SECONDS = env.int("OTP_RESEND_COOLDOWN_SECONDS", default=60)
 OTP_MAX_REQUESTS_PER_HOUR = env.int("OTP_MAX_REQUESTS_PER_HOUR", default=5)
+
+# Password login + trusted devices (Phase 1.5, docs/plans/phase-1-5-password-login.md).
+# A device that passed the emailed-code check skips it for this many days.
+TRUSTED_DEVICE_DAYS = env.int("TRUSTED_DEVICE_DAYS", default=90)
+DEVICE_COOKIE_NAME = "tms_device"
+# Wrong passwords per email before a lockout, and the lockout length.
+LOGIN_MAX_FAILURES = env.int("LOGIN_MAX_FAILURES", default=5)
+LOGIN_LOCKOUT_SECONDS = env.int("LOGIN_LOCKOUT_SECONDS", default=15 * 60)
+# How long the browser has to enter the new-device code after the password.
+LOGIN_TICKET_MAX_AGE_SECONDS = env.int("LOGIN_TICKET_MAX_AGE_SECONDS", default=15 * 60)
 
 # A bare 10-digit number like 9876543210 is assumed to be Indian.
 DEFAULT_PHONE_COUNTRY_CODE = env("DEFAULT_PHONE_COUNTRY_CODE", default="+91")

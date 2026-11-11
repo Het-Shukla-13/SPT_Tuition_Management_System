@@ -62,6 +62,11 @@ ACTION_OVERRIDES = {
     "GOOGLE_UNAVAILABLE": "Offer email OTP login instead.",
     "GOOGLE_NOT_CONFIGURED": "Hide the Google button; use email OTP.",
     "EMAIL_REQUIRED": "Show `message`: an email is needed while SMS is off.",
+    "INVALID_CREDENTIALS": 'Show `message` under the form; offer "Set or reset password".',
+    "LOGIN_LOCKED": "Show `message` with a countdown from `errors.retry_after_seconds`.",
+    "LOGIN_TICKET_INVALID": "Go back to the email + password step.",
+    "WRONG_PASSWORD": "Show `message` under the current-password field.",
+    "EMAIL_LOGIN_NEEDS_PASSWORD": "Bug in the frontend: email logins use auth/login/.",
     "DRIVE_API_DISABLED": "Show `message`; the owner must fix the Drive setup.",
     "THROTTLE_UNAVAILABLE": DEFAULT_ACTION[503],
 }

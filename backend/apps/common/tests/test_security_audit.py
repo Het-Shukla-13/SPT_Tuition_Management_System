@@ -29,6 +29,11 @@ PUBLIC = {
     "auth-google",
     "auth-google-verify",
     "auth-token-refresh",
+    "auth-login",
+    "auth-login-verify",
+    "auth-login-resend",
+    "auth-password-reset",
+    "auth-password-reset-confirm",
     "public-enquiry",
 }
 METHODS = ["get", "post", "put", "patch", "delete"]

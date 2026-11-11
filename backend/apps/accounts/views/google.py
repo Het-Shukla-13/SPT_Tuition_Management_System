@@ -13,27 +13,18 @@ from apps.accounts.serializers import (
     GoogleVerifySerializer,
     UserSerializer,
 )
-from apps.accounts.services.auth_cookies import token_response
+from apps.accounts.services.devices import device_token_from
 from apps.accounts.services.google import (
     complete_google_sign_in,
     start_google_sign_in,
     unlink_google,
 )
-from apps.accounts.services.tokens import issue_tokens
-from apps.common.request_utils import client_ip, user_agent
+from apps.accounts.views.password import log_in
+from apps.common.request_utils import client_ip
 from apps.common.responses import ApiResponse
 from apps.common.throttling import ResilientScopedRateThrottle
 
 GOOGLE_TAG = ["Auth: Google"]
-
-
-def _login_response(request, user, message: str):
-    tokens = issue_tokens(user, ip=client_ip(request), user_agent=user_agent(request))
-    return token_response(
-        message=message,
-        tokens=tokens,
-        extra={"status": "AUTHENTICATED", "user": UserSerializer(user).data},
-    )
 
 
 class GoogleSignInView(APIView):
@@ -73,10 +64,14 @@ class GoogleSignInView(APIView):
         serializer = GoogleSignInSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         result = start_google_sign_in(
-            raw_token=serializer.validated_data["id_token"], ip=client_ip(request)
+            raw_token=serializer.validated_data["id_token"],
+            device_token=device_token_from(request),
+            ip=client_ip(request),
         )
         if result.user is not None:
-            return _login_response(request, result.user, "Signed in with Google.")
+            return log_in(
+                request, result.user, message="Signed in with Google.", trust=False
+            )
         return ApiResponse.success(
             message="Enter the verification code sent to your email to finish signing in.",
             data={
@@ -121,7 +116,9 @@ class GoogleVerifyView(APIView):
             code=serializer.validated_data["code"],
             ip=client_ip(request),
         )
-        return _login_response(request, user, "Google account linked. Signed in.")
+        return log_in(
+            request, user, message="Verified. Signed in with Google.", trust=True
+        )
 
 
 class GoogleUnlinkView(APIView):
