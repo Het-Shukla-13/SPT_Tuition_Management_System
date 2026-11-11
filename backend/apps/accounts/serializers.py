@@ -76,6 +76,11 @@ class AdminContactSerializer(_ChannelIdentifierSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     google_linked = serializers.SerializerMethodField()
+    is_owner = serializers.BooleanField(
+        source="is_superuser",
+        read_only=True,
+        help_text="The institute owner: the only account that may create admins or change roles.",
+    )
 
     class Meta:
         model = User
@@ -89,6 +94,7 @@ class UserSerializer(serializers.ModelSerializer):
             "email_verified_at",
             "phone_verified_at",
             "google_linked",
+            "is_owner",
             "created_at",
         ]
         read_only_fields = fields
