@@ -8,3 +8,6 @@ export type Schemas = components["schemas"];
 
 export type User = Schemas["User"];
 export type Role = Schemas["RoleEnum"];
+export type LoginResult = Schemas["LoginResult"];
+export type UserSession = Schemas["UserSession"];
+export type TrustedDevice = Schemas["TrustedDevice"];

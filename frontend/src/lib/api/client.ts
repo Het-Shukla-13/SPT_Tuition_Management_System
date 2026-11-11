@@ -19,8 +19,14 @@ export const API_BASE = "/api/v1/";
 const REFRESH_PATH = "auth/token/refresh/";
 const CSRF_HEADER = { "X-Requested-With": "XMLHttpRequest" };
 
-// Calls where a 401 means "wrong code / not logged in", not "token expired".
-const NO_REFRESH_PATHS = [REFRESH_PATH, "auth/otp/", "auth/google/"];
+// Login-type calls: a 401 there is a form error ("wrong code"), never "token expired".
+const NO_REFRESH_PATHS = [
+  REFRESH_PATH,
+  "auth/login/",
+  "auth/password/reset/",
+  "auth/otp/",
+  "auth/google/",
+];
 
 const common = {
   baseURL: API_BASE,
