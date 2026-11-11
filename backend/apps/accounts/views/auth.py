@@ -10,7 +10,7 @@ from rest_framework.exceptions import APIException, NotAuthenticated
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
-from apps.accounts.models import UserSession
+from apps.accounts.models import TrustedDevice, UserSession
 from apps.accounts.serializers import (
     AuthTokensSerializer,
     LogoutSerializer,
@@ -23,10 +23,12 @@ from apps.accounts.serializers import (
     UserSessionSerializer,
 )
 from apps.accounts.services.auth_cookies import (
+    clear_device_cookie,
     clear_refresh_cookie,
     refresh_from_request,
     token_response,
 )
+from apps.accounts.services.devices import revoke_trusted_devices
 from apps.accounts.services.otp import request_otp, verify_otp
 from apps.accounts.services.sessions import SID_CLAIM, revoke_session
 from apps.accounts.services.tokens import (
@@ -56,10 +58,12 @@ class OTPRequestView(APIView):
 
     @extend_schema(
         tags=AUTH_TAG,
-        summary="Request a login code",
+        summary="Request a login code (phone only)",
         description=(
+            "Phone login: an SMS code every time. Email logins use `login/` (password) "
+            "and get `EMAIL_LOGIN_NEEDS_PASSWORD` here.\n\n"
             "Invite-only: accounts are created by the institute, never here. Sends a "
-            "one-time login code if this email/phone has an active account; for any "
+            "one-time login code if this phone has an active account; for any "
             "other address nothing is sent, and the response is identical either way, "
             "so this endpoint can't be used to discover who has an account.\n\n"
             "Limits: one request per identifier per cooldown period, a cap per hour, "
@@ -213,10 +217,12 @@ class LogoutAllView(APIView):
     )
     def post(self, request):
         count = logout_everywhere(request.user)
+        revoke_trusted_devices(request.user, TrustedDevice.RevokeReason.LOGOUT_ALL)
         response = ApiResponse.success(
             message="Logged out of all devices.", data={"sessions_ended": count}
         )
         clear_refresh_cookie(response)
+        clear_device_cookie(response)
         return response
 
 

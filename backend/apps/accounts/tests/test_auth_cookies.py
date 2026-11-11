@@ -3,15 +3,13 @@ Phase 9: the refresh token lives in an HttpOnly cookie, the way the browser
 app will use it (REFRESH_TOKEN_IN_BODY off, as in production).
 """
 
-import re
 from unittest import mock
 
 import pytest
-from django.core import mail
 from django.core.cache import cache
 from rest_framework.test import APIClient
 
-from apps.accounts.models import User
+from apps.accounts.tests.helpers import make_user, password_login
 
 REQUEST_URL = "/api/v1/auth/otp/request/"
 VERIFY_URL = "/api/v1/auth/otp/verify/"
@@ -32,16 +30,11 @@ def browser_mode(settings):
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(email="parent@example.com")
+    return make_user("parent@example.com")
 
 
 def login(client: APIClient):
-    body = {"channel": "EMAIL", "identifier": "parent@example.com", "purpose": "LOGIN"}
-    assert client.post(REQUEST_URL, body, format="json").status_code == 200
-    code = re.search(r"\b(\d{6})\b", mail.outbox[-1].body).group(1)
-    response = client.post(VERIFY_URL, {**body, "code": code}, format="json")
-    assert response.status_code == 200, response.json()
-    return response
+    return password_login(client, "parent@example.com")
 
 
 def refresh(client: APIClient, **headers):
@@ -65,6 +58,8 @@ class TestLoginSetsCookie:
     def test_google_one_click_login_sets_cookie_too(self, user):
         user.google_id = "sub-1"
         user.save()
+        client = APIClient()
+        password_login(client, "parent@example.com")  # this browser is now trusted
         claims = {
             "iss": "https://accounts.google.com",
             "sub": "sub-1",
@@ -74,7 +69,7 @@ class TestLoginSetsCookie:
         with mock.patch(
             "google.oauth2.id_token.verify_oauth2_token", return_value=claims
         ):
-            response = APIClient().post(GOOGLE_URL, {"id_token": "t"}, format="json")
+            response = client.post(GOOGLE_URL, {"id_token": "t"}, format="json")
         assert response.json()["data"]["status"] == "AUTHENTICATED"
         assert response.cookies[COOKIE].value
         assert "refresh" not in response.json()["data"]

@@ -7,6 +7,8 @@ Your {{ institute_name }} {{ action }} code is:
 It is valid for {{ ttl_minutes }} minutes and can be used only once.
 
 If you did not request this code, you can safely ignore this email.
+If it says "new device sign-in" and that wasn't you, someone knows your
+password: change it from your account settings.
 Never share this code with anyone, including staff of {{ institute_name }}.
 
 - {{ institute_name }}

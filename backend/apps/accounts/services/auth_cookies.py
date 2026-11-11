@@ -80,3 +80,27 @@ def token_response(*, message: str, tokens: dict, extra: dict | None = None):
     response = ApiResponse.success(message=message, data=data)
     set_refresh_cookie(response, tokens["refresh"])
     return response
+
+
+# ── Trusted-device cookie (Phase 1.5) ─────────────────────────
+def set_device_cookie(response, token: str) -> None:
+    """Long-lived, HttpOnly, auth paths only: same protections as the refresh cookie."""
+    response.set_cookie(
+        settings.DEVICE_COOKIE_NAME,
+        token,
+        max_age=settings.TRUSTED_DEVICE_DAYS * 24 * 3600,
+        path=settings.REFRESH_COOKIE_PATH,
+        domain=settings.REFRESH_COOKIE_DOMAIN,
+        secure=settings.REFRESH_COOKIE_SECURE,
+        httponly=True,
+        samesite=settings.REFRESH_COOKIE_SAMESITE,
+    )
+
+
+def clear_device_cookie(response) -> None:
+    response.delete_cookie(
+        settings.DEVICE_COOKIE_NAME,
+        path=settings.REFRESH_COOKIE_PATH,
+        domain=settings.REFRESH_COOKIE_DOMAIN,
+        samesite=settings.REFRESH_COOKIE_SAMESITE,
+    )

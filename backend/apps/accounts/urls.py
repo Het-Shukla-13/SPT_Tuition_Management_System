@@ -20,8 +20,38 @@ from apps.accounts.views.google import (
     GoogleUnlinkView,
     GoogleVerifyView,
 )
+from apps.accounts.views.password import (
+    LoginResendView,
+    LoginVerifyView,
+    LoginView,
+    PasswordChangeView,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
+    TrustedDeviceListView,
+    TrustedDeviceRevokeView,
+)
 
 urlpatterns = [
+    path("login/", LoginView.as_view(), name="auth-login"),
+    path("login/verify/", LoginVerifyView.as_view(), name="auth-login-verify"),
+    path("login/resend/", LoginResendView.as_view(), name="auth-login-resend"),
+    path(
+        "password/reset/",
+        PasswordResetRequestView.as_view(),
+        name="auth-password-reset",
+    ),
+    path(
+        "password/reset/confirm/",
+        PasswordResetConfirmView.as_view(),
+        name="auth-password-reset-confirm",
+    ),
+    path("password/change/", PasswordChangeView.as_view(), name="auth-password-change"),
+    path("devices/", TrustedDeviceListView.as_view(), name="auth-devices"),
+    path(
+        "devices/<int:pk>/",
+        TrustedDeviceRevokeView.as_view(),
+        name="auth-device-revoke",
+    ),
     path("me/contact/", ContactChangeView.as_view(), name="auth-contact-change"),
     path("me/contact/verify/", ContactVerifyView.as_view(), name="auth-contact-verify"),
     path(

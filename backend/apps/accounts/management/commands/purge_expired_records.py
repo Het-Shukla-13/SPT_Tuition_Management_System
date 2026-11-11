@@ -7,6 +7,8 @@ Delete auth records that are finished and past their retention period.
   the rows are only an audit trail).
 - Login sessions that ended (revoked or expired) more than
   SESSION_RETENTION_DAYS ago. Active sessions are never touched.
+- Trusted devices that expired or were removed more than
+  SESSION_RETENTION_DAYS ago.
 - Expired JWT refresh-token records (SimpleJWT's blacklist tables).
 
 Runs nightly via `run_scheduler`. Safe to run any time.
@@ -21,7 +23,7 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.accounts.models import OTPChallenge, UserSession
+from apps.accounts.models import OTPChallenge, TrustedDevice, UserSession
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +40,17 @@ class Command(BaseCommand):
         sessions, _ = UserSession.objects.filter(
             Q(revoked_at__lt=session_cutoff) | Q(expires_at__lt=session_cutoff)
         ).delete()
+        devices, _ = TrustedDevice.objects.filter(
+            Q(revoked_at__lt=session_cutoff) | Q(expires_at__lt=session_cutoff)
+        ).delete()
         call_command("flushexpiredtokens", verbosity=0)
 
-        logger.info("Purged %s OTP challenges and %s ended sessions", otps, sessions)
+        logger.info(
+            "Purged %s OTP challenges, %s ended sessions, %s old trusted devices",
+            otps,
+            sessions,
+            devices,
+        )
         self.stdout.write(
             f"Deleted {otps} OTP challenges and {sessions} ended sessions."
         )

@@ -2,9 +2,10 @@ Hello {{ first_name }},
 
 You've been added to {{ institute_name }} as a {{ role_label }}.
 
-To log in, open the app and enter this email address. We'll send you a
-one-time code; no password is needed. You can also use "Continue with Google"
-if this is your Google account's email.
+To get started, open the app, choose "Set or reset password" and enter this
+email address. We'll email you a one-time code, then you choose your own
+password. You can also use "Continue with Google" if this is your Google
+account's email.
 
 If you weren't expecting this, you can ignore this email.
 

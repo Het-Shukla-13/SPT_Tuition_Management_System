@@ -91,17 +91,34 @@ GET /api/v1/admin/students/?page=2&page_size=50&standard=3&search=riya&ordering=
 - All requests must include cookies: `fetch(url, { credentials: "include" })`
   (axios: `withCredentials: true`).
 
-### Login flows
-1. **Email OTP**: `POST auth/otp/request/` `{channel: "EMAIL", identifier, purpose: "LOGIN"}`
-   → `POST auth/otp/verify/` `{..., code}` → `data.access` + `data.user` (+ cookie).
-   The request step answers the same for unknown emails (no account guessing).
-2. **Google**: get an ID token from Google Identity Services →
-   `POST auth/google/` `{id_token}`:
-   - `data.status == "AUTHENTICATED"` → logged in, as above.
-   - `data.status == "OTP_REQUIRED"` → first time only: show a code box (code
-     emailed to `data.email`) → `POST auth/google/verify/` `{id_token, code}`.
-3. Phone OTP exists but is unavailable until an SMS provider is set up
-   (`OTP_DELIVERY_FAILED`); show email/Google only for now.
+### Login flows (Phase 1.5)
+Every login answer has `data.status`: `AUTHENTICATED` (logged in: `data.access`,
+`data.user`, cookies set) or `OTP_REQUIRED` (show a 6-digit code box; the code was
+emailed to `data.email`, masked). Requests must include cookies
+(`credentials: "include"`): the trusted-device cookie decides whether a code is needed.
+
+1. **Email + password**: `POST auth/login/` `{email, password}`.
+   - `OTP_REQUIRED` → keep `data.login_ticket` in memory → `POST auth/login/verify/`
+     `{login_ticket, code}`. "Resend code" → `POST auth/login/resend/` `{login_ticket}`.
+   - `INVALID_CREDENTIALS` (any wrong combination) → show the message, which points to
+     "Set or reset password". `LOGIN_LOCKED` / `OTP_COOLDOWN` → countdown from
+     `errors.retry_after_seconds`. `LOGIN_TICKET_INVALID` → back to the password step.
+2. **Set or reset password** (first visit of an invited user, or forgotten):
+   `POST auth/password/reset/` `{email}` (same answer for unknown emails) →
+   `POST auth/password/reset/confirm/` `{email, code, new_password}` → `AUTHENTICATED`.
+   Weak password → `VALIDATION_ERROR` with `errors.new_password`; the code stays usable.
+3. **Google**: get an ID token from Google Identity Services →
+   `POST auth/google/` `{id_token}` → `AUTHENTICATED`, or `OTP_REQUIRED` (first link, or a
+   new device) → `POST auth/google/verify/` `{id_token, code}`.
+4. **Phone**: `POST auth/otp/request/` `{channel: "PHONE", identifier}` →
+   `POST auth/otp/verify/` `{channel, identifier, code}`: a code every time. Unavailable
+   until an SMS provider is set up (`OTP_DELIVERY_FAILED`): show email/Google only for now.
+
+Logged in: `POST auth/password/change/` `{current_password, new_password}` (other devices
+are logged out), `GET auth/devices/` + `DELETE auth/devices/{id}/` (trusted devices).
+
+None of these auth calls should trigger the "401 → refresh" logic: a failed login is
+a form error, not an expired session.
 
 ### App start / page reload
 The in-memory access token is gone after a reload. On start, call

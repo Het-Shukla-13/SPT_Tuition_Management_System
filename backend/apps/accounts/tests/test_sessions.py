@@ -1,18 +1,17 @@
 """Session-backed JWT tests: multi-device sessions, revocation, rotation races, reuse detection."""
 
-import re
 from datetime import timedelta
 
 import jwt
 import pytest
 from django.conf import settings
-from django.core import mail
 from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.models import User, UserSession
+from apps.accounts.tests.helpers import make_user, password_login
 
 VERIFY_URL = "/api/v1/auth/otp/verify/"
 REQUEST_URL = "/api/v1/auth/otp/request/"
@@ -25,16 +24,10 @@ ME_URL = "/api/v1/auth/me/"
 EMAIL = "student@example.com"
 
 
-def login(email=EMAIL, user_agent="TestBrowser/1.0", purpose="LOGIN"):
-    """Log in from a fresh 'device' and return (client, tokens)."""
-    cache.clear()  # skip the OTP resend cooldown between logins
+def login(email=EMAIL, user_agent="TestBrowser/1.0"):
+    """Log in from a fresh 'device' (password + new-device code) and return (client, tokens)."""
     client = APIClient(HTTP_USER_AGENT=user_agent)
-    body = {"channel": "EMAIL", "identifier": email, "purpose": purpose}
-    assert client.post(REQUEST_URL, body, format="json").status_code == 200
-    code = re.search(r"\b(\d{6})\b", mail.outbox[-1].body).group(1)
-    response = client.post(VERIFY_URL, {**body, "code": code}, format="json")
-    assert response.status_code == 200, response.json()
-    tokens = response.json()["data"]
+    tokens = password_login(client, email).json()["data"]
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
     return client, tokens
 
@@ -45,7 +38,7 @@ def refresh(raw):
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(email=EMAIL)
+    return make_user(EMAIL)
 
 
 @pytest.mark.django_db
@@ -112,7 +105,7 @@ class TestSessionLifecycle:
         assert laptop.get(ME_URL).status_code == 200
 
     def test_cannot_revoke_someone_elses_session(self, user):
-        User.objects.create_user(email="other@example.com")
+        make_user("other@example.com")
         other_client, _ = login(email="other@example.com")
         attacker, _ = login()
         victim_session = UserSession.objects.get(user__email="other@example.com")

@@ -14,7 +14,14 @@ class OTPPurpose(models.TextChoices):
     created by the owner/admins, never through an OTP.
     """
 
+    # Phone login (SMS code every time). Email login uses a password instead.
     LOGIN = "LOGIN", "Login"
+    # Second step of an email+password login on a device that isn't trusted
+    # yet. Issued only after a correct password (services/passwords.py).
+    NEW_DEVICE = "NEW_DEVICE", "New device sign-in"
+    # Proves inbox ownership before setting a password: the first password of
+    # an invited user, or a forgotten one.
+    SET_PASSWORD = "SET_PASSWORD", "Set password"
     # Proves ownership of the email before a Google account is linked to it.
     # Issued only by the Google sign-in flow, never by the public OTP endpoint.
     GOOGLE_LINK = "GOOGLE_LINK", "Google account linking"
