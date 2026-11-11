@@ -218,3 +218,13 @@ class TestRoleChange:
             change_role(actor=actor, target=owner, role=User.Role.PORTAL)
         owner.refresh_from_db()
         assert owner.role == User.Role.ADMIN
+
+
+@pytest.mark.django_db
+def test_me_says_whether_this_is_the_owner():
+    owner = User.objects.create_superuser(
+        email="owner@example.com", password="x-Strong-pass-1"
+    )
+    admin = User.objects.create_user(email="office@example.com", role=User.Role.ADMIN)
+    assert client_for(owner).get("/api/v1/auth/me/").json()["data"]["is_owner"] is True
+    assert client_for(admin).get("/api/v1/auth/me/").json()["data"]["is_owner"] is False

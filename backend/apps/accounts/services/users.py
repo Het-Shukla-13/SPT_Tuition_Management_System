@@ -188,7 +188,8 @@ def invite_user(
 ) -> tuple[User, dict]:
     """
     Create a login and send the invite. Only the owner may create ADMINs.
-    The person then logs in with an OTP (or Google) to this email/phone.
+    The person then sets a password with an emailed code (or uses Google, or
+    a phone code).
     """
     with transaction.atomic():
         user = create_login(
