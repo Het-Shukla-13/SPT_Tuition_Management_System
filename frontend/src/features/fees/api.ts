@@ -6,6 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api/client";
+import { openFile } from "@/lib/api/openFile";
 import type {
   FeeAccountDetail,
   FeeAccountListItem,
@@ -145,19 +146,8 @@ export const useRolloverApply = () =>
     }) => api.post<RolloverResult>("admin/rollover/apply/", body),
   );
 
-/** Open a receipt PDF in a new tab (opened inside the click, so pop-up blockers allow it). */
-export async function openReceipt(entryId: number) {
-  const tab = window.open("", "_blank");
-  try {
-    const { blob } = await api.download(`admin/fees/payments/${entryId}/receipt/`);
-    const url = URL.createObjectURL(blob);
-    if (tab) tab.location.href = url;
-    else window.location.href = url;
-  } catch (error) {
-    tab?.close();
-    throw error;
-  }
-}
+/** Open a payment receipt PDF in a new tab. */
+export const openReceipt = (entryId: number) => openFile(`admin/fees/payments/${entryId}/receipt/`);
 
 export const METHOD_OPTIONS = [
   { value: "CASH", label: "Cash" },
@@ -179,17 +169,29 @@ export const ENTRY_LABEL: Record<string, string> = {
 };
 
 /** How an entry changes what's owed: payments reduce it; everything else is stored signed. */
-export const effectOnDue = (entry: Pick<LedgerEntry, "entry_type" | "amount">) =>
+export const effectOnDue = (entry: { entry_type: string; amount: string }) =>
   entry.entry_type === "PAYMENT" ? -Number(entry.amount) : Number(entry.amount);
 
+type DatedEntry = {
+  id: number;
+  entry_type: string;
+  amount: string;
+  entry_date?: string;
+  created_at?: string;
+};
+
 /** Entries oldest first, each with what was still owed after it. */
-export function withRunningBalance(entries: LedgerEntry[], openingBalance: string | undefined) {
+export function withRunningBalance<T extends DatedEntry>(
+  entries: T[],
+  openingBalance: string | undefined,
+) {
   const sorted = [...entries].sort(
     (x, y) =>
       (x.entry_date ?? "").localeCompare(y.entry_date ?? "") ||
-      x.created_at.localeCompare(y.created_at),
+      (x.created_at ?? "").localeCompare(y.created_at ?? "") ||
+      x.id - y.id,
   );
-  const rows: { entry: LedgerEntry; balance: number }[] = [];
+  const rows: { entry: T; balance: number }[] = [];
   sorted.reduce(
     (due, entry) => {
       const balance = due + effectOnDue(entry);

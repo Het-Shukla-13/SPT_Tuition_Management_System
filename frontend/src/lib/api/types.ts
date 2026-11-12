@@ -48,3 +48,10 @@ export type FeeAccountDetail = Schemas["FeeAccountDetail"];
 export type LedgerEntry = Schemas["LedgerEntry"];
 export type FeeStructure = Schemas["FeeStructure"];
 export type PaymentListItem = Schemas["PaymentList"];
+
+// Portal (parents & students)
+export type PortalStudent = Schemas["PortalStudent"];
+export type PortalTest = Schemas["PortalTest"];
+export type PortalNote = Schemas["PortalNote"];
+export type PortalFeeAccount = Schemas["PortalFeeAccount"];
+export type PortalLedgerEntry = Schemas["PortalLedgerEntry"];
