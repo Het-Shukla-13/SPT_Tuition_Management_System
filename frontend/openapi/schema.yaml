@@ -8153,6 +8153,11 @@ components:
         google_linked:
           type: boolean
           readOnly: true
+        is_owner:
+          type: boolean
+          readOnly: true
+          description: 'The institute owner: the only account that may create admins
+            or change roles.'
         created_at:
           type: string
           format: date-time
@@ -8164,6 +8169,7 @@ components:
       - first_name
       - google_linked
       - id
+      - is_owner
       - last_name
       - phone
       - phone_verified_at

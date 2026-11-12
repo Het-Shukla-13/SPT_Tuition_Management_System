@@ -3692,6 +3692,8 @@ export interface components {
             /** Format: date-time */
             readonly phone_verified_at: string | null;
             readonly google_linked: boolean;
+            /** @description The institute owner: the only account that may create admins or change roles. */
+            readonly is_owner: boolean;
             /** Format: date-time */
             readonly created_at: string;
         };
