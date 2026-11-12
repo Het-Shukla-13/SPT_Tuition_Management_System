@@ -1705,6 +1705,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/students/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find active students to assign tests/notes to
+         * @description Active students only, minimal details (no guardian contact or fees). Not paginated: at most 500 results, ordered by name.
+         */
+        get: operations["staff_students_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/test-assignments/": {
         parameters: {
             query?: never;
@@ -3429,6 +3449,18 @@ export interface components {
          * @enum {integer}
          */
         SemesterEnum: 1 | 2;
+        StaffStudent: {
+            readonly id: number;
+            readonly admission_number: string;
+            first_name: string;
+            last_name: string;
+            board: number;
+            board_code: string;
+            standard: number;
+            standard_name: string;
+            school: number;
+            school_name: string;
+        };
         /**
          * @description Adds case-insensitive uniqueness checks. DRF can't derive validators from
          *     the database's Lower(...) constraints, so without this a duplicate would
@@ -7167,6 +7199,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedDocumentFileList"];
+                };
+            };
+        };
+    };
+    staff_students_list: {
+        parameters: {
+            query?: {
+                board?: number;
+                school?: number;
+                /** @description Name or admission number. */
+                search?: string;
+                standard?: number;
+                /** @description Currently taking this subject. */
+                subject?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffStudent"][];
                 };
             };
         };

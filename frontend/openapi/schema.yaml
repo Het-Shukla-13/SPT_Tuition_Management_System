@@ -3726,6 +3726,48 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedDocumentFileList'
           description: ''
+  /api/v1/staff/students/:
+    get:
+      operationId: staff_students_list
+      description: 'Active students only, minimal details (no guardian contact or
+        fees). Not paginated: at most 500 results, ordered by name.'
+      summary: Find active students to assign tests/notes to
+      parameters:
+      - in: query
+        name: board
+        schema:
+          type: integer
+      - in: query
+        name: school
+        schema:
+          type: integer
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Name or admission number.
+      - in: query
+        name: standard
+        schema:
+          type: integer
+      - in: query
+        name: subject
+        schema:
+          type: integer
+        description: Currently taking this subject.
+      tags:
+      - 'Staff: students'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StaffStudent'
+          description: ''
   /api/v1/staff/test-assignments/:
     get:
       operationId: staff_test_assignments_list
@@ -7524,6 +7566,44 @@ components:
       description: |-
         * `1` - Semester 1
         * `2` - Semester 2
+    StaffStudent:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        admission_number:
+          type: string
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        board:
+          type: integer
+        board_code:
+          type: string
+        standard:
+          type: integer
+        standard_name:
+          type: string
+        school:
+          type: integer
+        school_name:
+          type: string
+      required:
+      - admission_number
+      - board
+      - board_code
+      - first_name
+      - id
+      - last_name
+      - school
+      - school_name
+      - standard
+      - standard_name
     Standard:
       type: object
       description: |-

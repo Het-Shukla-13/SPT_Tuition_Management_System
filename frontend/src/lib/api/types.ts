@@ -34,3 +34,11 @@ export type AdmissionResult = Schemas["AdmissionResult"];
 
 // Fees (summary rows; full fee screens in F5)
 export type FeeAccountListItem = Schemas["FeeAccountList"];
+
+// Tests & notes (staff)
+export type TestPaper = Schemas["TestPaper"];
+export type Note = Schemas["Note"];
+export type DocumentFile = Schemas["DocumentFile"];
+export type TestAssignment = Schemas["TestAssignment"];
+export type NoteAssignment = Schemas["NoteAssignment"];
+export type StaffStudent = Schemas["StaffStudent"];
