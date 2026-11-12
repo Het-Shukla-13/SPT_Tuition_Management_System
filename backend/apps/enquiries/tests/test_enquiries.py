@@ -86,3 +86,25 @@ class TestAdmin:
         portal = User.objects.create_user(phone="+919111111111")
         assert client_for(portal).get(ADMIN).status_code == 403
         assert APIClient().get(ADMIN).status_code == 401
+
+
+@pytest.mark.django_db
+class TestPublicOptions:
+    def test_lists_active_boards_and_standards_without_login(self):
+        from apps.academics.models import Board
+
+        hidden = Standard.objects.get(level=10)
+        hidden.is_active = False
+        hidden.save(update_fields=["is_active"])
+        res = APIClient().get(f"{PUBLIC}options/")
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert {b["code"] for b in data["boards"]} == set(
+            Board.objects.filter(is_active=True).values_list("code", flat=True)
+        )
+        names = [s["name"] for s in data["standards"]]
+        assert hidden.name not in names
+        assert set(data["standards"][0]) == {"id", "name"}
+
+    def test_is_read_only(self):
+        assert APIClient().post(f"{PUBLIC}options/", {}).status_code == 405

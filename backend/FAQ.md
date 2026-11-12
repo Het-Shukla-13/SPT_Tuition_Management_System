@@ -398,6 +398,8 @@ A lookup of **active** students with only `id, admission_number, name, board, st
   optional `email`, `standard`, `board`, `message`. Stores a request and emails active admins.
   **Never creates a login or a student.** Throttled `5/hour` per IP (fail closed). A filled
   `website` field (hidden honeypot) gets a fake success and nothing is stored.
+- **Public** `GET /api/v1/public/enquiries/options/` (no login): the active `boards`
+  (`id`, `code`, `name`) and `standards` (`id`, `name`) for the form's dropdowns. Nothing else.
 - **Admin** `GET /api/v1/admin/enquiries/` (filter `status`, search name/phone/email),
   `GET/PATCH /{id}/` (`status` NEW/CONTACTED/ACCEPTED/REJECTED, `notes`, `student`). Linking a
   `student` (after admitting them through the admission form) marks it ACCEPTED. Audited.
