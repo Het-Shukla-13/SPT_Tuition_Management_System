@@ -28,6 +28,10 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   DUE: { label: "Due", tone: "warning" },
   OVERDUE: { label: "Overdue", tone: "danger" },
   REVERSED: { label: "Reversed", tone: "neutral" },
+  PENDING: { label: "Pending", tone: "warning" },
+  PARTIAL: { label: "Part paid", tone: "warning" },
+  CREDIT: { label: "Advance credit", tone: "info" },
+  CARRIED_FORWARD: { label: "Carried forward", tone: "neutral" },
   // tests
   UPCOMING: { label: "Upcoming", tone: "info" },
   ABSENT: { label: "Absent", tone: "danger" },

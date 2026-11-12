@@ -42,3 +42,9 @@ export type DocumentFile = Schemas["DocumentFile"];
 export type TestAssignment = Schemas["TestAssignment"];
 export type NoteAssignment = Schemas["NoteAssignment"];
 export type StaffStudent = Schemas["StaffStudent"];
+
+// Fees (admin)
+export type FeeAccountDetail = Schemas["FeeAccountDetail"];
+export type LedgerEntry = Schemas["LedgerEntry"];
+export type FeeStructure = Schemas["FeeStructure"];
+export type PaymentListItem = Schemas["PaymentList"];
