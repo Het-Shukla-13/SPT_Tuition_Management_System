@@ -5,6 +5,9 @@ import { AcademicsPage } from "@/features/academics/pages/AcademicsPage";
 import { AccountPage } from "@/features/auth/pages/AccountPage";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { ResetPasswordPage } from "@/features/auth/pages/ResetPasswordPage";
+import { LearningDetailPage } from "@/features/learning/pages/LearningDetailPage";
+import { LearningListPage } from "@/features/learning/pages/LearningListPage";
+import { UploadPage } from "@/features/learning/pages/UploadPage";
 import { AdmissionPage } from "@/features/students/pages/AdmissionPage";
 import { StudentDetailPage } from "@/features/students/pages/StudentDetailPage";
 import { StudentsPage } from "@/features/students/pages/StudentsPage";
@@ -21,8 +24,11 @@ import { StaffShell } from "./layouts/StaffShell";
  */
 const staffRoutes: RouteObject[] = [
   { index: true, element: <ComingSoon title="Dashboard" step="F7" /> },
-  { path: "tests", element: <ComingSoon title="Tests" step="F4" /> },
-  { path: "notes", element: <ComingSoon title="Notes" step="F4" /> },
+  ...(["tests", "notes"] as const).flatMap((kind): RouteObject[] => [
+    { path: kind, element: <LearningListPage key={kind} kind={kind} /> },
+    { path: `${kind}/new`, element: <UploadPage key={kind} kind={kind} /> },
+    { path: `${kind}/:id`, element: <LearningDetailPage key={kind} kind={kind} /> },
+  ]),
   { path: "account", element: <AccountPage /> },
 ];
 
