@@ -23,3 +23,14 @@ export type Subject = Schemas["Subject"];
 export type Chapter = Schemas["Chapter"];
 export type School = Schemas["School"];
 export type AcademicYear = Schemas["AcademicYear"];
+
+// Students (admin)
+export type StudentListItem = Schemas["StudentList"];
+export type StudentDetail = Schemas["StudentDetail"];
+export type StudentStatus = Schemas["StudentStatusEnum"];
+export type AcademicHistory = Schemas["AcademicHistory"];
+export type LinkedLogin = Schemas["LinkedLogin"];
+export type AdmissionResult = Schemas["AdmissionResult"];
+
+// Fees (summary rows; full fee screens in F5)
+export type FeeAccountListItem = Schemas["FeeAccountList"];

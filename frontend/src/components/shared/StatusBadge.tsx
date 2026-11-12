@@ -22,6 +22,7 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   ACTIVE: { label: "Active", tone: "success" },
   LEFT: { label: "Left", tone: "neutral" },
   COMPLETED: { label: "Completed", tone: "info" },
+  ON_HOLD: { label: "On hold", tone: "warning" },
   // fees
   PAID: { label: "Paid", tone: "success" },
   DUE: { label: "Due", tone: "warning" },
