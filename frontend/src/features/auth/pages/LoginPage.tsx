@@ -217,6 +217,12 @@ export function LoginPage() {
       <p className="text-center text-xs leading-relaxed text-muted">
         Logins are created by the institute. New devices are checked with a code sent to your email.
       </p>
+      <p className="border-t border-line pt-4 text-center text-sm">
+        New to Sai Personal Tuitions?{" "}
+        <Link to="/enquire" className="font-bold text-primary hover:underline">
+          Ask about admission
+        </Link>
+      </p>
     </AuthLayout>
   );
 }

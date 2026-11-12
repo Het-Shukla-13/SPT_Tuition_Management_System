@@ -3262,6 +3262,19 @@ paths:
           description: Received.
         '429':
           description: THROTTLED
+  /api/v1/public/enquiries/options/:
+    get:
+      operationId: public_enquiries_options_retrieve
+      description: Active boards and standards, so the public form can offer them
+        without a login.
+      summary: Choices for the admission enquiry form
+      tags:
+      - Public
+      security:
+      - {}
+      responses:
+        '200':
+          description: '{"boards": [{id, code, name}], "standards": [{id, name}]}'
   /api/v1/staff/dashboard/:
     get:
       operationId: staff_dashboard_retrieve

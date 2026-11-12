@@ -1,7 +1,10 @@
 import { createBrowserRouter, Outlet, type RouteObject } from "react-router";
 
-import { ComingSoon } from "@/components/shared/ComingSoon";
 import { AcademicsPage } from "@/features/academics/pages/AcademicsPage";
+import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
+import { EnquiriesPage } from "@/features/enquiries/pages/EnquiriesPage";
+import { EnquiryDetailPage } from "@/features/enquiries/pages/EnquiryDetailPage";
+import { PublicEnquiryPage } from "@/features/enquiries/pages/PublicEnquiryPage";
 import { AccountPage } from "@/features/auth/pages/AccountPage";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { ResetPasswordPage } from "@/features/auth/pages/ResetPasswordPage";
@@ -27,11 +30,11 @@ import { PortalShell } from "./layouts/PortalShell";
 import { StaffShell } from "./layouts/StaffShell";
 
 /**
- * Every URL of the app. Pages not built yet show <ComingSoon>, so the menus
- * and role guards already work end to end.
+ * Every URL of the app. Which roles reach each group is decided by the guards
+ * below, matching the menus in navigation.ts.
  */
 const staffRoutes: RouteObject[] = [
-  { index: true, element: <ComingSoon title="Dashboard" step="F7" /> },
+  { index: true, element: <DashboardPage /> },
   ...(["tests", "notes"] as const).flatMap((kind): RouteObject[] => [
     { path: kind, element: <LearningListPage key={kind} kind={kind} /> },
     { path: `${kind}/new`, element: <UploadPage key={kind} kind={kind} /> },
@@ -46,7 +49,8 @@ const adminOnlyRoutes: RouteObject[] = [
   { path: "students/:id", element: <StudentDetailPage /> },
   { path: "fees", element: <FeesPage /> },
   { path: "fees/accounts/:id", element: <FeeAccountPage /> },
-  { path: "enquiries", element: <ComingSoon title="Enquiries" step="F7" /> },
+  { path: "enquiries", element: <EnquiriesPage /> },
+  { path: "enquiries/:id", element: <EnquiryDetailPage /> },
   { path: "users", element: <UsersPage /> },
   { path: "users/:id", element: <UserDetailPage /> },
   { path: "academics", element: <AcademicsPage /> },
@@ -75,6 +79,7 @@ export const routes: RouteObject[] = [
   { path: "/", element: <HomeRedirect /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/reset-password", element: <ResetPasswordPage /> },
+  { path: "/enquire", element: <PublicEnquiryPage /> },
   {
     path: "/staff",
     element: <RequireAuth roles={["ADMIN", "TEACHER"]} />,

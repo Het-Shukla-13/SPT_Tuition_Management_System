@@ -29,6 +29,10 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   OVERDUE: { label: "Overdue", tone: "danger" },
   REVERSED: { label: "Reversed", tone: "neutral" },
   PENDING: { label: "Pending", tone: "warning" },
+  // enquiries
+  CONTACTED: { label: "Contacted", tone: "info" },
+  ACCEPTED: { label: "Admitted", tone: "success" },
+  REJECTED: { label: "Not proceeding", tone: "neutral" },
   PARTIAL: { label: "Part paid", tone: "warning" },
   CREDIT: { label: "Advance credit", tone: "info" },
   CARRIED_FORWARD: { label: "Carried forward", tone: "neutral" },
@@ -39,7 +43,7 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   // users & enquiries
   INVITED: { label: "Invited", tone: "info" },
   INACTIVE: { label: "Deactivated", tone: "neutral" },
-  NEW: { label: "New", tone: "info" },
+  NEW: { label: "New", tone: "brand" },
 };
 
 export function Badge({

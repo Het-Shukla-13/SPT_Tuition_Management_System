@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { XIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -11,12 +11,15 @@ import { FormField } from "@/components/shared/FormField";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { ReferenceSelect, useReferenceOptions } from "@/features/academics";
 import { displayName } from "@/features/auth/session";
+import { splitName, useEnquiry, useUpdateEnquiry } from "@/features/enquiries";
 import { ApiError } from "@/lib/api/envelope";
 import type { AdminUser } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
+import type { Enquiry } from "@/lib/api/types";
 
 import { type AdmissionBody, GENDER_OPTIONS, useAdmitStudent } from "../api";
 import { ExistingLoginPicker } from "../components/ExistingLoginPicker";
@@ -99,13 +102,49 @@ const EMPTY: Values = {
   new_logins: [],
 };
 
-/** "New admission": the student, their class & subjects, the fee, and who can log in to see them. */
+/** What an enquiry already tells us, so the office doesn't type it twice. */
+function fromEnquiry(e: Enquiry): Values {
+  const { first, last } = splitName(e.student_name);
+  return {
+    ...EMPTY,
+    first_name: first,
+    last_name: last,
+    board: e.board ? String(e.board) : "",
+    standard: e.standard ? String(e.standard) : "",
+    guardian_name: e.parent_name,
+    guardian_phone: e.phone,
+    guardian_email: e.email ?? "",
+    remarks: e.message ? `From the enquiry: ${e.message}` : "",
+  };
+}
+
+/** "New admission". With ?enquiry=<id> it starts from that enquiry and links the student to it. */
 export function AdmissionPage() {
+  const raw = useSearchParams()[0].get("enquiry");
+  const enquiryId = raw && /^\d+$/.test(raw) ? Number(raw) : null;
+  const enquiry = useEnquiry(enquiryId);
+  // Pre-filled dropdowns only keep their value if their options are there first.
+  const boards = useReferenceOptions("boards", {}, enquiryId !== null);
+  const standards = useReferenceOptions("standards", {}, enquiryId !== null);
+  if (enquiryId !== null && (enquiry.isPending || boards.isPending || standards.isPending)) {
+    return <Skeleton className="h-96 w-full" />;
+  }
+  // If the enquiry can't be loaded, still allow a normal admission.
+  return enquiryId !== null && enquiry.data ? (
+    <AdmissionForm initial={fromEnquiry(enquiry.data)} enquiry={enquiry.data} />
+  ) : (
+    <AdmissionForm initial={EMPTY} />
+  );
+}
+
+/** The student, their class & subjects, the fee, and who can log in to see them. */
+function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquiry }) {
   const navigate = useNavigate();
+  const linkEnquiry = useUpdateEnquiry(enquiry?.id ?? 0);
   const admit = useAdmitStudent();
   const [linked, setLinked] = useState<AdminUser[]>([]);
   const [duplicates, setDuplicates] = useState<Duplicate[] | null>(null);
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: EMPTY });
+  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: initial });
   const logins = useFieldArray({ control: form.control, name: "new_logins" });
   const subjects = useReferenceOptions("subjects");
   const errors = form.formState.errors;
@@ -144,6 +183,16 @@ export function AdmissionPage() {
           ? `${values.first_name} admitted. Invite email${invited > 1 ? "s" : ""} sent to set a password.`
           : `${values.first_name} admitted.`,
       );
+      if (enquiry) {
+        // Admitted: mark the enquiry and link it. A failure here mustn't hide the admission.
+        await linkEnquiry
+          .mutateAsync({ student: result.student.id })
+          .catch(() =>
+            toast.warning(
+              "Admitted, but the enquiry couldn't be linked. Update it from Enquiries.",
+            ),
+          );
+      }
       navigate(`/staff/students/${result.student.id}`);
     } catch (err) {
       if (!(err instanceof ApiError)) throw err;
@@ -187,7 +236,11 @@ export function AdmissionPage() {
       <PageHeader
         back={{ to: "/staff/students", label: "Students" }}
         title="New admission"
-        eyebrow="Creates the student, their subjects, this year's fee account and the parent's login in one step."
+        eyebrow={
+          enquiry
+            ? `Started from ${enquiry.parent_name}'s enquiry. Check the details, then fill in the rest.`
+            : "Creates the student, their subjects, this year's fee account and the parent's login in one step."
+        }
       />
 
       {duplicates && (

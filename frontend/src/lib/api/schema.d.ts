@@ -1527,6 +1527,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/enquiries/options/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Choices for the admission enquiry form
+         * @description Active boards and standards, so the public form can offer them without a login.
+         */
+        get: operations["public_enquiries_options_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/dashboard/": {
         parameters: {
             query?: never;
@@ -6888,6 +6908,24 @@ export interface operations {
             };
             /** @description THROTTLED */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    public_enquiries_options_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description {"boards": [{id, code, name}], "standards": [{id, name}]} */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

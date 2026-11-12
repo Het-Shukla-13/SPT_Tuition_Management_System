@@ -96,6 +96,58 @@ async function fillAdmission(user: ReturnType<typeof renderScreen>["user"]) {
   await user.type(screen.getByLabelText("Phone"), "9876543210");
 }
 
+describe("AdmissionPage from an enquiry", () => {
+  const ENQUIRY = {
+    id: 12,
+    parent_name: "Kavita Shah",
+    phone: "+919876543210",
+    email: "kavita@example.com",
+    student_name: "Riya Kumari Shah",
+    standard: 10,
+    standard_name: "Standard 10",
+    board: 1,
+    board_code: "CBSE",
+    message: "Maths and science, evenings",
+    status: "CONTACTED",
+    notes: "",
+    handled_by: null,
+    student: null,
+    created_at: "2026-11-01T10:00:00+05:30",
+    updated_at: "2026-11-01T10:00:00+05:30",
+  };
+
+  it("starts from the enquiry and links the admitted student back to it", async () => {
+    let linked: unknown;
+    server.use(
+      http.get(`${API}/admin/enquiries/12/`, () => ok(ENQUIRY)),
+      http.post(`${API}/admin/students/`, () =>
+        ok({ student: { ...STUDENT, id: 8 }, invite_sent: {} }),
+      ),
+      http.patch(`${API}/admin/enquiries/12/`, async ({ request }) => {
+        linked = await request.json();
+        return ok({ ...ENQUIRY, status: "ACCEPTED", student: 8 });
+      }),
+    );
+    const { user } = renderScreen(<AdmissionPage />, {
+      path: "/staff/students/new?enquiry=12",
+      extraRoutes: [{ path: "/staff/students/:id", element: <p>profile page</p> }],
+    });
+
+    expect(await screen.findByLabelText("First name")).toHaveValue("Riya");
+    expect(screen.getByLabelText("Last name")).toHaveValue("Kumari Shah");
+    expect(screen.getByLabelText("Guardian name")).toHaveValue("Kavita Shah");
+    expect(screen.getByText(/Started from Kavita Shah's enquiry/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Board")).toHaveValue("1"));
+
+    await user.selectOptions(screen.getByLabelText("School"), "3");
+    await user.click(await screen.findByLabelText("Mathematics"));
+    await user.click(screen.getByRole("button", { name: "Admit student" }));
+
+    expect(await screen.findByText("profile page")).toBeInTheDocument();
+    expect(linked).toEqual({ student: 8 });
+  });
+});
+
 describe("AdmissionPage", () => {
   const renderAdmission = () =>
     renderScreen(<AdmissionPage />, {
