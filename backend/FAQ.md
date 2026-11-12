@@ -386,6 +386,12 @@ Everything is audited. Reference data in use can't be deleted (`PROTECT`).
 - A `LEFT` student still appears, with its status. A login with no links sees an empty list.
 - Admins/teachers get `403` on portal endpoints; portal logins get `403` on admin endpoints.
 
+### How do teachers pick students to assign? (`GET /staff/students/`, admins + teachers)
+A lookup of **active** students with only `id, admission_number, name, board, standard, school`
+(no guardian contact, address or fees: those stay admin-only). Filters: `board`, `standard`,
+`school`, `subject` (currently taking it), `search` (name / admission no.). Not paginated: at most
+500 results (one assignment call takes at most 500 students).
+
 ## 7. Admission enquiries
 
 - **Public** `POST /api/v1/public/enquiries/` (no login): `parent_name`, `phone`, `student_name`,
