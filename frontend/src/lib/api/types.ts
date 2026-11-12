@@ -11,3 +11,15 @@ export type Role = Schemas["RoleEnum"];
 export type LoginResult = Schemas["LoginResult"];
 export type UserSession = Schemas["UserSession"];
 export type TrustedDevice = Schemas["TrustedDevice"];
+
+// Users (admin)
+export type AdminUser = Schemas["AdminUser"];
+export type InviteResult = Schemas["InviteResult"];
+
+// Academics reference data
+export type Board = Schemas["Board"];
+export type Standard = Schemas["Standard"];
+export type Subject = Schemas["Subject"];
+export type Chapter = Schemas["Chapter"];
+export type School = Schemas["School"];
+export type AcademicYear = Schemas["AcademicYear"];

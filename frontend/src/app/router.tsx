@@ -1,9 +1,12 @@
 import { createBrowserRouter, type RouteObject } from "react-router";
 
 import { ComingSoon } from "@/components/shared/ComingSoon";
+import { AcademicsPage } from "@/features/academics/pages/AcademicsPage";
 import { AccountPage } from "@/features/auth/pages/AccountPage";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { ResetPasswordPage } from "@/features/auth/pages/ResetPasswordPage";
+import { UserDetailPage } from "@/features/users/pages/UserDetailPage";
+import { UsersPage } from "@/features/users/pages/UsersPage";
 
 import { HomeRedirect, NotFound, RequireAuth } from "./guards";
 import { PortalShell } from "./layouts/PortalShell";
@@ -24,8 +27,9 @@ const adminOnlyRoutes: RouteObject[] = [
   { path: "students", element: <ComingSoon title="Students" step="F3" /> },
   { path: "fees", element: <ComingSoon title="Fees" step="F5" /> },
   { path: "enquiries", element: <ComingSoon title="Enquiries" step="F7" /> },
-  { path: "users", element: <ComingSoon title="Users & invites" step="F2" /> },
-  { path: "academics", element: <ComingSoon title="Academics setup" step="F2" /> },
+  { path: "users", element: <UsersPage /> },
+  { path: "users/:id", element: <UserDetailPage /> },
+  { path: "academics", element: <AcademicsPage /> },
 ];
 
 const portalRoutes: RouteObject[] = [
