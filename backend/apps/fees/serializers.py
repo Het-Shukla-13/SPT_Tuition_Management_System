@@ -1,4 +1,5 @@
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.academics.models import AcademicYear, Board
@@ -121,6 +122,7 @@ class FeeAccountDetailSerializer(FeeAccountListSerializer):
             "entries",
         ]
 
+    @extend_schema_field(LedgerEntrySerializer(many=True))
     def get_entries(self, obj) -> list[dict]:
         return LedgerEntrySerializer(
             obj.entries.select_related("recorded_by"), many=True
@@ -244,5 +246,6 @@ class PortalFeeAccountSerializer(FeeAccountListSerializer):
             "entries",
         ]
 
+    @extend_schema_field(PortalLedgerEntrySerializer(many=True))
     def get_entries(self, obj) -> list[dict]:
         return PortalLedgerEntrySerializer(obj.entries.all(), many=True).data
