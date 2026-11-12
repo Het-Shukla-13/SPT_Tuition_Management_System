@@ -22,7 +22,8 @@ export default defineConfig({
     },
   },
   build: {
-    sourcemap: true,
+    // Off for production: published maps would expose the full source. Debug on the dev server.
+    sourcemap: false,
   },
   test: {
     environment: "jsdom",

@@ -4,10 +4,12 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router";
 
 import { staffNavFor } from "@/app/navigation";
 import { Logo } from "@/components/shared/Logo";
+import { NavigationProgress, SkipLink } from "@/components/shared/PageChrome";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { displayName, ROLE_LABEL, useCurrentUser, useLogout } from "@/features/auth/session";
 import type { User } from "@/lib/api/types";
 import { initials } from "@/lib/format";
+import { MAIN_ID, useFocusMainOnNavigate } from "@/lib/useFocusMainOnNavigate";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,9 +19,12 @@ import { cn } from "@/lib/utils";
 export function StaffShell() {
   const user = useCurrentUser();
   const [menuOpen, setMenuOpen] = useState(false);
+  const mainRef = useFocusMainOnNavigate<HTMLElement>();
 
   return (
     <div className="flex min-h-dvh">
+      <SkipLink />
+      <NavigationProgress />
       <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 lg:block">
         <Sidebar user={user} />
       </aside>
@@ -42,7 +47,12 @@ export function StaffShell() {
           </button>
           <Logo subtitle={false} />
         </header>
-        <main className="mx-auto flex w-full max-w-[1280px] min-w-0 flex-col gap-6 px-4 py-6 sm:px-9 sm:py-8">
+        <main
+          id={MAIN_ID}
+          ref={mainRef}
+          tabIndex={-1}
+          className="mx-auto flex w-full max-w-[1280px] min-w-0 flex-col gap-6 px-4 py-6 outline-none sm:px-9 sm:py-8"
+        >
           <Outlet />
         </main>
       </div>

@@ -4,6 +4,7 @@ import { LogoMark } from "@/components/shared/Logo";
 import { ErrorState } from "@/components/shared/States";
 import { Button } from "@/components/ui/button";
 import { CurrentUserContext, homePathFor, useMe } from "@/features/auth/session";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import type { Role } from "@/lib/api/types";
 
 export function FullPageLoader() {
@@ -54,6 +55,7 @@ export function HomeRedirect() {
 }
 
 export function NotAllowed({ home }: { home: string }) {
+  useDocumentTitle("Not allowed");
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
       <LogoMark className="size-12" />
@@ -69,6 +71,7 @@ export function NotAllowed({ home }: { home: string }) {
 }
 
 export function NotFound() {
+  useDocumentTitle("Page not found");
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
       <LogoMark className="size-12" />

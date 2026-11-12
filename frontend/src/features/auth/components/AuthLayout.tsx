@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { INSTITUTE_NAME, LogoMark } from "@/components/shared/Logo";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
 /**
  * Login-type screens: the chalkboard brand panel beside the form on desktop;
@@ -40,6 +41,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
 }
 
 export function AuthHeading({ title, subtitle }: { title: string; subtitle?: ReactNode }) {
+  useDocumentTitle(title);
   return (
     <div className="flex flex-col gap-1.5">
       <h1 className="text-[26px] font-extrabold tracking-tight">{title}</h1>
