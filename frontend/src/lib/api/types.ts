@@ -55,3 +55,6 @@ export type PortalTest = Schemas["PortalTest"];
 export type PortalNote = Schemas["PortalNote"];
 export type PortalFeeAccount = Schemas["PortalFeeAccount"];
 export type PortalLedgerEntry = Schemas["PortalLedgerEntry"];
+
+// Enquiries (admin)
+export type Enquiry = Schemas["AdminEnquiry"];
