@@ -514,3 +514,60 @@ class TestStudentSearch:
             f"{ADMIN_URL}?search={student.admission_number}"
         )
         assert [s["id"] for s in response.json()["data"]] == [student.pk]
+
+
+# ─── staff lookup (teachers picking students to assign) ──────
+@pytest.mark.django_db
+class TestStaffStudentLookup:
+    URL = "/api/v1/staff/students/"
+
+    def test_teacher_finds_active_students_without_private_details(self, admin, refs):
+        teacher = User.objects.create_user(
+            email="t@example.com", role=User.Role.TEACHER
+        )
+        admit(admin, refs, new_logins=[])
+        left = admit(
+            admin, refs, first_name="Riya", new_logins=[], date_of_birth="2014-01-01"
+        )
+        StudentProfile.objects.filter(pk=left.pk).update(status="LEFT")
+
+        rows = client_for(teacher).get(self.URL).json()["data"]
+
+        assert [r["first_name"] for r in rows] == ["Aarav"]
+        assert set(rows[0]) == {
+            "id",
+            "admission_number",
+            "first_name",
+            "last_name",
+            "board",
+            "board_code",
+            "standard",
+            "standard_name",
+            "school",
+            "school_name",
+        }  # no guardian phone, address, fees...
+
+    def test_filters_by_class_and_current_subject(self, admin, refs):
+        admit(admin, refs, new_logins=[])  # Maths + Science, Std 10
+        admit(
+            admin,
+            refs,
+            first_name="Riya",
+            subjects=[refs["eng"].pk],
+            new_logins=[],
+            date_of_birth="2014-01-01",
+        )
+        client = client_for(admin)
+
+        maths = client.get(
+            self.URL, {"subject": refs["maths"].pk, "standard": refs["tenth"].pk}
+        )
+        assert [r["first_name"] for r in maths.json()["data"]] == ["Aarav"]
+        assert (
+            client.get(self.URL, {"search": "riy"}).json()["data"][0]["first_name"]
+            == "Riya"
+        )
+
+    def test_parents_cannot_use_it(self, db):
+        parent = User.objects.create_user(email="p@example.com")
+        assert client_for(parent).get(self.URL).status_code == 403
