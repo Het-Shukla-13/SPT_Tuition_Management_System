@@ -1,5 +1,6 @@
 """
 Public:  POST /api/v1/public/enquiries/   (no login; throttled; honeypot)
+         GET  /api/v1/public/enquiries/options/  (boards + standards for the form)
 Admin:   /api/v1/admin/enquiries/          (list, detail, update status/notes/student)
 """
 
@@ -11,6 +12,7 @@ from rest_framework import generics
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
+from apps.academics.models import Board, Standard
 from apps.common.permissions import IsAdmin
 from apps.common.request_utils import client_ip
 from apps.common.responses import ApiResponse
@@ -55,6 +57,32 @@ class PublicEnquiryView(APIView):
             return ApiResponse.created(message=THANKS)
         submit_enquiry(data=data, ip=client_ip(request))
         return ApiResponse.created(message=THANKS)
+
+
+class PublicEnquiryOptionsView(APIView):
+    """Active boards and standards, so the public form can offer them without a login."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=["Public"],
+        summary="Choices for the admission enquiry form",
+        responses={
+            200: OpenApiResponse(
+                description='{"boards": [{id, code, name}], "standards": [{id, name}]}'
+            )
+        },
+    )
+    def get(self, request):
+        boards = Board.objects.filter(is_active=True).order_by("code")
+        standards = Standard.objects.filter(is_active=True).order_by("level")
+        return ApiResponse.success(
+            data={
+                "boards": list(boards.values("id", "code", "name")),
+                "standards": list(standards.values("id", "name")),
+            }
+        )
 
 
 @extend_schema(tags=ADMIN_TAG)
