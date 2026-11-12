@@ -1,6 +1,8 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { Link } from "react-router";
 
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
+
 import { studentName, useActiveStudent } from "../student";
 import { StudentAvatar } from "./StudentAvatar";
 
@@ -13,6 +15,7 @@ export function PortalHeader({
   back?: { to: string; label: string };
 }) {
   const { student, students, choose } = useActiveStudent();
+  useDocumentTitle(students.length > 1 ? `${title} – ${student.first_name}` : title);
   return (
     <div className="flex flex-col gap-3">
       {back && (

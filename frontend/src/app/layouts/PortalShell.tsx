@@ -1,10 +1,12 @@
 import { Link, NavLink, Outlet } from "react-router";
 
 import { LogoMark } from "@/components/shared/Logo";
+import { NavigationProgress, SkipLink } from "@/components/shared/PageChrome";
 import { useCurrentUser } from "@/features/auth/session";
 import { initials } from "@/lib/format";
 
 import { PORTAL_NAV } from "@/app/navigation";
+import { MAIN_ID, useFocusMainOnNavigate } from "@/lib/useFocusMainOnNavigate";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,8 +15,11 @@ import { cn } from "@/lib/utils";
  */
 export function PortalShell() {
   const user = useCurrentUser();
+  const mainRef = useFocusMainOnNavigate<HTMLElement>();
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[520px] flex-col bg-ground sm:border-x sm:border-line">
+      <SkipLink />
+      <NavigationProgress />
       <header className="flex h-14 items-center justify-between bg-board px-4">
         <Link
           to="/portal"
@@ -32,9 +37,14 @@ export function PortalShell() {
           {initials(`${user.first_name} ${user.last_name}`)}
         </Link>
       </header>
-      <div className="flex flex-1 flex-col pb-24">
+      <main
+        id={MAIN_ID}
+        ref={mainRef}
+        tabIndex={-1}
+        className="flex flex-1 flex-col pb-24 outline-none"
+      >
         <Outlet />
-      </div>
+      </main>
       <nav
         aria-label="Portal"
         className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-[520px] grid-cols-4 border-t border-line bg-surface px-2 pt-2 pb-[max(12px,env(safe-area-inset-bottom))]"

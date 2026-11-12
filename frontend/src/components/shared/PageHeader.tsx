@@ -2,6 +2,8 @@ import { ArrowLeftIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
+
 /** Title row of every page: optional back link, eyebrow text and actions. */
 export function PageHeader({
   title,
@@ -14,6 +16,7 @@ export function PageHeader({
   back?: { to: string; label: string };
   actions?: ReactNode;
 }) {
+  useDocumentTitle(title);
   return (
     <div className="flex flex-col gap-3">
       {back && (
