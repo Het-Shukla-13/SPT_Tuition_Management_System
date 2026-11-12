@@ -2342,9 +2342,7 @@ export interface components {
             /** Format: date */
             last_payment_date: string | null;
             opening_balance_reason?: string;
-            readonly entries: {
-                [key: string]: unknown;
-            }[];
+            readonly entries: components["schemas"]["LedgerEntry"][];
         };
         FeeAccountList: {
             readonly id: number;
@@ -2467,6 +2465,28 @@ export interface components {
          * @enum {string}
          */
         KindEnum: "PAPER" | "ANSWER_KEY" | "NOTE";
+        LedgerEntry: {
+            readonly id: number;
+            entry_type: components["schemas"]["EntryTypeEnum"];
+            /** Format: decimal */
+            amount: string;
+            /** Format: date */
+            entry_date?: string;
+            method?: components["schemas"]["MethodEnum"] | components["schemas"]["BlankEnum"];
+            /** @description UPI/transaction/cheque no. */
+            reference?: string;
+            remarks?: string;
+            /** @description Whether parents/students see the remarks. */
+            visible_to_student?: boolean;
+            receipt_number?: string | null;
+            /** @description For REVERSAL: the payment it cancels (a payment can be reversed once). */
+            reverses?: number | null;
+            readonly reversed: boolean;
+            recorded_by?: number | null;
+            readonly recorded_by_name: string;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
         /** @description A login that can see the student (shown to admins). */
         LinkedLogin: {
             user_id: number;
@@ -3282,9 +3302,21 @@ export interface components {
             is_ending_soon: boolean;
             /** Format: date */
             last_payment_date: string | null;
-            readonly entries: {
-                [key: string]: unknown;
-            }[];
+            readonly entries: components["schemas"]["PortalLedgerEntry"][];
+        };
+        /** @description Remarks only when marked visible to students. */
+        PortalLedgerEntry: {
+            readonly id: number;
+            entry_type: components["schemas"]["EntryTypeEnum"];
+            /** Format: decimal */
+            amount: string;
+            /** Format: date */
+            entry_date?: string;
+            method?: components["schemas"]["MethodEnum"] | components["schemas"]["BlankEnum"];
+            /** @description UPI/transaction/cheque no. */
+            reference?: string;
+            receipt_number?: string | null;
+            readonly remarks: string;
         };
         PortalNote: {
             readonly id: number;

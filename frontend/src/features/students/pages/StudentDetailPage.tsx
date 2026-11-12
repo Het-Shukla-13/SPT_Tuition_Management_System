@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { toast } from "sonner";
 
 import { ChipToggleGroup } from "@/components/shared/ChipToggleGroup";
@@ -158,9 +158,12 @@ function FeesCard({ studentId }: { studentId: number }) {
               className="flex flex-col gap-2 border-t border-line/70 pt-3 first:border-t-0 first:pt-0"
             >
               <span className="flex items-center justify-between gap-2 text-sm">
-                <b>
+                <Link
+                  to={`/staff/fees/accounts/${a.id}`}
+                  className="font-bold text-primary hover:underline"
+                >
                   {a.board} {a.academic_year_name} · {a.standard}
-                </b>
+                </Link>
                 <StatusBadge status={a.status} />
               </span>
               <div className="grid grid-cols-3 gap-3">
@@ -178,7 +181,7 @@ function FeesCard({ studentId }: { studentId: number }) {
         </ul>
       )}
       <p className="text-xs text-muted">
-        Payments and receipts are recorded in Fees (coming in step F5).
+        Open a year to record payments, print receipts or adjust the fee.
       </p>
     </Card>
   );

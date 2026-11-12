@@ -5,6 +5,8 @@ import { AcademicsPage } from "@/features/academics/pages/AcademicsPage";
 import { AccountPage } from "@/features/auth/pages/AccountPage";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { ResetPasswordPage } from "@/features/auth/pages/ResetPasswordPage";
+import { FeeAccountPage } from "@/features/fees/pages/FeeAccountPage";
+import { FeesPage } from "@/features/fees/pages/FeesPage";
 import { LearningDetailPage } from "@/features/learning/pages/LearningDetailPage";
 import { LearningListPage } from "@/features/learning/pages/LearningListPage";
 import { UploadPage } from "@/features/learning/pages/UploadPage";
@@ -36,7 +38,8 @@ const adminOnlyRoutes: RouteObject[] = [
   { path: "students", element: <StudentsPage /> },
   { path: "students/new", element: <AdmissionPage /> },
   { path: "students/:id", element: <StudentDetailPage /> },
-  { path: "fees", element: <ComingSoon title="Fees" step="F5" /> },
+  { path: "fees", element: <FeesPage /> },
+  { path: "fees/accounts/:id", element: <FeeAccountPage /> },
   { path: "enquiries", element: <ComingSoon title="Enquiries" step="F7" /> },
   { path: "users", element: <UsersPage /> },
   { path: "users/:id", element: <UserDetailPage /> },

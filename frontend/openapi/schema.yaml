@@ -5209,8 +5209,7 @@ components:
         entries:
           type: array
           items:
-            type: object
-            additionalProperties: {}
+            $ref: '#/components/schemas/LedgerEntry'
           readOnly: true
       required:
       - academic_year
@@ -5506,6 +5505,63 @@ components:
         * `PAPER` - Test paper
         * `ANSWER_KEY` - Answer key
         * `NOTE` - Notes
+    LedgerEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        entry_type:
+          $ref: '#/components/schemas/EntryTypeEnum'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        entry_date:
+          type: string
+          format: date
+        method:
+          oneOf:
+          - $ref: '#/components/schemas/MethodEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        reference:
+          type: string
+          description: UPI/transaction/cheque no.
+          maxLength: 100
+        remarks:
+          type: string
+        visible_to_student:
+          type: boolean
+          description: Whether parents/students see the remarks.
+        receipt_number:
+          type: string
+          nullable: true
+          maxLength: 30
+        reverses:
+          type: integer
+          nullable: true
+          description: 'For REVERSAL: the payment it cancels (a payment can be reversed
+            once).'
+        reversed:
+          type: boolean
+          readOnly: true
+        recorded_by:
+          type: integer
+          nullable: true
+        recorded_by_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - created_at
+      - entry_type
+      - id
+      - recorded_by_name
+      - reversed
     LinkedLogin:
       type: object
       description: A login that can see the student (shown to admins).
@@ -7165,8 +7221,7 @@ components:
         entries:
           type: array
           items:
-            type: object
-            additionalProperties: {}
+            $ref: '#/components/schemas/PortalLedgerEntry'
           readOnly: true
       required:
       - academic_year_name
@@ -7182,6 +7237,42 @@ components:
       - pending
       - status
       - total
+    PortalLedgerEntry:
+      type: object
+      description: Remarks only when marked visible to students.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        entry_type:
+          $ref: '#/components/schemas/EntryTypeEnum'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        entry_date:
+          type: string
+          format: date
+        method:
+          oneOf:
+          - $ref: '#/components/schemas/MethodEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        reference:
+          type: string
+          description: UPI/transaction/cheque no.
+          maxLength: 100
+        receipt_number:
+          type: string
+          nullable: true
+          maxLength: 30
+        remarks:
+          type: string
+          readOnly: true
+      required:
+      - amount
+      - entry_type
+      - id
+      - remarks
     PortalNote:
       type: object
       properties:
