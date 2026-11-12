@@ -8,13 +8,9 @@ import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/envelope";
 import { useListParams } from "@/lib/useListParams";
 
-import {
-  type ReferenceItem,
-  useReferenceList,
-  useReferenceOptions,
-  useSaveReference,
-} from "../api";
-import type { FilterConfig, ReferenceConfig } from "../config";
+import { type ReferenceItem, useReferenceList, useSaveReference } from "../api";
+import type { ReferenceConfig } from "../config";
+import { ReferenceFilter } from "./ReferenceFilter";
 import { ReferenceForm } from "./ReferenceForm";
 
 const STATUS_OPTIONS = [
@@ -98,7 +94,10 @@ export function ReferenceSection({ config }: { config: ReferenceConfig }) {
         {config.filters.map((filter) => (
           <ReferenceFilter
             key={filter.name}
-            filter={filter}
+            resource={filter.optionsFrom}
+            label={filter.label}
+            allLabel={filter.allLabel}
+            optionLabel={filter.optionLabel}
             value={list.filters[filter.name] ?? ""}
             onChange={(v) => list.setFilter(filter.name, v)}
           />
@@ -137,29 +136,5 @@ export function ReferenceSection({ config }: { config: ReferenceConfig }) {
         />
       )}
     </section>
-  );
-}
-
-function ReferenceFilter({
-  filter,
-  value,
-  onChange,
-}: {
-  filter: FilterConfig;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const options = useReferenceOptions(filter.optionsFrom);
-  return (
-    <FilterSelect
-      label={filter.label}
-      allLabel={filter.allLabel}
-      value={value}
-      onChange={onChange}
-      options={(options.data ?? []).map((o) => ({
-        value: String(o.id),
-        label: filter.optionLabel ? filter.optionLabel(o) : String(o.name ?? o.id),
-      }))}
-    />
   );
 }
