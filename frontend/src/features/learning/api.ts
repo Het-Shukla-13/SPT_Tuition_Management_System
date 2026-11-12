@@ -6,6 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api/client";
+import { openFile } from "@/lib/api/openFile";
 import type {
   DocumentFile,
   Note,
@@ -46,22 +47,12 @@ export function useVersions(kind: Kind, id: number, enabled: boolean) {
   });
 }
 
-/** Open a PDF in a new tab (files are only served to logged-in staff, never by public URL). */
-export async function openPdf(kind: Kind, id: number, fileKind?: FileKind, version?: number) {
-  // Open the tab first (inside the click), so pop-up blockers allow it.
-  const tab = window.open("", "_blank");
-  try {
-    const params: Record<string, string | number> = {};
-    if (fileKind && kind === "tests") params.kind = fileKind;
-    if (version) params.version = version;
-    const { blob } = await api.download(`${itemUrl(kind, id)}download/`, params);
-    const url = URL.createObjectURL(blob);
-    if (tab) tab.location.href = url;
-    else window.location.href = url;
-  } catch (error) {
-    tab?.close();
-    throw error;
-  }
+/** Open an item's PDF in a new tab. */
+export function openPdf(kind: Kind, id: number, fileKind?: FileKind, version?: number) {
+  const params: Record<string, string | number> = {};
+  if (fileKind && kind === "tests") params.kind = fileKind;
+  if (version) params.version = version;
+  return openFile(`${itemUrl(kind, id)}download/`, params);
 }
 
 /** Refresh the item, its lists and its assignments after any change. */

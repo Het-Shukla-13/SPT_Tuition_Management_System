@@ -1,4 +1,4 @@
-import { createBrowserRouter, type RouteObject } from "react-router";
+import { createBrowserRouter, Outlet, type RouteObject } from "react-router";
 
 import { ComingSoon } from "@/components/shared/ComingSoon";
 import { AcademicsPage } from "@/features/academics/pages/AcademicsPage";
@@ -7,6 +7,12 @@ import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { ResetPasswordPage } from "@/features/auth/pages/ResetPasswordPage";
 import { FeeAccountPage } from "@/features/fees/pages/FeeAccountPage";
 import { FeesPage } from "@/features/fees/pages/FeesPage";
+import { StudentGate } from "@/features/portal/components/StudentGate";
+import { PortalFeesPage } from "@/features/portal/pages/PortalFeesPage";
+import { PortalHomePage } from "@/features/portal/pages/PortalHomePage";
+import { PortalNotesPage } from "@/features/portal/pages/PortalNotesPage";
+import { PortalTestDetailPage } from "@/features/portal/pages/PortalTestDetailPage";
+import { PortalTestsPage } from "@/features/portal/pages/PortalTestsPage";
 import { LearningDetailPage } from "@/features/learning/pages/LearningDetailPage";
 import { LearningListPage } from "@/features/learning/pages/LearningListPage";
 import { UploadPage } from "@/features/learning/pages/UploadPage";
@@ -47,10 +53,21 @@ const adminOnlyRoutes: RouteObject[] = [
 ];
 
 const portalRoutes: RouteObject[] = [
-  { index: true, element: <ComingSoon title="Home" step="F6" /> },
-  { path: "tests", element: <ComingSoon title="Tests" step="F6" /> },
-  { path: "notes", element: <ComingSoon title="Notes" step="F6" /> },
-  { path: "fees", element: <ComingSoon title="Fees" step="F6" /> },
+  {
+    // Everything about a student; the account page works even with no student linked.
+    element: (
+      <StudentGate>
+        <Outlet />
+      </StudentGate>
+    ),
+    children: [
+      { index: true, element: <PortalHomePage /> },
+      { path: "tests", element: <PortalTestsPage /> },
+      { path: "tests/:id", element: <PortalTestDetailPage /> },
+      { path: "notes", element: <PortalNotesPage /> },
+      { path: "fees", element: <PortalFeesPage /> },
+    ],
+  },
   { path: "account", element: <AccountPage /> },
 ];
 
