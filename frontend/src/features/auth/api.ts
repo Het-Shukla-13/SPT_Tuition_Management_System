@@ -101,3 +101,41 @@ export function useChangePassword() {
     },
   });
 }
+
+// ── My details (every role can edit their own) ──────────────────────────
+/** Every change here returns the updated user, which becomes the cached "me". */
+function useMeMutation<TVars>(fn: (vars: TVars) => Promise<User>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (user) => queryClient.setQueryData(ME_KEY, user),
+  });
+}
+
+export type ContactChannel = "EMAIL" | "PHONE";
+
+export const useUpdateMyName = () =>
+  useMeMutation((body: { first_name: string; last_name: string }) =>
+    api.patch<User>("auth/me/", body),
+  );
+
+/** Step 1: send a code to the NEW email/phone. Returns where it went and how long it lasts. */
+export function useRequestContactChange() {
+  return useMutation({
+    mutationFn: (body: { channel: ContactChannel; identifier: string }) =>
+      api.post<{ sent_to: string; expires_in_seconds: number }>("auth/me/contact/", body),
+  });
+}
+
+/** Step 2: confirm the code; the new email/phone is saved as verified. */
+export const useVerifyContactChange = () =>
+  useMeMutation((body: { channel: ContactChannel; identifier: string; code: string }) =>
+    api.post<User>("auth/me/contact/verify/", body),
+  );
+
+export const useRemoveContact = () =>
+  useMeMutation((channel: ContactChannel) =>
+    api.delete<User>(`auth/me/contact/${channel === "EMAIL" ? "email" : "phone"}/`),
+  );
+
+export const useUnlinkGoogle = () => useMeMutation(() => api.post<User>("auth/google/unlink/"));

@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/envelope";
 import { session } from "@/lib/api/session";
-import { formatAgo, formatDate, formatPhone } from "@/lib/format";
+import { formatAgo, formatDate } from "@/lib/format";
 
 import {
   useChangePassword,
@@ -27,8 +27,9 @@ import {
   useSessions,
   useTrustedDevices,
 } from "../api";
+import { MyDetailsCard } from "../components/MyDetailsCard";
 import { describeAgent } from "../describeAgent";
-import { displayName, ROLE_LABEL, useCurrentUser, useLogout } from "../session";
+import { ROLE_LABEL, useCurrentUser, useLogout } from "../session";
 
 const passwordSchema = z
   .object({
@@ -48,20 +49,7 @@ export function AccountPage() {
     <div className="flex flex-col gap-6">
       <PageHeader title="My account" eyebrow={ROLE_LABEL[user.role]} />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,380px),1fr))] gap-5">
-        <Card>
-          <CardHeader title="Details" />
-          <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-sm">
-            <dt className="text-muted">Name</dt>
-            <dd className="font-bold">{displayName(user)}</dd>
-            <dt className="text-muted">Email</dt>
-            <dd className="font-bold break-all">{user.email ?? "–"}</dd>
-            <dt className="text-muted">Phone</dt>
-            <dd className="font-bold">{formatPhone(user.phone)}</dd>
-            <dt className="text-muted">Google</dt>
-            <dd className="font-bold">{user.google_linked ? "Linked" : "Not linked"}</dd>
-          </dl>
-          <p className="text-xs text-muted">To change your name, ask the institute office.</p>
-        </Card>
+        <MyDetailsCard user={user} />
         <ChangePasswordCard />
       </div>
       <DevicesCard />

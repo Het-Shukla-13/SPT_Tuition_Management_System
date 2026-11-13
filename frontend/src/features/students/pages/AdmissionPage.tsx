@@ -19,6 +19,7 @@ import { splitName, useEnquiry, useUpdateEnquiry } from "@/features/enquiries";
 import { ApiError } from "@/lib/api/envelope";
 import type { AdminUser } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
+import { MEDIUM_OPTIONS } from "@/lib/options";
 import type { Enquiry } from "@/lib/api/types";
 
 import { type AdmissionBody, GENDER_OPTIONS, useAdmitStudent } from "../api";
@@ -36,6 +37,7 @@ const schema = z
     last_name: z.string().trim().min(1, "Enter the last name."),
     date_of_birth: z.string(),
     gender: z.string(),
+    medium: z.string(),
     address: z.string(),
     board: requiredId("board"),
     standard: requiredId("standard"),
@@ -85,6 +87,7 @@ const EMPTY: Values = {
   last_name: "",
   date_of_birth: "",
   gender: "",
+  medium: "",
   address: "",
   board: "",
   standard: "",
@@ -111,6 +114,7 @@ function fromEnquiry(e: Enquiry): Values {
     last_name: last,
     board: e.board ? String(e.board) : "",
     standard: e.standard ? String(e.standard) : "",
+    medium: e.medium ?? "",
     guardian_name: e.parent_name,
     guardian_phone: e.phone,
     guardian_email: e.email ?? "",
@@ -157,6 +161,7 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
       last_name: values.last_name.trim(),
       date_of_birth: values.date_of_birth || null,
       gender: values.gender || undefined,
+      medium: values.medium || undefined,
       address: opt(values.address),
       guardian_name: opt(values.guardian_name),
       guardian_relation: opt(values.guardian_relation),
@@ -328,6 +333,11 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
               label="School"
               hint={
                 <>
+                  {enquiry?.school_name && (
+                    <>
+                      The enquiry says: <b className="text-ink">{enquiry.school_name}</b>.{" "}
+                    </>
+                  )}
                   Not listed?{" "}
                   <Link
                     to="/staff/academics?tab=schools"
@@ -341,6 +351,18 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
               error={errors.school?.message}
             >
               {(p) => <ReferenceSelect {...p} {...form.register("school")} resource="schools" />}
+            </FormField>
+            <FormField label="Medium (optional)">
+              {(p) => (
+                <NativeSelect {...p} {...form.register("medium")}>
+                  <option value="">Not given</option>
+                  {MEDIUM_OPTIONS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              )}
             </FormField>
             <FormField label="Admission date" hint="Leave empty for today.">
               {(p) => <Input {...p} {...form.register("admission_date")} type="date" />}

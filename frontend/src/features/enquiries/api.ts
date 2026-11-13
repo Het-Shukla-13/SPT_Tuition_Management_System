@@ -58,15 +58,42 @@ export type PublicEnquiryBody = {
   student_name: string;
   standard?: number | null;
   board?: number | null;
+  medium?: string;
+  school_name?: string;
   message?: string;
   website?: string;
 };
+
+/** What staff send for a walk-in / phone / referral enquiry. */
+export type StaffEnquiryBody = Omit<PublicEnquiryBody, "website"> & {
+  source: string;
+  status: string;
+  notes?: string;
+};
+
+export function useCreateEnquiry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: StaffEnquiryBody) => api.post<Enquiry>("admin/enquiries/", body),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ENQUIRIES }),
+  });
+}
 
 export function useSubmitEnquiry() {
   return useMutation({
     mutationFn: (body: PublicEnquiryBody) => api.post<null>("public/enquiries/", body),
   });
 }
+
+/** How an enquiry came in; staff can record all but the website form. */
+export const SOURCE_OPTIONS = [
+  { value: "WALK_IN", label: "Walk-in" },
+  { value: "PHONE", label: "Phone call" },
+  { value: "REFERRAL", label: "Referral" },
+  { value: "WEBSITE", label: "Website form" },
+];
+export const sourceLabel = (value: string | null | undefined) =>
+  SOURCE_OPTIONS.find((s) => s.value === value)?.label ?? "";
 
 export const ENQUIRY_STATUSES = [
   { value: "NEW", label: "New" },

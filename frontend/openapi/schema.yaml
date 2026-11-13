@@ -779,13 +779,25 @@ paths:
   /api/v1/admin/enquiries/:
     get:
       operationId: admin_enquiries_list
-      description: ?status=NEW|CONTACTED|ACCEPTED|REJECTED  ?search=name/phone/email  ?ordering=created_at
+      description: ?status=  ?source=  ?medium=  ?search=name/phone/email  ?ordering=created_at
       summary: List enquiries
       parameters:
       - in: query
         name: board
         schema:
           type: integer
+      - in: query
+        name: medium
+        schema:
+          type: string
+          enum:
+          - ENGLISH
+          - GUJARATI
+          - HINDI
+        description: |-
+          * `ENGLISH` - English
+          * `GUJARATI` - Gujarati
+          * `HINDI` - Hindi
       - name: ordering
         required: false
         in: query
@@ -810,6 +822,20 @@ paths:
         description: A search term.
         schema:
           type: string
+      - in: query
+        name: source
+        schema:
+          type: string
+          enum:
+          - PHONE
+          - REFERRAL
+          - WALK_IN
+          - WEBSITE
+        description: |-
+          * `WEBSITE` - Website form
+          * `WALK_IN` - Walk-in
+          * `PHONE` - Phone call
+          * `REFERRAL` - Referral
       - in: query
         name: standard
         schema:
@@ -838,6 +864,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedAdminEnquiryList'
+          description: ''
+    post:
+      operationId: admin_enquiries_create
+      description: For families who came in or called. Never creates a login or a
+        student.
+      summary: Record an enquiry (walk-in / phone / referral)
+      tags:
+      - 'Admin: enquiries'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffEnquiryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StaffEnquiryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StaffEnquiryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEnquiry'
           description: ''
   /api/v1/admin/enquiries/{id}/:
     get:
@@ -1532,6 +1586,20 @@ paths:
         name: board
         schema:
           type: integer
+      - in: query
+        name: medium
+        schema:
+          type: string
+          enum:
+          - ENGLISH
+          - GUJARATI
+          - HINDI
+        description: |-
+          Medium of instruction at school.
+
+          * `ENGLISH` - English
+          * `GUJARATI` - Gujarati
+          * `HINDI` - Hindi
       - name: ordering
         required: false
         in: query
@@ -4594,8 +4662,20 @@ components:
         board_code:
           type: string
           readOnly: true
+        medium:
+          allOf:
+          - $ref: '#/components/schemas/MediumEnum'
+          readOnly: true
+        school_name:
+          type: string
+          readOnly: true
+          description: As the family gave it (free text).
         message:
           type: string
+          readOnly: true
+        source:
+          allOf:
+          - $ref: '#/components/schemas/AdminEnquirySourceEnum'
           readOnly: true
         status:
           allOf:
@@ -4609,6 +4689,12 @@ components:
           type: integer
           readOnly: true
           nullable: true
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Staff member who recorded it (walk-in / phone); empty for the
+            website form.
         student:
           type: integer
           readOnly: true
@@ -4626,19 +4712,35 @@ components:
       - board
       - board_code
       - created_at
+      - created_by
       - email
       - handled_by
       - id
+      - medium
       - message
       - notes
       - parent_name
       - phone
+      - school_name
+      - source
       - standard
       - standard_name
       - status
       - student
       - student_name
       - updated_at
+    AdminEnquirySourceEnum:
+      enum:
+      - WEBSITE
+      - WALK_IN
+      - PHONE
+      - REFERRAL
+      type: string
+      description: |-
+        * `WEBSITE` - Website form
+        * `WALK_IN` - Walk-in
+        * `PHONE` - Phone call
+        * `REFERRAL` - Referral
     AdminUser:
       type: object
       description: 'What administrators see about an account. Read-only: changes go
@@ -4748,6 +4850,10 @@ components:
         gender:
           oneOf:
           - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        medium:
+          oneOf:
+          - $ref: '#/components/schemas/MediumEnum'
           - $ref: '#/components/schemas/BlankEnum'
         address:
           type: string
@@ -5673,6 +5779,16 @@ components:
           type: string
           minLength: 1
           description: Optional. If sent, it must belong to the logged-in user.
+    MediumEnum:
+      enum:
+      - ENGLISH
+      - GUJARATI
+      - HINDI
+      type: string
+      description: |-
+        * `ENGLISH` - English
+        * `GUJARATI` - Gujarati
+        * `HINDI` - Hindi
     MethodEnum:
       enum:
       - CASH
@@ -6981,6 +7097,10 @@ components:
           oneOf:
           - $ref: '#/components/schemas/GenderEnum'
           - $ref: '#/components/schemas/BlankEnum'
+        medium:
+          oneOf:
+          - $ref: '#/components/schemas/MediumEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         address:
           type: string
         guardian_name:
@@ -7463,6 +7583,13 @@ components:
         board:
           type: integer
           nullable: true
+        medium:
+          oneOf:
+          - $ref: '#/components/schemas/MediumEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        school_name:
+          type: string
+          maxLength: 200
         message:
           type: string
           maxLength: 2000
@@ -7670,6 +7797,82 @@ components:
       description: |-
         * `1` - Semester 1
         * `2` - Semester 2
+    StaffEnquiryRequest:
+      type: object
+      description: 'An enquiry recorded by staff: a parent walked in or phoned.'
+      properties:
+        parent_name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 32
+        email:
+          oneOf:
+          - type: string
+            format: email
+          - type: string
+            maxLength: 0
+        student_name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        standard:
+          type: integer
+          nullable: true
+        board:
+          type: integer
+          nullable: true
+        medium:
+          oneOf:
+          - $ref: '#/components/schemas/MediumEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        school_name:
+          type: string
+          maxLength: 200
+        message:
+          type: string
+          maxLength: 2000
+        source:
+          allOf:
+          - $ref: '#/components/schemas/StaffEnquirySourceEnum'
+          default: WALK_IN
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StaffEnquiryStatusEnum'
+          default: CONTACTED
+          description: |-
+            They usually already spoke to staff, so CONTACTED by default.
+
+            * `NEW` - New
+            * `CONTACTED` - Contacted
+        notes:
+          type: string
+          default: ''
+      required:
+      - parent_name
+      - phone
+      - student_name
+    StaffEnquirySourceEnum:
+      enum:
+      - WALK_IN
+      - PHONE
+      - REFERRAL
+      type: string
+      description: |-
+        * `WALK_IN` - Walk-in
+        * `PHONE` - Phone call
+        * `REFERRAL` - Referral
+    StaffEnquiryStatusEnum:
+      enum:
+      - NEW
+      - CONTACTED
+      type: string
+      description: |-
+        * `NEW` - New
+        * `CONTACTED` - Contacted
     StaffStudent:
       type: object
       properties:
@@ -7799,6 +8002,16 @@ components:
           $ref: '#/components/schemas/_SchoolRef'
         status:
           $ref: '#/components/schemas/StudentStatusEnum'
+        medium:
+          description: |-
+            Medium of instruction at school.
+
+            * `ENGLISH` - English
+            * `GUJARATI` - Gujarati
+            * `HINDI` - Hindi
+          oneOf:
+          - $ref: '#/components/schemas/MediumEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         admission_date:
           type: string
           format: date
@@ -7894,6 +8107,16 @@ components:
           $ref: '#/components/schemas/_SchoolRef'
         status:
           $ref: '#/components/schemas/StudentStatusEnum'
+        medium:
+          description: |-
+            Medium of instruction at school.
+
+            * `ENGLISH` - English
+            * `GUJARATI` - Gujarati
+            * `HINDI` - Hindi
+          oneOf:
+          - $ref: '#/components/schemas/MediumEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         admission_date:
           type: string
           format: date

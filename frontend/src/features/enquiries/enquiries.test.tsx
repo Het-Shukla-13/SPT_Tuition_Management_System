@@ -6,6 +6,7 @@ import { API, http, ok, page, renderScreen, setupMockServer } from "@/test/rende
 import { splitName } from "./api";
 import { EnquiriesPage } from "./pages/EnquiriesPage";
 import { EnquiryDetailPage } from "./pages/EnquiryDetailPage";
+import { NewEnquiryPage } from "./pages/NewEnquiryPage";
 import { PublicEnquiryPage } from "./pages/PublicEnquiryPage";
 
 const server = setupMockServer();
@@ -133,17 +134,22 @@ describe("PublicEnquiryPage", () => {
     const { user } = renderScreen(<PublicEnquiryPage />, { path: "/enquire" });
 
     await user.click(screen.getByRole("button", { name: "Send" }));
-    expect(await screen.findByText("Enter your name.")).toBeInTheDocument();
+    expect(await screen.findByText("Enter the parent's name.")).toBeInTheDocument();
     expect(body).toBeUndefined();
+    // Staff-only fields never appear publicly.
+    expect(screen.queryByLabelText("Came via")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Notes (only staff see these)")).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Your name"), "Kavita Shah");
+    await user.type(screen.getByLabelText("Parent's name"), "Kavita Shah");
     await user.type(screen.getByLabelText("Mobile number"), "98765 43210");
     await user.type(screen.getByLabelText("Student's name"), "Riya");
+    await user.type(screen.getByLabelText("School (optional)"), "Navrachana School");
     const standard = screen.getByLabelText("Standard (optional)");
     await waitFor(() =>
       expect(within(standard).getByRole("option", { name: "Standard 10" })).toBeInTheDocument(),
     );
     await user.selectOptions(standard, "10");
+    await user.selectOptions(screen.getByLabelText("Medium (optional)"), "GUJARATI");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("Thank you, Kavita Shah!")).toBeInTheDocument();
@@ -151,10 +157,46 @@ describe("PublicEnquiryPage", () => {
       parent_name: "Kavita Shah",
       phone: "98765 43210",
       student_name: "Riya",
+      school_name: "Navrachana School",
+      medium: "GUJARATI",
       standard: 10,
       board: null,
       website: "",
     });
+  });
+});
+
+describe("NewEnquiryPage", () => {
+  it("lets staff record a walk-in, then opens the saved enquiry", async () => {
+    let body: Record<string, unknown> | undefined;
+    server.use(
+      http.get(`${API}/public/enquiries/options/`, () => ok({ boards: [], standards: [] })),
+      http.post(`${API}/admin/enquiries/`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return ok({ ...ENQUIRY, id: 30, source: "PHONE", status: "CONTACTED" });
+      }),
+    );
+    const { user } = renderScreen(<NewEnquiryPage />, {
+      path: "/staff/enquiries/new",
+      extraRoutes: [{ path: "/staff/enquiries/:id", element: <p>enquiry page</p> }],
+    });
+
+    expect(screen.getByLabelText("Status")).toHaveValue("CONTACTED");
+    await user.selectOptions(screen.getByLabelText("Came via"), "PHONE");
+    await user.type(screen.getByLabelText("Parent's name"), "Kavita Shah");
+    await user.type(screen.getByLabelText("Mobile number"), "9876543210");
+    await user.type(screen.getByLabelText("Student's name"), "Riya");
+    await user.type(screen.getByLabelText("Notes (only staff see these)"), "Trial on Monday");
+    await user.click(screen.getByRole("button", { name: "Save enquiry" }));
+
+    expect(await screen.findByText("enquiry page")).toBeInTheDocument();
+    expect(body).toMatchObject({
+      source: "PHONE",
+      status: "CONTACTED",
+      notes: "Trial on Monday",
+      parent_name: "Kavita Shah",
+    });
+    expect(body).not.toHaveProperty("website");
   });
 });
 

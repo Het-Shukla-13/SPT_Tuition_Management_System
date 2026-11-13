@@ -107,7 +107,10 @@ describe("AdmissionPage from an enquiry", () => {
     standard_name: "Standard 10",
     board: 1,
     board_code: "CBSE",
+    medium: "GUJARATI",
+    school_name: "DPS Bopal",
     message: "Maths and science, evenings",
+    source: "WALK_IN",
     status: "CONTACTED",
     notes: "",
     handled_by: null,
@@ -137,6 +140,10 @@ describe("AdmissionPage from an enquiry", () => {
     expect(screen.getByLabelText("Last name")).toHaveValue("Kumari Shah");
     expect(screen.getByLabelText("Guardian name")).toHaveValue("Kavita Shah");
     expect(screen.getByText(/Started from Kavita Shah's enquiry/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Medium (optional)")).toHaveValue("GUJARATI");
+    expect(screen.getByText("The enquiry says:", { exact: false })).toHaveTextContent(
+      "The enquiry says: DPS Bopal.",
+    );
     await waitFor(() => expect(screen.getByLabelText("Board")).toHaveValue("1"));
 
     await user.selectOptions(screen.getByLabelText("School"), "3");

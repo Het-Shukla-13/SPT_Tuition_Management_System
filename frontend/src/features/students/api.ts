@@ -93,6 +93,7 @@ export type AdmissionBody = {
   last_name: string;
   date_of_birth?: string | null;
   gender?: string;
+  medium?: string;
   address?: string;
   guardian_name?: string;
   guardian_relation?: string;
