@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { ReferenceFilter } from "@/features/academics";
 import type { StudentListItem } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format";
+import { MEDIUM_OPTIONS } from "@/lib/options";
 import { useListParams } from "@/lib/useListParams";
 
 import { STATUS_OPTIONS, studentName, useStudents } from "../api";
 
-const FILTER_KEYS = ["board", "standard", "school", "status"] as const;
+const FILTER_KEYS = ["board", "standard", "school", "status", "medium"] as const;
 
 const columns: ColumnDef<StudentListItem, unknown>[] = [
   {
@@ -98,6 +99,13 @@ export function StudentsPage() {
           value={list.filters.status}
           onChange={(v) => list.setFilter("status", v)}
           options={STATUS_OPTIONS}
+        />
+        <FilterSelect
+          label="Medium"
+          allLabel="Any medium"
+          value={list.filters.medium}
+          onChange={(v) => list.setFilter("medium", v)}
+          options={MEDIUM_OPTIONS}
         />
       </FilterBar>
       <DataTable

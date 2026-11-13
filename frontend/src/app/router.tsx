@@ -81,6 +81,10 @@ const adminOnlyRoutes: RouteObject[] = [
     ...page(() => import("@/features/enquiries/pages/EnquiriesPage"), "EnquiriesPage"),
   },
   {
+    path: "enquiries/new",
+    ...page(() => import("@/features/enquiries/pages/NewEnquiryPage"), "NewEnquiryPage"),
+  },
+  {
     path: "enquiries/:id",
     ...page(() => import("@/features/enquiries/pages/EnquiryDetailPage"), "EnquiryDetailPage"),
   },

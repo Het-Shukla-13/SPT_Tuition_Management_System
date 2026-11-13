@@ -229,11 +229,15 @@ export interface paths {
         };
         /**
          * List enquiries
-         * @description ?status=NEW|CONTACTED|ACCEPTED|REJECTED  ?search=name/phone/email  ?ordering=created_at
+         * @description ?status=  ?source=  ?medium=  ?search=name/phone/email  ?ordering=created_at
          */
         get: operations["admin_enquiries_list"];
         put?: never;
-        post?: never;
+        /**
+         * Record an enquiry (walk-in / phone / referral)
+         * @description For families who came in or called. Never creates a login or a student.
+         */
+        post: operations["admin_enquiries_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2083,11 +2087,17 @@ export interface components {
             readonly standard_name: string;
             readonly board: number | null;
             readonly board_code: string;
+            readonly medium: components["schemas"]["MediumEnum"];
+            /** @description As the family gave it (free text). */
+            readonly school_name: string;
             readonly message: string;
+            readonly source: components["schemas"]["AdminEnquirySourceEnum"];
             readonly status: components["schemas"]["EnquiryStatusEnum"];
             /** @description Admin-only follow-up notes. */
             readonly notes: string;
             readonly handled_by: number | null;
+            /** @description Staff member who recorded it (walk-in / phone); empty for the website form. */
+            readonly created_by: number | null;
             /** @description Set when the enquiry turned into an admission. */
             readonly student: number | null;
             /** Format: date-time */
@@ -2095,6 +2105,14 @@ export interface components {
             /** Format: date-time */
             readonly updated_at: string;
         };
+        /**
+         * @description * `WEBSITE` - Website form
+         *     * `WALK_IN` - Walk-in
+         *     * `PHONE` - Phone call
+         *     * `REFERRAL` - Referral
+         * @enum {string}
+         */
+        AdminEnquirySourceEnum: "WEBSITE" | "WALK_IN" | "PHONE" | "REFERRAL";
         /** @description What administrators see about an account. Read-only: changes go through actions. */
         AdminUser: {
             readonly id: number;
@@ -2136,6 +2154,7 @@ export interface components {
             /** Format: date */
             date_of_birth?: string | null;
             gender?: components["schemas"]["GenderEnum"] | components["schemas"]["BlankEnum"];
+            medium?: components["schemas"]["MediumEnum"] | components["schemas"]["BlankEnum"];
             address?: string;
             guardian_name?: string;
             guardian_relation?: string;
@@ -2548,6 +2567,13 @@ export interface components {
             /** @description Optional. If sent, it must belong to the logged-in user. */
             refresh?: string;
         };
+        /**
+         * @description * `ENGLISH` - English
+         *     * `GUJARATI` - Gujarati
+         *     * `HINDI` - Hindi
+         * @enum {string}
+         */
+        MediumEnum: "ENGLISH" | "GUJARATI" | "HINDI";
         /**
          * @description * `CASH` - Cash
          *     * `UPI` - UPI
@@ -3202,6 +3228,7 @@ export interface components {
             /** Format: date */
             date_of_birth?: string | null;
             gender?: components["schemas"]["GenderEnum"] | components["schemas"]["BlankEnum"];
+            medium?: components["schemas"]["MediumEnum"] | components["schemas"]["BlankEnum"];
             address?: string;
             guardian_name?: string;
             guardian_relation?: string;
@@ -3401,6 +3428,8 @@ export interface components {
             student_name: string;
             standard?: number | null;
             board?: number | null;
+            medium?: components["schemas"]["MediumEnum"] | components["schemas"]["BlankEnum"];
+            school_name?: string;
             message?: string;
             website?: string;
         };
@@ -3501,6 +3530,43 @@ export interface components {
          * @enum {integer}
          */
         SemesterEnum: 1 | 2;
+        /** @description An enquiry recorded by staff: a parent walked in or phoned. */
+        StaffEnquiryRequest: {
+            parent_name: string;
+            phone: string;
+            email?: string;
+            student_name: string;
+            standard?: number | null;
+            board?: number | null;
+            medium?: components["schemas"]["MediumEnum"] | components["schemas"]["BlankEnum"];
+            school_name?: string;
+            message?: string;
+            /** @default WALK_IN */
+            source: components["schemas"]["StaffEnquirySourceEnum"];
+            /**
+             * @description They usually already spoke to staff, so CONTACTED by default.
+             *
+             *     * `NEW` - New
+             *     * `CONTACTED` - Contacted
+             * @default CONTACTED
+             */
+            status: components["schemas"]["StaffEnquiryStatusEnum"];
+            /** @default  */
+            notes: string;
+        };
+        /**
+         * @description * `WALK_IN` - Walk-in
+         *     * `PHONE` - Phone call
+         *     * `REFERRAL` - Referral
+         * @enum {string}
+         */
+        StaffEnquirySourceEnum: "WALK_IN" | "PHONE" | "REFERRAL";
+        /**
+         * @description * `NEW` - New
+         *     * `CONTACTED` - Contacted
+         * @enum {string}
+         */
+        StaffEnquiryStatusEnum: "NEW" | "CONTACTED";
         StaffStudent: {
             readonly id: number;
             readonly admission_number: string;
@@ -3558,6 +3624,14 @@ export interface components {
             standard: components["schemas"]["_StandardRef"];
             school: components["schemas"]["_SchoolRef"];
             status?: components["schemas"]["StudentStatusEnum"];
+            /**
+             * @description Medium of instruction at school.
+             *
+             *     * `ENGLISH` - English
+             *     * `GUJARATI` - Gujarati
+             *     * `HINDI` - Hindi
+             */
+            medium?: components["schemas"]["MediumEnum"] | components["schemas"]["BlankEnum"];
             /** Format: date */
             admission_date?: string;
             guardian_name?: string;
@@ -3593,6 +3667,14 @@ export interface components {
             standard: components["schemas"]["_StandardRef"];
             school: components["schemas"]["_SchoolRef"];
             status?: components["schemas"]["StudentStatusEnum"];
+            /**
+             * @description Medium of instruction at school.
+             *
+             *     * `ENGLISH` - English
+             *     * `GUJARATI` - Gujarati
+             *     * `HINDI` - Hindi
+             */
+            medium?: components["schemas"]["MediumEnum"] | components["schemas"]["BlankEnum"];
             /** Format: date */
             admission_date?: string;
             guardian_name?: string;
@@ -4469,6 +4551,12 @@ export interface operations {
         parameters: {
             query?: {
                 board?: number;
+                /**
+                 * @description * `ENGLISH` - English
+                 *     * `GUJARATI` - Gujarati
+                 *     * `HINDI` - Hindi
+                 */
+                medium?: "ENGLISH" | "GUJARATI" | "HINDI";
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 /** @description A page number within the paginated result set. */
@@ -4477,6 +4565,13 @@ export interface operations {
                 page_size?: number;
                 /** @description A search term. */
                 search?: string;
+                /**
+                 * @description * `WEBSITE` - Website form
+                 *     * `WALK_IN` - Walk-in
+                 *     * `PHONE` - Phone call
+                 *     * `REFERRAL` - Referral
+                 */
+                source?: "PHONE" | "REFERRAL" | "WALK_IN" | "WEBSITE";
                 standard?: number;
                 /**
                  * @description * `NEW` - New
@@ -4498,6 +4593,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedAdminEnquiryList"];
+                };
+            };
+        };
+    };
+    admin_enquiries_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffEnquiryRequest"];
+                "multipart/form-data": components["schemas"]["StaffEnquiryRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["StaffEnquiryRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminEnquiry"];
                 };
             };
         };
@@ -5007,6 +5127,14 @@ export interface operations {
         parameters: {
             query?: {
                 board?: number;
+                /**
+                 * @description Medium of instruction at school.
+                 *
+                 *     * `ENGLISH` - English
+                 *     * `GUJARATI` - Gujarati
+                 *     * `HINDI` - Hindi
+                 */
+                medium?: "ENGLISH" | "GUJARATI" | "HINDI";
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 /** @description A page number within the paginated result set. */

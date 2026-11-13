@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useReferenceOptions } from "@/features/academics";
 import type { StudentDetail } from "@/lib/api/types";
 import { formatDate, formatPhone } from "@/lib/format";
+import { mediumLabel } from "@/lib/options";
 
 import {
   GENDER_OPTIONS,
@@ -126,6 +127,7 @@ function DetailsCard({ student: s }: { student: StudentDetail }) {
         rows={[
           ["Date of birth", s.date_of_birth ? formatDate(s.date_of_birth) : ""],
           ["Gender", gender ?? ""],
+          ["Medium", mediumLabel(s.medium)],
           ["Admitted", formatDate(s.admission_date)],
           ...(s.left_on ? ([["Left on", formatDate(s.left_on)]] as [string, ReactNode][]) : []),
           ["Guardian", guardian],

@@ -11,6 +11,7 @@ import { Dialog, DialogClose, DialogContent } from "@/components/ui/dialog";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { ReferenceSelect } from "@/features/academics";
 import { ApiError } from "@/lib/api/envelope";
+import { MEDIUM_OPTIONS } from "@/lib/options";
 import type { StudentDetail, StudentStatus } from "@/lib/api/types";
 
 import {
@@ -49,6 +50,7 @@ const PERSONAL = [
   "last_name",
   "date_of_birth",
   "gender",
+  "medium",
   "address",
   "guardian_name",
   "guardian_relation",
@@ -109,6 +111,18 @@ export function EditDetailsDialog({ student, open, onOpenChange }: DialogProps) 
                 {GENDER_OPTIONS.map((g) => (
                   <option key={g.value} value={g.value}>
                     {g.label}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
+          </FormField>
+          <FormField label="Medium (optional)">
+            {(p) => (
+              <NativeSelect {...p} {...bind("medium")}>
+                <option value="">Not given</option>
+                {MEDIUM_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
                   </option>
                 ))}
               </NativeSelect>

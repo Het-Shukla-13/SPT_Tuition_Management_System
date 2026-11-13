@@ -1,5 +1,8 @@
 import { Link } from "react-router";
 
+import { Button } from "@/components/ui/button";
+import { MEDIUM_OPTIONS } from "@/lib/options";
+
 import { type ColumnDef, DataTable } from "@/components/shared/DataTable";
 import { FilterBar, FilterSelect, SearchInput } from "@/components/shared/FilterBar";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -9,9 +12,9 @@ import type { Enquiry } from "@/lib/api/types";
 import { formatPhone, formatRelativeDay } from "@/lib/format";
 import { useListParams } from "@/lib/useListParams";
 
-import { ENQUIRY_STATUSES, useEnquiries } from "../api";
+import { ENQUIRY_STATUSES, SOURCE_OPTIONS, sourceLabel, useEnquiries } from "../api";
 
-const FILTERS = ["status", "board", "standard"] as const;
+const FILTERS = ["status", "source", "medium", "board", "standard"] as const;
 
 const columns: ColumnDef<Enquiry, unknown>[] = [
   {
@@ -52,6 +55,11 @@ const columns: ColumnDef<Enquiry, unknown>[] = [
     ),
   },
   {
+    id: "source",
+    header: "Came via",
+    cell: ({ row }) => sourceLabel(row.original.source),
+  },
+  {
     id: "status",
     header: "Status",
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
@@ -71,7 +79,12 @@ export function EnquiriesPage() {
     <>
       <PageHeader
         title="Enquiries"
-        eyebrow="From the public “Ask about admission” form. Call back, then admit or close each one."
+        eyebrow="Families asking about admission: from the public form, or recorded here when they walk in or call."
+        actions={
+          <Button asChild>
+            <Link to="/staff/enquiries/new">+ New enquiry</Link>
+          </Button>
+        }
       />
       <FilterBar>
         <SearchInput
@@ -85,6 +98,20 @@ export function EnquiriesPage() {
           value={list.filters.status}
           onChange={(v) => list.setFilter("status", v)}
           options={ENQUIRY_STATUSES}
+        />
+        <FilterSelect
+          label="Came via"
+          allLabel="Any source"
+          value={list.filters.source}
+          onChange={(v) => list.setFilter("source", v)}
+          options={SOURCE_OPTIONS}
+        />
+        <FilterSelect
+          label="Medium"
+          allLabel="Any medium"
+          value={list.filters.medium}
+          onChange={(v) => list.setFilter("medium", v)}
+          options={MEDIUM_OPTIONS}
         />
         <ReferenceFilter
           resource="boards"
@@ -113,7 +140,8 @@ export function EnquiriesPage() {
         rowKey={(e) => e.id}
         empty={{
           title: "No enquiries here",
-          description: "New ones arrive from the form linked on the login page.",
+          description:
+            "They arrive from the form on the login page, or add one with + New enquiry.",
         }}
       />
     </>

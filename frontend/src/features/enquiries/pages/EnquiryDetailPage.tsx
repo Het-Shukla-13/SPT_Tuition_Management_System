@@ -12,8 +12,9 @@ import { NativeSelect, Textarea } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Enquiry } from "@/lib/api/types";
 import { formatDateTime, formatPhone } from "@/lib/format";
+import { mediumLabel } from "@/lib/options";
 
-import { ENQUIRY_STATUSES, useEnquiry, useUpdateEnquiry } from "../api";
+import { ENQUIRY_STATUSES, sourceLabel, useEnquiry, useUpdateEnquiry } from "../api";
 
 export function EnquiryDetailPage() {
   const id = Number(useParams().id);
@@ -72,6 +73,12 @@ export function EnquiryDetailPage() {
             </dd>
             <dt className="font-semibold text-muted">Standard</dt>
             <dd>{[e.standard_name, e.board_code].filter(Boolean).join(" · ") || "Not given"}</dd>
+            <dt className="font-semibold text-muted">Medium</dt>
+            <dd>{mediumLabel(e.medium) || "Not given"}</dd>
+            <dt className="font-semibold text-muted">School</dt>
+            <dd>{e.school_name || "Not given"}</dd>
+            <dt className="font-semibold text-muted">Came via</dt>
+            <dd>{sourceLabel(e.source)}</dd>
             <dt className="font-semibold text-muted">Message</dt>
             <dd className="whitespace-pre-wrap">{e.message || "–"}</dd>
           </dl>
