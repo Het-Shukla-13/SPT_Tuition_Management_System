@@ -77,7 +77,7 @@ class AdminStudentListView(generics.ListAPIView):
 
     permission_classes = [IsAdmin]
     serializer_class = StudentListSerializer
-    filterset_fields = ["standard", "board", "school", "status"]
+    filterset_fields = ["standard", "board", "school", "status", "medium"]
     ordering_fields = [
         "first_name",
         "last_name",

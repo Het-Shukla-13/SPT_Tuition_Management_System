@@ -11,6 +11,7 @@ from django.db import models
 
 from apps.academics.models import Board, Standard
 from apps.common.models import GlobalTimeStampedModel
+from apps.students.models import StudentProfile
 
 
 class AdmissionEnquiry(GlobalTimeStampedModel):
@@ -19,6 +20,12 @@ class AdmissionEnquiry(GlobalTimeStampedModel):
         CONTACTED = "CONTACTED", "Contacted"
         ACCEPTED = "ACCEPTED", "Admitted"
         REJECTED = "REJECTED", "Not proceeding"
+
+    class Source(models.TextChoices):
+        WEBSITE = "WEBSITE", "Website form"
+        WALK_IN = "WALK_IN", "Walk-in"
+        PHONE = "PHONE", "Phone call"
+        REFERRAL = "REFERRAL", "Referral"
 
     parent_name = models.CharField(max_length=150)
     phone = models.CharField(max_length=16, db_index=True)
@@ -30,7 +37,16 @@ class AdmissionEnquiry(GlobalTimeStampedModel):
     board = models.ForeignKey(
         Board, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    medium = models.CharField(
+        max_length=10, choices=StudentProfile.Medium.choices, blank=True
+    )
+    school_name = models.CharField(
+        max_length=200, blank=True, help_text="As the family gave it (free text)."
+    )
     message = models.TextField(blank=True)
+    source = models.CharField(
+        max_length=10, choices=Source.choices, default=Source.WEBSITE, db_index=True
+    )
 
     status = models.CharField(
         max_length=10, choices=Status.choices, default=Status.NEW, db_index=True
@@ -50,6 +66,14 @@ class AdmissionEnquiry(GlobalTimeStampedModel):
         blank=True,
         related_name="+",
         help_text="Set when the enquiry turned into an admission.",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="Staff member who recorded it (walk-in / phone); empty for the website form.",
     )
     ip_address = models.GenericIPAddressField(null=True, blank=True)
 

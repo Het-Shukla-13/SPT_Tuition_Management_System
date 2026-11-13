@@ -114,6 +114,7 @@ class StudentListSerializer(serializers.ModelSerializer):
             "standard",
             "school",
             "status",
+            "medium",
             "admission_date",
             "guardian_name",
             "guardian_phone",
@@ -206,6 +207,9 @@ class _PersonalFields(serializers.Serializer):
     gender = serializers.ChoiceField(
         choices=StudentProfile.Gender.choices, required=False, allow_blank=True
     )
+    medium = serializers.ChoiceField(
+        choices=StudentProfile.Medium.choices, required=False, allow_blank=True
+    )
     address = serializers.CharField(required=False, allow_blank=True)
     guardian_name = serializers.CharField(
         max_length=150, required=False, allow_blank=True
@@ -274,6 +278,7 @@ class AdmissionSerializer(_PersonalFields):
         "last_name",
         "date_of_birth",
         "gender",
+        "medium",
         "address",
         "guardian_name",
         "guardian_relation",

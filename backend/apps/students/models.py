@@ -42,6 +42,11 @@ class StudentProfile(AbstractTimeStampedModel):
         FEMALE = "FEMALE", "Female"
         OTHER = "OTHER", "Other"
 
+    class Medium(models.TextChoices):
+        ENGLISH = "ENGLISH", "English"
+        GUJARATI = "GUJARATI", "Gujarati"
+        HINDI = "HINDI", "Hindi"
+
     admission_number = models.CharField(max_length=20, unique=True, editable=False)
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
@@ -49,6 +54,13 @@ class StudentProfile(AbstractTimeStampedModel):
 
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=10, choices=Gender.choices, blank=True)
+    medium = models.CharField(
+        max_length=10,
+        choices=Medium.choices,
+        blank=True,
+        db_index=True,
+        help_text="Medium of instruction at school.",
+    )
     address = models.TextField(blank=True)
 
     # Contact on file for the institute to call. This is NOT a login.

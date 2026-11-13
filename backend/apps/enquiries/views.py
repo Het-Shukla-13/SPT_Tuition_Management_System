@@ -22,8 +22,9 @@ from apps.enquiries.serializers import (
     AdminEnquirySerializer,
     EnquiryUpdateSerializer,
     PublicEnquirySerializer,
+    StaffEnquirySerializer,
 )
-from apps.enquiries.services import submit_enquiry, update_enquiry
+from apps.enquiries.services import record_enquiry, submit_enquiry, update_enquiry
 
 logger = logging.getLogger(__name__)
 
@@ -87,12 +88,12 @@ class PublicEnquiryOptionsView(APIView):
 
 @extend_schema(tags=ADMIN_TAG)
 class AdminEnquiryListView(generics.ListAPIView):
-    """?status=NEW|CONTACTED|ACCEPTED|REJECTED  ?search=name/phone/email  ?ordering=created_at"""
+    """?status=  ?source=  ?medium=  ?search=name/phone/email  ?ordering=created_at"""
 
     permission_classes = [IsAdmin]
     serializer_class = AdminEnquirySerializer
     queryset = AdmissionEnquiry.objects.select_related("standard", "board")
-    filterset_fields = ["status", "standard", "board"]
+    filterset_fields = ["status", "source", "medium", "standard", "board"]
     search_fields = ["parent_name", "student_name", "phone", "email"]
     ordering_fields = ["created_at", "status"]
     ordering = ["-created_at"]
@@ -100,6 +101,24 @@ class AdminEnquiryListView(generics.ListAPIView):
     @extend_schema(summary="List enquiries")
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Record an enquiry (walk-in / phone / referral)",
+        description="For families who came in or called. Never creates a login or a student.",
+        request=StaffEnquirySerializer,
+        responses={201: AdminEnquirySerializer},
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = StaffEnquirySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        enquiry = record_enquiry(
+            actor=request.user,
+            data=dict(serializer.validated_data),
+            ip=client_ip(request),
+        )
+        return ApiResponse.created(
+            message="Enquiry recorded.", data=AdminEnquirySerializer(enquiry).data
+        )
 
 
 class AdminEnquiryDetailView(APIView):

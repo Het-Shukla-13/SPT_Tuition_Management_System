@@ -22,6 +22,12 @@ class PublicEnquirySerializer(serializers.Serializer):
     board = serializers.PrimaryKeyRelatedField(
         queryset=Board.objects.filter(is_active=True), required=False, allow_null=True
     )
+    medium = serializers.ChoiceField(
+        choices=StudentProfile.Medium.choices, required=False, allow_blank=True
+    )
+    school_name = serializers.CharField(
+        max_length=200, required=False, allow_blank=True
+    )
     message = serializers.CharField(max_length=2000, required=False, allow_blank=True)
     website = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
@@ -52,15 +58,38 @@ class AdminEnquirySerializer(serializers.ModelSerializer):
             "standard_name",
             "board",
             "board_code",
+            "medium",
+            "school_name",
             "message",
+            "source",
             "status",
             "notes",
             "handled_by",
+            "created_by",
             "student",
             "created_at",
             "updated_at",
         ]
         read_only_fields = fields
+
+
+class StaffEnquirySerializer(PublicEnquirySerializer):
+    """An enquiry recorded by staff: a parent walked in or phoned."""
+
+    website = None  # the honeypot is only for the public form
+    source = serializers.ChoiceField(
+        choices=[c for c in AdmissionEnquiry.Source.choices if c[0] != "WEBSITE"],
+        default=AdmissionEnquiry.Source.WALK_IN,
+    )
+    status = serializers.ChoiceField(
+        choices=[
+            (AdmissionEnquiry.Status.NEW, "New"),
+            (AdmissionEnquiry.Status.CONTACTED, "Contacted"),
+        ],
+        default=AdmissionEnquiry.Status.CONTACTED,
+        help_text="They usually already spoke to staff, so CONTACTED by default.",
+    )
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class EnquiryUpdateSerializer(serializers.Serializer):
