@@ -27,10 +27,11 @@ export function useFeeAccounts(params: Record<string, string | number>) {
   });
 }
 
-export function useFeeAccount(id: number) {
+export function useFeeAccount(id: number, enabled = true) {
   return useQuery({
     queryKey: [...FEES, "account", id],
     queryFn: () => api.get<FeeAccountDetail>(accountUrl(id)),
+    enabled,
   });
 }
 
@@ -209,3 +210,63 @@ export const ROLLOVER_ACTIONS: { value: RolloverAction; label: string }[] = [
   { value: "LEAVE", label: "Left" },
   { value: "COMPLETE", label: "Completed" },
 ];
+
+// ── Optional subjects' extra fees (e.g. Gujarati, Hindi) ────────────────
+export type SubjectFee = { subject: number; subject_name: string; amount: string };
+
+/** The fee structure for a board's current year and a standard (null if none set up). */
+export function useCurrentStructure(board: string, standard: string) {
+  return useQuery({
+    queryKey: [...FEES, "structures", "current", board, standard],
+    queryFn: async () =>
+      (
+        await api.list<FeeStructure>("admin/fee-structures/", {
+          academic_year__board: board,
+          standard,
+          academic_year__is_current: "true",
+          is_active: "true",
+        })
+      ).items[0] ?? null,
+    enabled: !!board && !!standard,
+  });
+}
+
+/** The fee structure for one academic year and standard (null if none). */
+export function useStructureFor(academicYear: number | undefined, standard: number | undefined) {
+  return useQuery({
+    queryKey: [...FEES, "structures", "for", academicYear, standard],
+    queryFn: async () =>
+      (
+        await api.list<FeeStructure>("admin/fee-structures/", {
+          academic_year: academicYear!,
+          standard: standard!,
+        })
+      ).items[0] ?? null,
+    enabled: !!academicYear && !!standard,
+  });
+}
+
+export const useChangeSubjectFee = (accountId: number) =>
+  useFeeMutation(
+    (body: { subject: number; action: "ADD" | "REMOVE"; amount?: string; reason?: string }) =>
+      api.post<FeeAccountDetail>(`${accountUrl(accountId)}subject-fees/`, body),
+  );
+
+/** What's charged for each optional subject on an account (its lines added up). */
+export function subjectFeesOnAccount(entries: { subject?: number | null; amount: string }[]) {
+  const charged = new Map<number, number>();
+  for (const e of entries) {
+    if (e.subject) charged.set(e.subject, (charged.get(e.subject) ?? 0) + Number(e.amount));
+  }
+  return charged;
+}
+
+/** "Payment · UPI", "Gujarati (optional subject)", "Gujarati fee taken off"... */
+export function entryLabel(entry: { entry_type: string; subject_name?: string | null }) {
+  if (entry.subject_name) {
+    return entry.entry_type === "CHARGE"
+      ? `${entry.subject_name} (optional subject)`
+      : `${entry.subject_name} fee taken off`;
+  }
+  return ENTRY_LABEL[entry.entry_type] ?? entry.entry_type;
+}

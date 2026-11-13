@@ -108,6 +108,7 @@ export type AdmissionBody = {
   link_user_ids: number[];
   new_logins: NewLogin[];
   agreed_fee?: string | null;
+  subject_fees?: { subject: number; amount: string }[];
   opening_balance?: string;
   opening_balance_reason?: string;
   confirm_duplicate?: boolean;

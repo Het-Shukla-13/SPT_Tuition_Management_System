@@ -7,7 +7,7 @@ import { Badge, StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { effectOnDue, ENTRY_LABEL, methodLabel, withRunningBalance } from "@/features/fees";
+import { effectOnDue, entryLabel, methodLabel, withRunningBalance } from "@/features/fees";
 import { ApiError } from "@/lib/api/envelope";
 import type { PortalFeeAccount } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
@@ -91,7 +91,7 @@ function YearCard({ studentId, account }: { studentId: number; account: PortalFe
               <li key={entry.id} className="flex items-center gap-3 border-t border-line/70 py-3">
                 <span className="flex min-w-0 flex-1 flex-col">
                   <b className="text-sm">
-                    {ENTRY_LABEL[entry.entry_type] ?? entry.entry_type}
+                    {entryLabel(entry)}
                     {entry.method && ` · ${methodLabel(entry.method)}`}
                   </b>
                   <span className="text-xs text-muted">

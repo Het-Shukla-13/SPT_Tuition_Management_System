@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
 
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useReferenceOptions } from "@/features/academics";
+import { SubjectFeeFollowUp } from "@/features/fees";
 import type { StudentDetail } from "@/lib/api/types";
 import { formatDate, formatPhone } from "@/lib/format";
 import { mediumLabel } from "@/lib/options";
@@ -207,6 +208,34 @@ function SubjectsCard({ student }: { student: StudentDetail }) {
   const options = useReferenceOptions("subjects");
   const setSubjects = useSetSubjects(student.id);
   const [editing, setEditing] = useState<number[] | null>(null);
+  const [changed, setChanged] = useState<{
+    added: { id: number; name: string }[];
+    dropped: { id: number; name: string }[];
+  } | null>(null);
+  const closeFollowUp = useCallback(() => setChanged(null), []);
+
+  const save = (next: number[]) => {
+    const before = current.map((c) => c.subject.id);
+    const named = (id: number) => ({
+      id,
+      name: String(
+        options.data?.find((o) => o.id === id)?.name ??
+          current.find((c) => c.subject.id === id)?.subject.name ??
+          "",
+      ),
+    });
+    setSubjects.mutate(next, {
+      onSuccess: () => {
+        setEditing(null);
+        toast.success("Subjects updated.");
+        // Optional subjects (e.g. Gujarati) may have their own fee: offer to update it.
+        const added = next.filter((id) => !before.includes(id)).map(named);
+        const dropped = before.filter((id) => !next.includes(id)).map(named);
+        if (added.length || dropped.length) setChanged({ added, dropped });
+      },
+      onError: (e) => toast.error(e.message),
+    });
+  };
 
   return (
     <Card>
@@ -249,15 +278,7 @@ function SubjectsCard({ student }: { student: StudentDetail }) {
             <Button
               size="sm"
               disabled={setSubjects.isPending || editing.length === 0}
-              onClick={() =>
-                setSubjects.mutate(editing, {
-                  onSuccess: () => {
-                    setEditing(null);
-                    toast.success("Subjects updated.");
-                  },
-                  onError: (e) => toast.error(e.message),
-                })
-              }
+              onClick={() => save(editing)}
             >
               Save subjects
             </Button>
@@ -266,6 +287,15 @@ function SubjectsCard({ student }: { student: StudentDetail }) {
             </Button>
           </div>
         </div>
+      )}
+      {changed && (
+        <SubjectFeeFollowUp
+          studentId={student.id}
+          standardId={student.standard.id}
+          added={changed.added}
+          dropped={changed.dropped}
+          onClose={closeFollowUp}
+        />
       )}
     </Card>
   );

@@ -16,6 +16,7 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { ReferenceSelect, useReferenceOptions } from "@/features/academics";
 import { displayName } from "@/features/auth/session";
 import { splitName, useEnquiry, useUpdateEnquiry } from "@/features/enquiries";
+import { useCurrentStructure } from "@/features/fees";
 import { ApiError } from "@/lib/api/envelope";
 import type { AdminUser } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
@@ -24,6 +25,8 @@ import type { Enquiry } from "@/lib/api/types";
 
 import { type AdmissionBody, GENDER_OPTIONS, useAdmitStudent } from "../api";
 import { ExistingLoginPicker } from "../components/ExistingLoginPicker";
+import { OptionalSubjectFees } from "../components/OptionalSubjectFees";
+import { type ExtraChoice, optionalSubjectRows } from "../optionalSubjects";
 
 const requiredId = (what: string) => z.string().min(1, `Choose a ${what}.`);
 const money = z
@@ -153,9 +156,23 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
   const subjects = useReferenceOptions("subjects");
   const errors = form.formState.errors;
   const openingBalance = useWatch({ control: form.control, name: "opening_balance" });
+  const [board, standard, chosen] = useWatch({
+    control: form.control,
+    name: ["board", "standard", "subjects"],
+  });
+  const structure = useCurrentStructure(board, standard);
+  const [extras, setExtras] = useState<Record<number, ExtraChoice>>({});
+  const [extrasError, setExtrasError] = useState<string | undefined>();
+  const extraRows = optionalSubjectRows(structure.data?.add_ons ?? [], chosen, extras);
 
   const submit = async (values: Values, confirmDuplicate = false) => {
     const opt = (v: string) => v.trim() || undefined;
+    const included = extraRows.filter((r) => r.choice.on);
+    if (included.some((r) => !/^\d+(\.\d{1,2})?$/.test(r.choice.amount))) {
+      setExtrasError("Enter amounts like 2000, or untick the subject.");
+      return;
+    }
+    setExtrasError(undefined);
     const body: AdmissionBody = {
       first_name: values.first_name.trim(),
       last_name: values.last_name.trim(),
@@ -178,6 +195,10 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
       agreed_fee: values.agreed_fee || null,
       opening_balance: values.opening_balance || "0",
       opening_balance_reason: values.opening_balance_reason.trim(),
+      // Once the fee structure is known, send exactly what staff chose (may be none).
+      ...(structure.data !== undefined && {
+        subject_fees: included.map((r) => ({ subject: r.subject, amount: r.choice.amount })),
+      }),
       confirm_duplicate: confirmDuplicate,
     };
     try {
@@ -421,7 +442,11 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
           <Grid>
             <FormField
               label="Agreed fee (₹)"
-              hint="Leave empty to use the standard's fee structure."
+              hint={
+                structure.data
+                  ? `Leave empty for the fee structure: ₹${Number(structure.data.total_fee).toLocaleString("en-IN")}.`
+                  : "Leave empty to use the standard's fee structure."
+              }
               error={errors.agreed_fee?.message}
             >
               {(p) => (
@@ -441,6 +466,11 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
               {(p) => <Input {...p} {...form.register("opening_balance")} inputMode="decimal" />}
             </FormField>
           </Grid>
+          <OptionalSubjectFees
+            rows={extraRows}
+            error={extrasError}
+            onChange={(subject, choice) => setExtras((e) => ({ ...e, [subject]: choice }))}
+          />
           {openingBalance && Number(openingBalance) !== 0 && (
             <FormField
               label="What is the opening balance for?"

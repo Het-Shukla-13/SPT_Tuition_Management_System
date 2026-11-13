@@ -39,6 +39,22 @@ export function StructuresTab() {
       cell: ({ row }) => <Money value={row.original.total_fee} />,
     },
     {
+      id: "extras",
+      header: "Optional subjects",
+      cell: ({ row }) =>
+        row.original.add_ons?.length ? (
+          <span className="flex flex-col text-sm">
+            {row.original.add_ons.map((a) => (
+              <span key={a.subject}>
+                {a.subject_name} +<Money value={a.amount} />
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="text-muted">–</span>
+        ),
+    },
+    {
       id: "description",
       header: "Note",
       cell: ({ row }) => <span className="text-muted">{row.original.description || "–"}</span>,
@@ -78,8 +94,9 @@ export function StructuresTab() {
     <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <p className="max-w-2xl text-sm text-muted">
-          The usual yearly fee for each standard. On admission it's suggested as the agreed fee,
-          which can still be changed per student.
+          The usual yearly fee for each board, year and standard, plus any extra fee for optional
+          subjects like Gujarati or Hindi. On admission these are suggested and can still be changed
+          per student.
         </p>
         <Button onClick={() => setEditing(null)}>+ Add fee structure</Button>
       </div>
@@ -133,7 +150,15 @@ function StructureDialog({
   const [standard, setStandard] = useState(structure ? String(structure.standard) : "");
   const [fee, setFee] = useState(structure ? String(Number(structure.total_fee)) : "");
   const [description, setDescription] = useState(structure?.description ?? "");
+  const [extras, setExtras] = useState<{ subject: string; amount: string }[]>(
+    (structure?.add_ons ?? []).map((a) => ({
+      subject: String(a.subject),
+      amount: String(Number(a.amount)),
+    })),
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const setExtra = (i: number, patch: Partial<{ subject: string; amount: string }>) =>
+    setExtras((list) => list.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   return (
     <Dialog open onOpenChange={(o) => !o && !save.isPending && onClose()}>
@@ -148,6 +173,15 @@ function StructureDialog({
             if (!standard) next.standard = "Choose the standard.";
             if (!/^\d+(\.\d{1,2})?$/.test(fee))
               next.total_fee = "Enter the yearly fee, e.g. 22000.";
+            const picked = extras.map((x) => x.subject);
+            if (
+              extras.some(
+                (x) => !x.subject || !/^\d+(\.\d{1,2})?$/.test(x.amount) || Number(x.amount) <= 0,
+              )
+            )
+              next.add_ons = "Choose a subject and enter an amount for each extra fee.";
+            else if (new Set(picked).size !== picked.length)
+              next.add_ons = "Each subject only once.";
             setErrors(next);
             if (Object.keys(next).length) return;
             save.mutate(
@@ -157,6 +191,7 @@ function StructureDialog({
                   academic_year: Number(year),
                   standard: Number(standard),
                   total_fee: fee,
+                  add_ons: extras.map((x) => ({ subject: Number(x.subject), amount: x.amount })),
                   description: description.trim(),
                 },
               },
@@ -208,6 +243,55 @@ function StructureDialog({
               />
             )}
           </FormField>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 text-[13px] font-bold">Extra fees for optional subjects</legend>
+            <p className="text-xs text-muted">
+              Charged only to students who take that subject, as a separate line on their fees.
+            </p>
+            {extras.map((x, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <ReferenceSelect
+                  aria-label={`Optional subject ${i + 1}`}
+                  resource="subjects"
+                  value={x.subject}
+                  onChange={(e) => setExtra(i, { subject: e.target.value })}
+                  placeholder="Subject…"
+                />
+                <span className="text-sm">₹</span>
+                <Input
+                  aria-label={`Extra fee ${i + 1}`}
+                  inputMode="decimal"
+                  value={x.amount}
+                  onChange={(e) => setExtra(i, { amount: e.target.value.trim() })}
+                  className="w-28 text-right"
+                  placeholder="2000"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Remove extra fee ${i + 1}`}
+                  onClick={() => setExtras((list) => list.filter((_, j) => j !== i))}
+                >
+                  ✕
+                </Button>
+              </div>
+            ))}
+            {errors.add_ons && (
+              <p role="alert" className="text-sm text-danger">
+                {errors.add_ons}
+              </p>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="self-start"
+              onClick={() => setExtras((list) => [...list, { subject: "", amount: "" }])}
+            >
+              + Add optional subject fee
+            </Button>
+          </fieldset>
           <FormField label="Note (optional)">
             {(p) => (
               <Input {...p} value={description} onChange={(e) => setDescription(e.target.value)} />
