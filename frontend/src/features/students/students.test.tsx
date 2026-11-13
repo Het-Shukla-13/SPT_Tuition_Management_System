@@ -368,3 +368,44 @@ describe("StudentDetailPage", () => {
     await waitFor(() => expect(called).toBe(true));
   });
 });
+
+describe("AdmissionPage optional subject fees", () => {
+  it("adds the fee structure's extra for an optional subject, with an editable amount", async () => {
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.get(`${API}/admin/fee-structures/`, () =>
+        ok(
+          [
+            {
+              id: 9,
+              total_fee: "20000.00",
+              add_ons: [{ subject: 22, subject_name: "Science", amount: "1500.00" }],
+            },
+          ],
+          page(1),
+        ),
+      ),
+      http.post(`${API}/admin/students/`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return ok({ student: { ...STUDENT, id: 8 }, invite_sent: {} });
+      }),
+    );
+    const { user } = renderScreen(<AdmissionPage />, {
+      path: "/staff/students/new",
+      extraRoutes: [{ path: "/staff/students/:id", element: <p>profile page</p> }],
+    });
+    await fillAdmission(user);
+    expect(screen.queryByLabelText("Science fee")).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Science"));
+    const fee = await screen.findByLabelText("Science fee");
+    expect(fee).toHaveValue("1500");
+    expect(screen.getByText(/fee structure: ₹20,000/)).toBeInTheDocument();
+    await user.clear(fee);
+    await user.type(fee, "1000");
+    await user.click(screen.getByRole("button", { name: "Admit student" }));
+
+    expect(await screen.findByText("profile page")).toBeInTheDocument();
+    expect(body.subject_fees).toEqual([{ subject: 22, amount: "1000" }]);
+  });
+});

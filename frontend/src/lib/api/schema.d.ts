@@ -409,6 +409,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/fees/accounts/{id}/subject-fees/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add or take off an optional subject's extra fee
+         * @description When a student starts (ADD) or drops (REMOVE) an optional subject like Gujarati mid-year. ADD needs `amount`; REMOVE defaults to the whole fee.
+         */
+        post: operations["admin_fees_accounts_subject_fees_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/fees/entries/{entry_id}/reverse/": {
         parameters: {
             query?: never;
@@ -2052,14 +2072,6 @@ export interface components {
             user_id?: number;
             new_login?: components["schemas"]["NewLoginRequest"];
         };
-        /**
-         * @description * `PROMOTE` - PROMOTE
-         *     * `REPEAT` - REPEAT
-         *     * `LEAVE` - LEAVE
-         *     * `COMPLETE` - COMPLETE
-         * @enum {string}
-         */
-        ActionEnum: "PROMOTE" | "REPEAT" | "LEAVE" | "COMPLETE";
         AdjustmentRequest: {
             /**
              * Format: decimal
@@ -2189,6 +2201,8 @@ export interface components {
             opening_balance: string;
             /** @default  */
             opening_balance_reason: string;
+            /** @description Extra fees for optional subjects. Omit to use the fee structure's; send [] for none. */
+            subject_fees?: components["schemas"]["_SubjectFeeRequest"][] | null;
         };
         /** @description Documentation only. */
         AdmissionResult: {
@@ -2424,6 +2438,8 @@ export interface components {
             readonly standard_name: string;
             /** Format: decimal */
             total_fee: string;
+            /** @description Extra yearly fees for optional subjects (e.g. Gujarati). Sending the list replaces it. */
+            add_ons?: components["schemas"]["FeeStructureAddOn"][];
             description?: string;
             is_active?: boolean;
             /** Format: date-time */
@@ -2431,11 +2447,24 @@ export interface components {
             /** Format: date-time */
             readonly updated_at: string;
         };
+        FeeStructureAddOn: {
+            subject: number;
+            readonly subject_name: string;
+            /** Format: decimal */
+            amount: string;
+        };
+        FeeStructureAddOnRequest: {
+            subject: number;
+            /** Format: decimal */
+            amount: string;
+        };
         FeeStructureRequest: {
             academic_year: number;
             standard: number;
             /** Format: decimal */
             total_fee: string;
+            /** @description Extra yearly fees for optional subjects (e.g. Gujarati). Sending the list replaces it. */
+            add_ons?: components["schemas"]["FeeStructureAddOnRequest"][];
             description?: string;
             is_active?: boolean;
         };
@@ -2518,6 +2547,9 @@ export interface components {
             /** @description Whether parents/students see the remarks. */
             visible_to_student?: boolean;
             receipt_number?: string | null;
+            /** @description For an optional subject's extra fee: CHARGE adds it, ADJUSTMENT (-) takes it off. */
+            subject?: number | null;
+            readonly subject_name: string;
             /** @description For REVERSAL: the payment it cancels (a payment can be reversed once). */
             reverses?: number | null;
             readonly reversed: boolean;
@@ -3174,6 +3206,8 @@ export interface components {
             standard?: number;
             /** Format: decimal */
             total_fee?: string;
+            /** @description Extra yearly fees for optional subjects (e.g. Gujarati). Sending the list replaces it. */
+            add_ons?: components["schemas"]["FeeStructureAddOnRequest"][];
             description?: string;
             is_active?: boolean;
         };
@@ -3292,6 +3326,9 @@ export interface components {
             /** @description Whether parents/students see the remarks. */
             visible_to_student?: boolean;
             receipt_number?: string | null;
+            /** @description For an optional subject's extra fee: CHARGE adds it, ADJUSTMENT (-) takes it off. */
+            subject?: number | null;
+            readonly subject_name: string;
             /** @description For REVERSAL: the payment it cancels (a payment can be reversed once). */
             reverses?: number | null;
             readonly reversed: boolean;
@@ -3363,6 +3400,7 @@ export interface components {
             /** @description UPI/transaction/cheque no. */
             reference?: string;
             receipt_number?: string | null;
+            readonly subject_name: string;
             readonly remarks: string;
         };
         PortalNote: {
@@ -3480,9 +3518,17 @@ export interface components {
              */
             make_current: boolean;
         };
+        /**
+         * @description * `PROMOTE` - PROMOTE
+         *     * `REPEAT` - REPEAT
+         *     * `LEAVE` - LEAVE
+         *     * `COMPLETE` - COMPLETE
+         * @enum {string}
+         */
+        RolloverItemActionEnum: "PROMOTE" | "REPEAT" | "LEAVE" | "COMPLETE";
         RolloverItemRequest: {
             student_id: number;
-            action: components["schemas"]["ActionEnum"];
+            action: components["schemas"]["RolloverItemActionEnum"];
             /** Format: decimal */
             agreed_fee?: string | null;
         };
@@ -3709,6 +3755,23 @@ export interface components {
             readonly updated_at: string;
         };
         /**
+         * @description * `ADD` - Add the fee
+         *     * `REMOVE` - Take the fee off
+         * @enum {string}
+         */
+        SubjectFeeActionEnum: "ADD" | "REMOVE";
+        SubjectFeeRequest: {
+            subject: number;
+            action: components["schemas"]["SubjectFeeActionEnum"];
+            /**
+             * Format: decimal
+             * @description ADD: required. REMOVE: defaults to the whole fee for this subject.
+             */
+            amount?: string | null;
+            /** @default  */
+            reason: string;
+        };
+        /**
          * @description Adds case-insensitive uniqueness checks. DRF can't derive validators from
          *     the database's Lower(...) constraints, so without this a duplicate would
          *     reach the database and fail as a 500 instead of a clean 400.
@@ -3906,6 +3969,11 @@ export interface components {
             admission_number: string;
             first_name: string;
             last_name: string;
+        };
+        _SubjectFeeRequest: {
+            subject: number;
+            /** Format: decimal */
+            amount: string;
         };
     };
     responses: never;
@@ -4675,6 +4743,7 @@ export interface operations {
             query?: {
                 academic_year?: number;
                 academic_year__board?: number;
+                academic_year__is_current?: boolean;
                 is_active?: boolean;
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
@@ -4950,6 +5019,33 @@ export interface operations {
                 "application/json": components["schemas"]["RefundRequest"];
                 "multipart/form-data": components["schemas"]["RefundRequest"];
                 "application/x-www-form-urlencoded": components["schemas"]["RefundRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeeAccountDetail"];
+                };
+            };
+        };
+    };
+    admin_fees_accounts_subject_fees_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectFeeRequest"];
+                "multipart/form-data": components["schemas"]["SubjectFeeRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["SubjectFeeRequest"];
             };
         };
         responses: {

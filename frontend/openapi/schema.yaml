@@ -960,6 +960,10 @@ paths:
         schema:
           type: integer
       - in: query
+        name: academic_year__is_current
+        schema:
+          type: boolean
+      - in: query
         name: is_active
         schema:
           type: boolean
@@ -1351,6 +1355,41 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/RefundRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeeAccountDetail'
+          description: ''
+  /api/v1/admin/fees/accounts/{id}/subject-fees/:
+    post:
+      operationId: admin_fees_accounts_subject_fees_create
+      description: When a student starts (ADD) or drops (REMOVE) an optional subject
+        like Gujarati mid-year. ADD needs `amount`; REMOVE defaults to the whole fee.
+      summary: Add or take off an optional subject's extra fee
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - 'Admin: fees'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubjectFeeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubjectFeeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubjectFeeRequest'
         required: true
       security:
       - jwtAuth: []
@@ -4585,18 +4624,6 @@ components:
           type: integer
         new_login:
           $ref: '#/components/schemas/NewLoginRequest'
-    ActionEnum:
-      enum:
-      - PROMOTE
-      - REPEAT
-      - LEAVE
-      - COMPLETE
-      type: string
-      description: |-
-        * `PROMOTE` - PROMOTE
-        * `REPEAT` - REPEAT
-        * `LEAVE` - LEAVE
-        * `COMPLETE` - COMPLETE
     AdjustmentRequest:
       type: object
       properties:
@@ -4919,6 +4946,13 @@ components:
         opening_balance_reason:
           type: string
           default: ''
+        subject_fees:
+          type: array
+          items:
+            $ref: '#/components/schemas/_SubjectFeeRequest'
+          nullable: true
+          description: Extra fees for optional subjects. Omit to use the fee structure's;
+            send [] for none.
       required:
       - board
       - first_name
@@ -5451,6 +5485,12 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        add_ons:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeeStructureAddOn'
+          description: Extra yearly fees for optional subjects (e.g. Gujarati). Sending
+            the list replaces it.
         description:
           type: string
           maxLength: 255
@@ -5474,6 +5514,34 @@ components:
       - standard_name
       - total_fee
       - updated_at
+    FeeStructureAddOn:
+      type: object
+      properties:
+        subject:
+          type: integer
+        subject_name:
+          type: string
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - amount
+      - subject
+      - subject_name
+    FeeStructureAddOnRequest:
+      type: object
+      properties:
+        subject:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - amount
+      - subject
     FeeStructureRequest:
       type: object
       properties:
@@ -5485,6 +5553,12 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        add_ons:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeeStructureAddOnRequest'
+          description: Extra yearly fees for optional subjects (e.g. Gujarati). Sending
+            the list replaces it.
         description:
           type: string
           maxLength: 255
@@ -5656,6 +5730,14 @@ components:
           type: string
           nullable: true
           maxLength: 30
+        subject:
+          type: integer
+          nullable: true
+          description: 'For an optional subject''s extra fee: CHARGE adds it, ADJUSTMENT
+            (-) takes it off.'
+        subject_name:
+          type: string
+          readOnly: true
         reverses:
           type: integer
           nullable: true
@@ -5681,6 +5763,7 @@ components:
       - id
       - recorded_by_name
       - reversed
+      - subject_name
     LinkedLogin:
       type: object
       description: A login that can see the student (shown to admins).
@@ -6987,6 +7070,12 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        add_ons:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeeStructureAddOnRequest'
+          description: Extra yearly fees for optional subjects (e.g. Gujarati). Sending
+            the list replaces it.
         description:
           type: string
           maxLength: 255
@@ -7233,6 +7322,14 @@ components:
           type: string
           nullable: true
           maxLength: 30
+        subject:
+          type: integer
+          nullable: true
+          description: 'For an optional subject''s extra fee: CHARGE adds it, ADJUSTMENT
+            (-) takes it off.'
+        subject_name:
+          type: string
+          readOnly: true
         reverses:
           type: integer
           nullable: true
@@ -7270,6 +7367,7 @@ components:
       - recorded_by_name
       - reversed
       - student_name
+      - subject_name
     PaymentRequest:
       type: object
       properties:
@@ -7398,6 +7496,9 @@ components:
           type: string
           nullable: true
           maxLength: 30
+        subject_name:
+          type: string
+          readOnly: true
         remarks:
           type: string
           readOnly: true
@@ -7406,6 +7507,7 @@ components:
       - entry_type
       - id
       - remarks
+      - subject_name
     PortalNote:
       type: object
       properties:
@@ -7695,6 +7797,18 @@ components:
       - board
       - items
       - to_year
+    RolloverItemActionEnum:
+      enum:
+      - PROMOTE
+      - REPEAT
+      - LEAVE
+      - COMPLETE
+      type: string
+      description: |-
+        * `PROMOTE` - PROMOTE
+        * `REPEAT` - REPEAT
+        * `LEAVE` - LEAVE
+        * `COMPLETE` - COMPLETE
     RolloverItemRequest:
       type: object
       properties:
@@ -7702,7 +7816,7 @@ components:
           type: integer
           minimum: 1
         action:
-          $ref: '#/components/schemas/ActionEnum'
+          $ref: '#/components/schemas/RolloverItemActionEnum'
         agreed_fee:
           type: string
           format: decimal
@@ -8186,6 +8300,34 @@ components:
       - id
       - name
       - updated_at
+    SubjectFeeActionEnum:
+      enum:
+      - ADD
+      - REMOVE
+      type: string
+      description: |-
+        * `ADD` - Add the fee
+        * `REMOVE` - Take the fee off
+    SubjectFeeRequest:
+      type: object
+      properties:
+        subject:
+          type: integer
+        action:
+          $ref: '#/components/schemas/SubjectFeeActionEnum'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+          description: 'ADD: required. REMOVE: defaults to the whole fee for this
+            subject.'
+        reason:
+          type: string
+          default: ''
+      required:
+      - action
+      - subject
     SubjectRequest:
       type: object
       description: |-
@@ -8689,6 +8831,18 @@ components:
       - first_name
       - id
       - last_name
+    _SubjectFeeRequest:
+      type: object
+      properties:
+        subject:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - amount
+      - subject
   securitySchemes:
     jwtAuth:
       type: http

@@ -6,6 +6,8 @@ import { type ReferenceItem, type ReferenceKey, useReferenceOptions } from "../a
 
 const LABELS: Partial<Record<ReferenceKey, (i: ReferenceItem) => string>> = {
   boards: (i) => `${String(i.code)} · ${String(i.name)}`,
+  // Each board has its own year, often with the same name: always say which board.
+  "academic-years": (i) => `${String(i.board_code)} ${String(i.name)}`,
   schools: (i) => `${String(i.name)}, ${String(i.city)}`,
   chapters: (i) => `${String(i.number)}. ${String(i.name)}`,
 };

@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 import {
   effectOnDue,
-  ENTRY_LABEL,
+  entryLabel,
   methodLabel,
   openReceipt,
   useFeeAccount,
@@ -162,7 +162,7 @@ function Ledger({
                 <Td className="whitespace-normal">
                   <span className="flex flex-col">
                     <span className="font-semibold">
-                      {ENTRY_LABEL[entry.entry_type] ?? entry.entry_type}
+                      {entryLabel(entry)}
                       {entry.method && ` · ${methodLabel(entry.method)}`}
                       {entry.reversed && (
                         <Badge tone="neutral" className="ml-2">
