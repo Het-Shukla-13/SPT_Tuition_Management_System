@@ -49,7 +49,8 @@ export function UserDetailPage() {
 
   const u = user.data;
   const self = u.id === me.id;
-  // Mirrors the backend: only the owner may change another admin.
+  // Mirrors the backend: only an owner may change another admin, and nobody
+  // changes an owner account but that owner (from their own account page).
   const canManage =
     !self && (!(u.role === "ADMIN" || u.is_superuser) || me.is_owner) && !u.is_superuser;
 
@@ -85,6 +86,11 @@ export function UserDetailPage() {
           </dl>
         </Card>
         {canManage && <ActionsCard user={u} />}
+        {!self && u.is_superuser && (
+          <p className="text-sm text-muted">
+            This is an owner account. Only that owner can change it, from their own account page.
+          </p>
+        )}
       </div>
     </>
   );
