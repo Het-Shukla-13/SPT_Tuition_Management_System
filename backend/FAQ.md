@@ -395,12 +395,17 @@ A lookup of **active** students with only `id, admission_number, name, board, st
 ## 7. Admission enquiries
 
 - **Public** `POST /api/v1/public/enquiries/` (no login): `parent_name`, `phone`, `student_name`,
-  optional `email`, `standard`, `board`, `message`. Stores a request and emails active admins.
+  optional `email`, `standard`, `board`, `medium` (ENGLISH/GUJARATI/HINDI), `school_name`
+  (free text), `message`. Stored with `source=WEBSITE`; emails active admins.
   **Never creates a login or a student.** Throttled `5/hour` per IP (fail closed). A filled
   `website` field (hidden honeypot) gets a fake success and nothing is stored.
 - **Public** `GET /api/v1/public/enquiries/options/` (no login): the active `boards`
   (`id`, `code`, `name`) and `standards` (`id`, `name`) for the form's dropdowns. Nothing else.
-- **Admin** `GET /api/v1/admin/enquiries/` (filter `status`, search name/phone/email),
+- **Admin** `POST /api/v1/admin/enquiries/`: record a walk-in / phone / referral enquiry
+  (same fields as the public form, plus `source` WALK_IN/PHONE/REFERRAL, `status` NEW or
+  CONTACTED (default CONTACTED), `notes`). Sets `created_by`; no admin email. Audited.
+- **Admin** `GET /api/v1/admin/enquiries/` (filter `status`, `source`, `medium`, `standard`,
+  `board`; search name/phone/email),
   `GET/PATCH /{id}/` (`status` NEW/CONTACTED/ACCEPTED/REJECTED, `notes`, `student`). Linking a
   `student` (after admitting them through the admission form) marks it ACCEPTED. Audited.
 

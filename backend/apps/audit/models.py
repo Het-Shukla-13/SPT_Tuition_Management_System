@@ -42,6 +42,7 @@ class AuditLog(models.Model):
             "STUDENT_ACCESS_REVOKED",
             "Login's access to a student removed",
         )
+        ENQUIRY_CREATED = "ENQUIRY_CREATED", "Admission enquiry recorded by staff"
         ENQUIRY_UPDATED = "ENQUIRY_UPDATED", "Admission enquiry updated"
         DOCUMENT_UPLOADED = "DOCUMENT_UPLOADED", "Test paper / notes uploaded"
         DOCUMENT_UPDATED = "DOCUMENT_UPDATED", "Test paper / notes details updated"

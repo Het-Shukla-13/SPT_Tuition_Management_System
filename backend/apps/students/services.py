@@ -42,6 +42,7 @@ PERSONAL_FIELDS = (
     "last_name",
     "date_of_birth",
     "gender",
+    "medium",
     "address",
     "guardian_name",
     "guardian_relation",

@@ -46,6 +46,22 @@ def submit_enquiry(*, data: dict, ip: str | None) -> AdmissionEnquiry:
 
 
 @transaction.atomic
+def record_enquiry(*, actor: User, data: dict, ip=None) -> AdmissionEnquiry:
+    """Staff record a walk-in / phone enquiry. No admin email: they're already here."""
+    enquiry = AdmissionEnquiry.objects.create(
+        **data, created_by=actor, handled_by=actor, ip_address=None
+    )
+    record(
+        AuditLog.Action.ENQUIRY_CREATED,
+        actor=actor,
+        target=enquiry,
+        changes={"source": enquiry.source, "status": enquiry.status},
+        ip=ip,
+    )
+    return enquiry
+
+
+@transaction.atomic
 def update_enquiry(*, actor: User, enquiry: AdmissionEnquiry, changes: dict, ip=None):
     locked = AdmissionEnquiry.objects.select_for_update().get(pk=enquiry.pk)
     diff = {}
