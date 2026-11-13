@@ -227,6 +227,11 @@ class _PersonalFields(serializers.Serializer):
         return _normalize_guardian(super().validate(attrs))
 
 
+class _SubjectFeeSerializer(serializers.Serializer):
+    subject = serializers.PrimaryKeyRelatedField(queryset=Subject.objects.all())
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=0)
+
+
 class AdmissionSerializer(_PersonalFields):
     """The admin's "Add new student" form."""
 
@@ -272,6 +277,14 @@ class AdmissionSerializer(_PersonalFields):
     opening_balance_reason = serializers.CharField(
         required=False, allow_blank=True, default=""
     )
+    subject_fees = _SubjectFeeSerializer(
+        many=True,
+        required=False,
+        allow_null=True,
+        default=None,
+        help_text="Extra fees for optional subjects. Omit to use the fee structure's; "
+        "send [] for none.",
+    )
 
     PROFILE_FIELDS = (
         "first_name",
@@ -305,6 +318,12 @@ class AdmissionSerializer(_PersonalFields):
             raise serializers.ValidationError(
                 {"subjects": ["A subject is listed twice."]}
             )
+        fees = attrs.get("subject_fees") or []
+        fee_ids = [f["subject"].pk for f in fees]
+        if len(fee_ids) != len(set(fee_ids)) or not set(fee_ids) <= set(ids):
+            raise serializers.ValidationError(
+                {"subject_fees": ["Only once each, and only for subjects they take."]}
+            )
         return attrs
 
     def split(self) -> dict:
@@ -319,6 +338,9 @@ class AdmissionSerializer(_PersonalFields):
                 "agreed_fee": data.get("agreed_fee"),
                 "opening_balance": data.get("opening_balance") or 0,
                 "opening_balance_reason": data.get("opening_balance_reason", ""),
+                "subject_fees": None
+                if data.get("subject_fees") is None
+                else [(f["subject"], f["amount"]) for f in data["subject_fees"]],
             },
         }
 

@@ -43,6 +43,18 @@ class FeeRequired(AppException):
     default_code = "FEE_REQUIRED"
 
 
+class SubjectFeeAlreadyCharged(ConflictError):
+    default_detail = "This subject's fee is already on the account."
+    default_code = "SUBJECT_FEE_ALREADY_CHARGED"
+
+
+class SubjectFeeNotCharged(AppException):
+    default_detail = (
+        "This subject's fee isn't on the account, so it can't be taken off."
+    )
+    default_code = "SUBJECT_FEE_NOT_CHARGED"
+
+
 class AlreadyRolledOver(ConflictError):
     default_detail = "This student already has an account for that academic year."
     default_code = "ALREADY_ROLLED_OVER"

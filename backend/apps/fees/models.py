@@ -19,7 +19,7 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.academics.models import AcademicYear, Standard
+from apps.academics.models import AcademicYear, Standard, Subject
 from apps.common.models import GlobalTimeStampedModel
 from apps.students.models import StudentProfile
 
@@ -50,6 +50,35 @@ class FeeStructure(GlobalTimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.academic_year} {self.standard}: {self.total_fee}"
+
+
+class FeeStructureAddOn(models.Model):
+    """An optional subject's extra yearly fee (e.g. Gujarati +2000), per fee structure.
+
+    Charged only to students who take that subject.
+    """
+
+    structure = models.ForeignKey(
+        FeeStructure, on_delete=models.CASCADE, related_name="add_ons"
+    )
+    subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name="+")
+    amount = models.DecimalField(**MONEY)
+
+    class Meta:
+        db_table = "fee_structure_add_ons"
+        ordering = ["subject__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["structure", "subject"],
+                name="fee_structure_add_ons_one_per_subject",
+            ),
+            models.CheckConstraint(
+                condition=Q(amount__gt=0), name="fee_structure_add_ons_positive"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.structure}: {self.subject} +{self.amount}"
 
 
 class StudentFeeAccount(GlobalTimeStampedModel):
@@ -130,6 +159,14 @@ class LedgerEntry(models.Model):
         max_length=64, unique=True, null=True, blank=True
     )
     receipt_number = models.CharField(max_length=30, unique=True, null=True, blank=True)
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="For an optional subject's extra fee: CHARGE adds it, ADJUSTMENT (-) takes it off.",
+    )
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+"
     )

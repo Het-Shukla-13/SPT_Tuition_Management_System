@@ -25,6 +25,11 @@ admin_urlpatterns = [
         name="fee-adjustment",
     ),
     path(
+        "fees/accounts/<int:pk>/subject-fees/",
+        views.SubjectFeeView.as_view(),
+        name="fee-subject",
+    ),
+    path(
         "fees/accounts/<int:pk>/agreed-fee/",
         views.AgreedFeeView.as_view(),
         name="fee-agreed",

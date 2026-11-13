@@ -21,7 +21,12 @@ from apps.audit.services import record
 from apps.common.exceptions import AppException
 from apps.fees.exceptions import AlreadyRolledOver, FeeRequired
 from apps.fees.models import FeeStructure, StudentFeeAccount
-from apps.fees.services import carry_forward, create_account, current_due
+from apps.fees.services import (
+    carry_forward,
+    create_account,
+    current_due,
+    structure_subject_fees,
+)
 from apps.students.models import StudentAcademicHistory, StudentProfile
 
 PROMOTE, REPEAT, LEAVE, COMPLETE = "PROMOTE", "REPEAT", "LEAVE", "COMPLETE"
@@ -201,6 +206,14 @@ def _apply_one(*, actor, board, to_year, item, ip) -> dict:
     student.standard = new_standard
     student.updated_by = actor
     student.save(update_fields=["standard", "updated_by", "updated_at"])
+    # Optional subjects they still take (e.g. Gujarati) are charged at the new
+    # year's rates; staff can change them on the account afterwards.
+    current_subjects = [
+        link.subject
+        for link in student.subjects.filter(ended_on__isnull=True).select_related(
+            "subject"
+        )
+    ]
     account = create_account(
         actor=actor,
         student=student,
@@ -208,6 +221,7 @@ def _apply_one(*, actor, board, to_year, item, ip) -> dict:
         agreed_fee=agreed_fee,
         opening_balance=carried,
         opening_balance_reason="Carried forward from previous year" if carried else "",
+        subject_fees=structure_subject_fees(to_year, new_standard, current_subjects),
         ip=ip,
     )
     record(

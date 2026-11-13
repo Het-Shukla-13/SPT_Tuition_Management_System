@@ -498,7 +498,8 @@ reversals, refunds; agreed fee ≥ 0; one account per student per year.
 ### Endpoints
 | Endpoint | Notes |
 |---|---|
-| `/admin/fee-structures/` | CRUD (no delete); filter year/board/standard |
+| `/admin/fee-structures/` | CRUD (no delete); filter year/board/standard/`academic_year__is_current`. `add_ons: [{subject, amount}]` = extra yearly fees for optional subjects (e.g. Gujarati); sending the list replaces it |
+| `POST .../accounts/{id}/subject-fees/` | `{subject, action: ADD\|REMOVE, amount?, reason?}`: a student starts (CHARGE line) or drops (minus ADJUSTMENT) an optional subject mid-year |
 | `GET /admin/fees/accounts/` | Fees table. `?status=PAID\|PARTIAL\|PENDING\|CREDIT\|CARRIED_FORWARD\|OVERDUE\|ENDING_SOON`, `pending_min/max`, `paid_min/max`, `total_min/max`, `academic_year`, `academic_year__board`, `student__standard`, `student__school`, `student__status`, `student__admission_date__gte/lte`; search name/admission no./guardian phone; `ordering=-pending\|total\|paid\|credit\|last_payment_date\|student__first_name\|student__standard__level` |
 | `GET /admin/fees/accounts/{id}/` | Totals + full ledger |
 | `GET /admin/fees/students/{student_id}/accounts/` | Every year of one student |
@@ -506,6 +507,14 @@ reversals, refunds; agreed fee ≥ 0; one account per student per year.
 | `GET /admin/fees/payments/` | All payments: `entry_date__gte/lte`, `method`, `amount__gte/lte`, `recorded_by`, `reversed=true\|false`, search |
 | `GET /admin/fees/payments/{id}/receipt/` | PDF receipt (`RCPT-<year>-NNNNN`; shows "REVERSED" if reversed) |
 | `GET /portal/students/{id}/fees/` · `.../fees/receipts/{entry_id}/` | Parents/students: read-only, every year; remarks only if `visible_to_student` |
+
+### Optional subject fees (Gujarati, Hindi, ...)
+Each fee structure can list extra fees for optional subjects. At admission the student is
+charged the base fee (`agreed_fee`, one CHARGE line) **plus one CHARGE line per optional
+subject they take** (`subject` set on the line), so the bill shows exactly what's paid for.
+The admission form may send `subject_fees: [{subject, amount}]` to change or waive them
+(`[]` = none); omitted = the structure's. Mid-year starts/drops go through
+`subject-fees/`. Rollover charges the new year's extras for the subjects they still take.
 
 ### Year-end rollover (per board)
 1. Admin creates the board's next academic year (dates for that year) and its fee structures.
