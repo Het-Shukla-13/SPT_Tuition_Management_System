@@ -79,6 +79,13 @@ class CannotModifySelf(ForbiddenError):
     default_code = "CANNOT_MODIFY_SELF"
 
 
+class OwnerAccountProtected(ForbiddenError):
+    """Owner accounts are changed only by the owner themselves (or directly in the database)."""
+
+    default_detail = "Owner accounts can't be changed by anyone else in the app."
+    default_code = "OWNER_PROTECTED"
+
+
 class AdminTargetRequiresOwner(ForbiddenError):
     default_detail = (
         "Only the institute owner account can modify another administrator."

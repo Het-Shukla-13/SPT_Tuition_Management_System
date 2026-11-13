@@ -40,6 +40,7 @@ from apps.accounts.services.otp_delivery import (
 )
 from apps.accounts.services.otp_rate_limit import reserve_otp_request
 from apps.accounts.services.sms import sms_enabled
+from apps.accounts.services.users import ensure_not_other_owner
 from apps.audit.models import AuditLog
 from apps.audit.services import record
 
@@ -190,6 +191,7 @@ def admin_set_contact(
     if actor.pk == target.pk:
         raise CannotModifySelf("Use your account settings to change your own details.")
     locked = User.objects.select_for_update().get(pk=target.pk)
+    ensure_not_other_owner(actor, locked)
     if locked.is_admin and not actor.is_superuser:
         raise AdminTargetRequiresOwner()
 

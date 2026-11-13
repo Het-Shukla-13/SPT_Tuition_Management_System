@@ -210,14 +210,18 @@ class TestRoleChange:
         )
         assert response.status_code == 400
 
-    def test_last_active_admin_cannot_be_demoted(self, owner):
-        # The owner is the only admin; another superuser-less actor demoting
-        # them must be refused (exercised at the service layer).
+    def test_last_active_admin_cannot_be_demoted(self, db):
+        # The only admin left (not an owner, which is protected anyway) can't be
+        # demoted, so the institute never ends up with no administrator.
+        # Exercised at the service layer.
+        only_admin = User.objects.create_user(
+            email="only-admin@example.com", role=User.Role.ADMIN
+        )
         actor = User.objects.create_user(email="ops@example.com")
         with pytest.raises(LastAdminProtected):
-            change_role(actor=actor, target=owner, role=User.Role.PORTAL)
-        owner.refresh_from_db()
-        assert owner.role == User.Role.ADMIN
+            change_role(actor=actor, target=only_admin, role=User.Role.PORTAL)
+        only_admin.refresh_from_db()
+        assert only_admin.role == User.Role.ADMIN
 
 
 @pytest.mark.django_db

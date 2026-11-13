@@ -55,6 +55,7 @@ details. Branch on `error_code`, never on `message` text.
 | 403 | `ANSWER_KEY_LOCKED` | The answer key becomes available after the test is over. | Show when it unlocks (test start + duration). |
 | 403 | `CANNOT_MODIFY_SELF` | You cannot change your own role or account status. | Show `message` (not allowed). Don't retry. |
 | 403 | `CSRF_HEADER_MISSING` | Missing the X-Requested-With header required when using the login cookie. | Bug in the frontend: send `X-Requested-With: XMLHttpRequest` on refresh. |
+| 403 | `OWNER_PROTECTED` | Owner accounts can't be changed by anyone else in the app. | Show `message` (not allowed). Don't retry. |
 | 403 | `OWNER_REQUIRED` | Only the institute owner account can modify another administrator. | Show `message` (not allowed). Don't retry. |
 | 403 | `PERMISSION_DENIED` | You do not have permission to perform this action. | Show `message` (not allowed). Don't retry. |
 | 404 | `ANSWER_KEY_UNAVAILABLE` | No answer key is available. | Show a 'not found' state. |

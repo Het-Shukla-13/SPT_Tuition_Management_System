@@ -24,6 +24,7 @@ from apps.accounts.exceptions import (
     ContactInUse,
     InviteAlreadyAccepted,
     LastAdminProtected,
+    OwnerAccountProtected,
 )
 from apps.accounts.models import TrustedDevice, User, UserSession
 from apps.accounts.services.devices import revoke_trusted_devices
@@ -44,7 +45,14 @@ def _ensure_not_self(actor: User, target: User) -> None:
         raise CannotModifySelf()
 
 
+def ensure_not_other_owner(actor: User, target: User) -> None:
+    """No one, not even another owner, changes an owner account from the app."""
+    if target.is_superuser and actor.pk != target.pk:
+        raise OwnerAccountProtected()
+
+
 def _ensure_may_touch_admin(actor: User, target: User) -> None:
+    ensure_not_other_owner(actor, target)
     if target.is_admin and not actor.is_superuser:
         raise AdminTargetRequiresOwner()
 
@@ -112,6 +120,7 @@ def change_role(*, actor: User, target: User, role: str, ip: str | None = None) 
     """Grant or revoke ADMIN. Callers must already have checked IsSuperUser."""
     target = _lock(target)
     _ensure_not_self(actor, target)
+    ensure_not_other_owner(actor, target)
     if target.role == role:
         return target  # idempotent
     if target.is_admin and target.is_active:
@@ -250,6 +259,7 @@ def create_login(
 
 
 def resend_invite(*, actor: User, target: User) -> dict:
+    ensure_not_other_owner(actor, target)
     if target.activated_at is not None:
         raise InviteAlreadyAccepted()
     if not target.is_active:
