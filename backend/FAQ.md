@@ -239,6 +239,11 @@ the user up through the default manager, which hides soft-deleted users, and che
 | `ADMIN` | Institute staff | Owner: `POST admin/users/` or `POST admin/users/{id}/role/` |
 | `ADMIN` + `is_superuser` ("owner") | The institute owner(s) | Only `python manage.py createsuperuser` |
 
+**Owner accounts are protected:** no one else can change an owner from the app, not even
+another owner (edit name, fix email/phone, change role, deactivate/activate, resend invite all
+return 403 `OWNER_PROTECTED`). An owner edits their own details on their account page
+(`/auth/me/...`); anything else is done directly in the database.
+
 Permission classes live in `apps/common/permissions.py`: `IsAdmin`, `IsTeacher`,
 `IsStaff` (admin or teacher), `IsPortalUser`, `IsSuperUser` (owner), and object-level `IsOwnerOrAdmin`.
 
