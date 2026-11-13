@@ -42,6 +42,7 @@ details. Branch on `error_code`, never on `message` text.
 | 400 | `PARSE_ERROR` | Malformed request. | Show `message`. |
 | 400 | `PHOTO_TOO_LARGE` | The photo is too large. | Show `message`. |
 | 400 | `REFUND_TOO_LARGE` | The refund is more than what was paid. | Show `message`. |
+| 400 | `SUBJECT_FEE_NOT_CHARGED` | This subject's fee isn't on the account, so it can't be taken off. | Show `message`. |
 | 400 | `VALIDATION_ERROR` | Validation failed. | Show each entry of `errors` (field -> messages) next to its form field. |
 | 400 | `WRONG_BOARD_YEAR` | That academic year belongs to a different board. | Show `message`. |
 | 400 | `WRONG_PASSWORD` | Your current password is incorrect. | Show `message` under the current-password field. |
@@ -73,6 +74,7 @@ details. Branch on `error_code`, never on `message` text.
 | 409 | `IDEMPOTENCY_CONFLICT` | This Idempotency-Key was already used for a different request. | Bug in the frontend: generate a new Idempotency-Key per new payment. |
 | 409 | `LAST_ADMIN` | This is the last active administrator and cannot be demoted or deactivated. | Show `message`; the data changed or already exists. |
 | 409 | `POSSIBLE_DUPLICATE_STUDENT` | A similar student already exists. Check the list in `errors`; send confirm_duplicate: true to admit anyway. | Show the candidates in `errors`; resend with `confirm_duplicate: true` if the admin confirms. |
+| 409 | `SUBJECT_FEE_ALREADY_CHARGED` | This subject's fee is already on the account. | Show `message`; the data changed or already exists. |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Unsupported media type "{media_type}" in request. | Bug in the frontend: send JSON or multipart form data. |
 | 429 | `LOGIN_LOCKED` | Too many wrong passwords. Please wait a few minutes and try again. | Show `message` with a countdown from `errors.retry_after_seconds`. |
 | 429 | `OTP_ATTEMPTS_EXCEEDED` | Too many incorrect attempts. Please request a new OTP. | Ask the user to request a new code. |

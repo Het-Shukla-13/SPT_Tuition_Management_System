@@ -209,7 +209,14 @@ def admit_student(
             reason=StudentAcademicHistory.Reason.ADMISSION,
             changed_by=actor,
         )
-        _open_fee_account(actor=actor, student=student, year=year, fee=fee or {}, ip=ip)
+        _open_fee_account(
+            actor=actor,
+            student=student,
+            year=year,
+            fee=fee or {},
+            subjects=subjects,
+            ip=ip,
+        )
         StudentSubject.objects.bulk_create(
             StudentSubject(
                 student=student, subject=s, started_on=admission_date, changed_by=actor
@@ -244,11 +251,15 @@ def admit_student(
     return student, invites
 
 
-def _open_fee_account(*, actor, student, year, fee: dict, ip) -> None:
-    """Agreed fee from the form, else the standard's fee structure for this year."""
+def _open_fee_account(*, actor, student, year, fee: dict, subjects, ip) -> None:
+    """
+    Agreed fee from the form, else the standard's fee structure for this year.
+    Optional subjects' extra fees from the form, else the structure's for the
+    subjects they take; each becomes its own line on the account.
+    """
     from apps.fees.exceptions import FeeRequired
     from apps.fees.models import FeeStructure
-    from apps.fees.services import create_account
+    from apps.fees.services import create_account, structure_subject_fees
 
     agreed = fee.get("agreed_fee")
     if agreed is None:
@@ -258,6 +269,9 @@ def _open_fee_account(*, actor, student, year, fee: dict, ip) -> None:
         if structure is None:
             raise FeeRequired()
         agreed = structure.total_fee
+    subject_fees = fee.get("subject_fees")
+    if subject_fees is None:
+        subject_fees = structure_subject_fees(year, student.standard, subjects)
     create_account(
         actor=actor,
         student=student,
@@ -265,6 +279,7 @@ def _open_fee_account(*, actor, student, year, fee: dict, ip) -> None:
         agreed_fee=agreed,
         opening_balance=fee.get("opening_balance") or 0,
         opening_balance_reason=fee.get("opening_balance_reason", ""),
+        subject_fees=subject_fees,
         ip=ip,
     )
 

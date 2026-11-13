@@ -28,8 +28,15 @@ from apps.fees.exceptions import (
     NotAPayment,
     NoteRequired,
     RefundTooLarge,
+    SubjectFeeAlreadyCharged,
+    SubjectFeeNotCharged,
 )
-from apps.fees.models import LedgerEntry, ReceiptSequence, StudentFeeAccount
+from apps.fees.models import (
+    FeeStructureAddOn,
+    LedgerEntry,
+    ReceiptSequence,
+    StudentFeeAccount,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -168,9 +175,13 @@ def create_account(
     agreed_fee,
     opening_balance=ZERO,
     opening_balance_reason="",
+    subject_fees=(),
     ip=None,
 ) -> StudentFeeAccount:
-    """Call inside the caller's transaction (admission / rollover)."""
+    """
+    Call inside the caller's transaction (admission / rollover).
+    subject_fees: [(subject, amount)] extra fees for optional subjects, each its own line.
+    """
     if agreed_fee is None or agreed_fee < 0:
         raise InvalidAmount("The agreed fee can't be negative.")
     account = StudentFeeAccount.objects.create(
@@ -189,6 +200,16 @@ def create_account(
             remarks=f"Agreed fee for {academic_year}",
             recorded_by=actor,
         )
+    for subject, amount in subject_fees:
+        if amount and amount > 0:
+            LedgerEntry.objects.create(
+                account=account,
+                entry_type=T.CHARGE,
+                amount=amount,
+                subject=subject,
+                remarks=f"{subject.name} (optional subject)",
+                recorded_by=actor,
+            )
     record(
         AuditLog.Action.FEE_ACCOUNT_CREATED,
         actor=actor,
@@ -196,10 +217,75 @@ def create_account(
         changes={
             "agreed_fee": str(agreed_fee),
             "opening_balance": str(opening_balance or ZERO),
+            "subject_fees": {s.code: str(a) for s, a in subject_fees if a},
         },
         ip=ip,
     )
     return account
+
+
+def structure_subject_fees(academic_year, standard, subjects) -> list[tuple]:
+    """[(subject, amount)] for the given subjects that have an extra fee this year."""
+    ids = [s.pk for s in subjects]
+    add_ons = FeeStructureAddOn.objects.filter(
+        structure__academic_year=academic_year,
+        structure__standard=standard,
+        structure__is_active=True,
+        subject_id__in=ids,
+    ).select_related("subject")
+    return [(a.subject, a.amount) for a in add_ons]
+
+
+def subject_fee_on_account(account, subject) -> Decimal:
+    """What's currently charged for this optional subject (its lines added up)."""
+    total = account.entries.filter(subject=subject).aggregate(s=Sum("amount"))["s"]
+    return total or ZERO
+
+
+@transaction.atomic
+def change_subject_fee(
+    *, actor, account, subject, action: str, amount=None, reason: str = "", ip=None
+) -> LedgerEntry:
+    """
+    ADD an optional subject's extra fee (a CHARGE line), or REMOVE it (a minus
+    ADJUSTMENT for what's charged). Used when a student starts / drops the subject.
+    """
+    locked = _lock(account)
+    charged = subject_fee_on_account(locked, subject)
+    if action == "ADD":
+        if charged > 0:
+            raise SubjectFeeAlreadyCharged()
+        amount = _positive(amount)
+        entry = LedgerEntry.objects.create(
+            account=locked,
+            entry_type=T.CHARGE,
+            amount=amount,
+            subject=subject,
+            remarks=reason.strip() or f"{subject.name} (optional subject)",
+            recorded_by=actor,
+        )
+    else:
+        if charged <= 0:
+            raise SubjectFeeNotCharged()
+        amount = charged if amount is None else _positive(amount)
+        if amount > charged:
+            raise InvalidAmount("That's more than this subject's fee on the account.")
+        entry = LedgerEntry.objects.create(
+            account=locked,
+            entry_type=T.ADJUSTMENT,
+            amount=-amount,
+            subject=subject,
+            remarks=reason.strip() or f"{subject.name} dropped",
+            recorded_by=actor,
+        )
+    record(
+        AuditLog.Action.FEE_ADJUSTED,
+        actor=actor,
+        target=locked,
+        changes={"subject": subject.code, "action": action, "amount": str(amount)},
+        ip=ip,
+    )
+    return entry
 
 
 @transaction.atomic

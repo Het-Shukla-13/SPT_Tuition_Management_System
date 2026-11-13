@@ -36,6 +36,7 @@ from apps.fees.serializers import (
     ReverseSerializer,
     RolloverApplySerializer,
     RolloverPreviewSerializer,
+    SubjectFeeSerializer,
 )
 from apps.students.services import get_linked_student
 
@@ -62,10 +63,13 @@ def _detail(account_id) -> dict:
 class FeeStructureViewSet(EnvelopeModelViewSet):
     permission_classes = [IsAdmin]
     serializer_class = FeeStructureSerializer
-    queryset = FeeStructure.objects.select_related("academic_year__board", "standard")
+    queryset = FeeStructure.objects.select_related(
+        "academic_year__board", "standard"
+    ).prefetch_related("add_ons__subject")
     filterset_fields = [
         "academic_year",
         "academic_year__board",
+        "academic_year__is_current",
         "standard",
         "is_active",
     ]
@@ -261,6 +265,31 @@ class AdjustmentCreateView(APIView):
             **serializer.validated_data,
         )
         return ApiResponse.created(message="Adjustment added.", data=_detail(pk))
+
+
+class SubjectFeeView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        tags=FEES_TAG,
+        summary="Add or take off an optional subject's extra fee",
+        description=(
+            "When a student starts (ADD) or drops (REMOVE) an optional subject like "
+            "Gujarati mid-year. ADD needs `amount`; REMOVE defaults to the whole fee."
+        ),
+        request=SubjectFeeSerializer,
+        responses={201: FeeAccountDetailSerializer},
+    )
+    def post(self, request, pk: int):
+        serializer = SubjectFeeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        services.change_subject_fee(
+            actor=request.user,
+            account=_account(pk),
+            ip=client_ip(request),
+            **serializer.validated_data,
+        )
+        return ApiResponse.created(message="Fee updated.", data=_detail(pk))
 
 
 class AgreedFeeView(APIView):
