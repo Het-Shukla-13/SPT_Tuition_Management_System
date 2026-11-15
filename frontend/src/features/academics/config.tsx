@@ -26,7 +26,24 @@ export type FieldConfig = {
   createOnly?: boolean;
   /** Narrow the full-width form grid: "half" fields sit side by side. */
   width?: "full" | "half";
+  /** Extra check before saving; returns a message when the value isn't right. */
+  check?: (value: string, values: Record<string, unknown>) => string | undefined;
 };
+
+/** "2026-27": the year it starts, then the next year's last two digits (the server checks too). */
+export function checkYearName(value: string, values: Record<string, unknown>) {
+  const match = /^(\d{4})-(\d{2})$/.exec(value.trim());
+  if (!match) return "Use the format YYYY-YY, e.g. 2026-27.";
+  const first = Number(match[1]);
+  const next = String((first + 1) % 100).padStart(2, "0");
+  if (match[2] !== next) return `The two years must follow on: ${first}-${next}.`;
+  const start = String(values.start_date ?? "");
+  if (/^\d{4}-/.test(start) && Number(start.slice(0, 4)) !== first) {
+    const year = Number(start.slice(0, 4));
+    return `A year starting in ${year} should be called ${year}-${String((year + 1) % 100).padStart(2, "0")}.`;
+  }
+  return undefined;
+}
 
 export type ColumnConfig = {
   header: string;
@@ -100,7 +117,14 @@ export const REFERENCE_CONFIGS: ReferenceConfig[] = [
         optionLabel: boardLabel,
         createOnly: true,
       },
-      { name: "name", label: "Name", type: "text", required: true, hint: "e.g. 2026-27" },
+      {
+        name: "name",
+        label: "Name",
+        type: "text",
+        required: true,
+        hint: "Format YYYY-YY, the year it starts in first, e.g. 2026-27.",
+        check: checkYearName,
+      },
       { name: "start_date", label: "Starts on", type: "date", required: true, width: "half" },
       { name: "end_date", label: "Ends on", type: "date", required: true, width: "half" },
       {
