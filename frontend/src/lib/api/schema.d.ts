@@ -946,6 +946,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/invite/accept/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite link: set my first password
+         * @description Sets the password, confirms the email and uses the link up. Trusts this browser (the link proved the inbox), so signing in next needs no code. Does not log in: the app sends them to sign in with the new password.
+         */
+        post: operations["auth_invite_accept_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/invite/check/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite link: who is it for?
+         * @description For the Set password screen. The token stays in the body, not the URL.
+         */
+        post: operations["auth_invite_check_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login/": {
         parameters: {
             query?: never;
@@ -1115,6 +1155,26 @@ export interface paths {
          * @description Saves the new email/phone as verified. The old one is notified.
          */
         post: operations["auth_me_contact_verify_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/methods/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Available sign-in methods
+         * @description Email + password is always available. `phone` is true only when an SMS provider is configured; `google` when a Google client ID is set.
+         */
+        get: operations["auth_methods_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2509,6 +2569,19 @@ export interface components {
             marks_obtained: string | null;
             /** @default  */
             grade_remarks: string;
+        };
+        InviteAcceptRequest: {
+            token: string;
+            new_password: string;
+        };
+        InviteCheckRequest: {
+            token: string;
+        };
+        /** @description Documentation only. */
+        InviteInfo: {
+            first_name: string;
+            /** Format: email */
+            email: string;
         };
         /** @description Documentation only. */
         InviteResult: {
@@ -3921,6 +3994,8 @@ export interface components {
             /** Format: date-time */
             readonly phone_verified_at: string | null;
             readonly google_linked: boolean;
+            /** @description False for people who only ever used Google or codes: offer "Set a password". */
+            readonly has_password: boolean;
             /** @description The institute owner: the only account that may create admins or change roles. */
             readonly is_owner: boolean;
             /** Format: date-time */
@@ -6140,6 +6215,84 @@ export interface operations {
             };
         };
     };
+    auth_invite_accept_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteAcceptRequest"];
+                "multipart/form-data": components["schemas"]["InviteAcceptRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InviteAcceptRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteInfo"];
+                };
+            };
+            /** @description INVITE_LINK_INVALID / VALIDATION_ERROR (weak password: errors.new_password) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ACCOUNT_DISABLED */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_invite_check_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteCheckRequest"];
+                "multipart/form-data": components["schemas"]["InviteCheckRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InviteCheckRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteInfo"];
+                };
+            };
+            /** @description INVITE_LINK_INVALID (unknown, used, expired) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ACCOUNT_DISABLED */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_login_create: {
         parameters: {
             query?: never;
@@ -6482,6 +6635,24 @@ export interface operations {
             };
             /** @description OTP_ATTEMPTS_EXCEEDED */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_methods_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description {"email": true, "phone": bool, "google": bool} */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

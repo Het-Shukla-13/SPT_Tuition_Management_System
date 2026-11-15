@@ -55,17 +55,18 @@ export function FormAlert({
   tone = "danger",
   children,
 }: {
-  tone?: "danger" | "info";
+  tone?: "danger" | "info" | "success";
   children: ReactNode;
 }) {
+  const colours = {
+    danger: "bg-danger-bg text-danger",
+    info: "bg-info-bg text-info",
+    success: "bg-success-bg text-success",
+  }[tone];
   return (
     <div
       role={tone === "danger" ? "alert" : "status"}
-      className={
-        tone === "danger"
-          ? "rounded-[var(--radius-control)] bg-danger-bg px-4 py-3 text-sm text-danger"
-          : "rounded-[var(--radius-control)] bg-info-bg px-4 py-3 text-sm text-info"
-      }
+      className={`rounded-[var(--radius-control)] px-4 py-3 text-sm ${colours}`}
     >
       {children}
     </div>

@@ -155,6 +155,12 @@ export const routes: RouteObject[] = [
         ...page(() => import("@/features/auth/pages/ResetPasswordPage"), "ResetPasswordPage"),
       },
       {
+        path: "/set-password",
+        ...page(() => import("@/features/auth/pages/SetPasswordPage"), "SetPasswordPage"),
+      },
+      { path: "/privacy", ...page(() => import("@/features/legal/PrivacyPage"), "PrivacyPage") },
+      { path: "/terms", ...page(() => import("@/features/legal/TermsPage"), "TermsPage") },
+      {
         path: "/enquire",
         ...page(() => import("@/features/enquiries/pages/PublicEnquiryPage"), "PublicEnquiryPage"),
       },

@@ -28,6 +28,7 @@ import {
   useTrustedDevices,
 } from "../api";
 import { MyDetailsCard } from "../components/MyDetailsCard";
+import { SetFirstPasswordCard } from "../components/SetFirstPasswordCard";
 import { describeAgent } from "../describeAgent";
 import { ROLE_LABEL, useCurrentUser, useLogout } from "../session";
 
@@ -50,7 +51,7 @@ export function AccountPage() {
       <PageHeader title="My account" eyebrow={ROLE_LABEL[user.role]} />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,380px),1fr))] gap-5">
         <MyDetailsCard user={user} />
-        <ChangePasswordCard />
+        {user.has_password ? <ChangePasswordCard /> : <SetFirstPasswordCard user={user} />}
       </div>
       <DevicesCard />
       <SessionsCard />

@@ -56,6 +56,41 @@ export const googleSignIn = (body: { id_token: string }) =>
 export const googleVerify = (body: { id_token: string; code: string }) =>
   api.post<Authenticated>("auth/google/verify/", body);
 
+// ── Phone (a code every time; only when an SMS provider is set up) ─────
+export const requestPhoneCode = (phone: string) =>
+  api.post<{ expires_in_seconds: number; resend_after_seconds: number }>("auth/otp/request/", {
+    channel: "PHONE",
+    identifier: phone,
+    purpose: "LOGIN",
+  });
+
+export const verifyPhoneCode = async (phone: string, code: string): Promise<Authenticated> => {
+  const result = await api.post<{ access: string; user: User }>("auth/otp/verify/", {
+    channel: "PHONE",
+    identifier: phone,
+    purpose: "LOGIN",
+    code,
+  });
+  return { status: "AUTHENTICATED", ...result };
+};
+
+/** Which ways to log in exist here (phone needs an SMS provider; Google a client ID). */
+export function useSignInMethods() {
+  return useQuery({
+    queryKey: ["auth", "methods"],
+    queryFn: () => api.get<{ email: boolean; phone: boolean; google: boolean }>("auth/methods/"),
+    staleTime: 10 * 60_000,
+  });
+}
+
+// ── Invite link ("Set your password" from the invite email) ────────────
+export type InviteInfo = { first_name: string; email: string };
+
+export const checkInvite = (token: string) => api.post<InviteInfo>("auth/invite/check/", { token });
+
+export const acceptInvite = (body: { token: string; new_password: string }) =>
+  api.post<InviteInfo>("auth/invite/accept/", body);
+
 // ── Account (logged in) ────────────────────────────────────────────────
 const SESSIONS_KEY = ["auth", "sessions"] as const;
 const DEVICES_KEY = ["auth", "devices"] as const;

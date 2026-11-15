@@ -2508,6 +2508,73 @@ paths:
           description: GOOGLE_ACCOUNT_CONFLICT
         '429':
           description: OTP_ATTEMPTS_EXCEEDED / THROTTLED
+  /api/v1/auth/invite/accept/:
+    post:
+      operationId: auth_invite_accept_create
+      description: 'Sets the password, confirms the email and uses the link up. Trusts
+        this browser (the link proved the inbox), so signing in next needs no code.
+        Does not log in: the app sends them to sign in with the new password.'
+      summary: 'Invite link: set my first password'
+      tags:
+      - 'Auth: password'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteAcceptRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InviteAcceptRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InviteAcceptRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteInfo'
+          description: ''
+        '400':
+          description: 'INVITE_LINK_INVALID / VALIDATION_ERROR (weak password: errors.new_password)'
+        '403':
+          description: ACCOUNT_DISABLED
+  /api/v1/auth/invite/check/:
+    post:
+      operationId: auth_invite_check_create
+      description: For the Set password screen. The token stays in the body, not the
+        URL.
+      summary: 'Invite link: who is it for?'
+      tags:
+      - 'Auth: password'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteCheckRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InviteCheckRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InviteCheckRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteInfo'
+          description: ''
+        '400':
+          description: INVITE_LINK_INVALID (unknown, used, expired)
+        '403':
+          description: ACCOUNT_DISABLED
   /api/v1/auth/login/:
     post:
       operationId: auth_login_create
@@ -2774,6 +2841,19 @@ paths:
           description: CONTACT_IN_USE
         '429':
           description: OTP_ATTEMPTS_EXCEEDED
+  /api/v1/auth/methods/:
+    get:
+      operationId: auth_methods_retrieve
+      description: Email + password is always available. `phone` is true only when
+        an SMS provider is configured; `google` when a Google client ID is set.
+      summary: Available sign-in methods
+      tags:
+      - Auth
+      security:
+      - {}
+      responses:
+        '200':
+          description: '{"email": true, "phone": bool, "google": bool}'
   /api/v1/auth/otp/request/:
     post:
       operationId: auth_otp_request_create
@@ -5649,6 +5729,41 @@ components:
           default: ''
       required:
       - marks_obtained
+    InviteAcceptRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 200
+        new_password:
+          type: string
+          minLength: 1
+          maxLength: 128
+      required:
+      - new_password
+      - token
+    InviteCheckRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required:
+      - token
+    InviteInfo:
+      type: object
+      description: Documentation only.
+      properties:
+        first_name:
+          type: string
+        email:
+          type: string
+          format: email
+      required:
+      - email
+      - first_name
     InviteResult:
       type: object
       description: Documentation only.
@@ -8702,6 +8817,11 @@ components:
         google_linked:
           type: boolean
           readOnly: true
+        has_password:
+          type: boolean
+          readOnly: true
+          description: 'False for people who only ever used Google or codes: offer
+            "Set a password".'
         is_owner:
           type: boolean
           readOnly: true
@@ -8717,6 +8837,7 @@ components:
       - email_verified_at
       - first_name
       - google_linked
+      - has_password
       - id
       - is_owner
       - last_name
