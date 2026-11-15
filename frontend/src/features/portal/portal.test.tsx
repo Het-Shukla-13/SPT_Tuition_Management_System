@@ -77,7 +77,7 @@ const test_ = (over: Partial<PortalTest>): PortalTest =>
     subject: "Mathematics",
     standard: "Standard 10",
     semester: 1,
-    chapters: ["1. Real numbers"],
+    chapters: ["Real numbers"],
     assigned_at: "2026-06-01T10:00:00+05:30",
     test_starts_at: "2099-01-10T10:00:00+05:30",
     has_start_time: true,

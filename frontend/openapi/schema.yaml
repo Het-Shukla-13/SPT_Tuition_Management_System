@@ -266,10 +266,6 @@ paths:
       summary: List chapters
       parameters:
       - in: query
-        name: board
-        schema:
-          type: integer
-      - in: query
         name: is_active
         schema:
           type: boolean
@@ -5261,11 +5257,6 @@ components:
         id:
           type: integer
           readOnly: true
-        board:
-          type: integer
-        board_code:
-          type: string
-          readOnly: true
         standard:
           type: integer
         standard_name:
@@ -5276,10 +5267,6 @@ components:
         subject_name:
           type: string
           readOnly: true
-        number:
-          type: integer
-          maximum: 32767
-          minimum: 0
         name:
           type: string
           maxLength: 200
@@ -5294,12 +5281,9 @@ components:
           format: date-time
           readOnly: true
       required:
-      - board
-      - board_code
       - created_at
       - id
       - name
-      - number
       - standard
       - standard_name
       - subject
@@ -5314,16 +5298,10 @@ components:
 
         ci_unique: tuples of field names that must be unique together, ignoring case.
       properties:
-        board:
-          type: integer
         standard:
           type: integer
         subject:
           type: integer
-        number:
-          type: integer
-          maximum: 32767
-          minimum: 0
         name:
           type: string
           minLength: 1
@@ -5331,9 +5309,7 @@ components:
         is_active:
           type: boolean
       required:
-      - board
       - name
-      - number
       - standard
       - subject
     ContactChangeRequest:
@@ -7224,16 +7200,10 @@ components:
 
         ci_unique: tuples of field names that must be unique together, ignoring case.
       properties:
-        board:
-          type: integer
         standard:
           type: integer
         subject:
           type: integer
-        number:
-          type: integer
-          maximum: 32767
-          minimum: 0
         name:
           type: string
           minLength: 1

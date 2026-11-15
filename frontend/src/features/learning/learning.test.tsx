@@ -15,9 +15,7 @@ const REF = {
   standards: [{ id: 10, name: "Standard 10", level: 10, is_active: true }],
   subjects: [{ id: 21, name: "Mathematics", code: "MATH", is_active: true }],
   schools: [{ id: 3, name: "DPS", city: "Ahmedabad", is_active: true }],
-  chapters: [
-    { id: 50, board: 1, board_code: "CBSE", number: 1, name: "Real Numbers", is_active: true },
-  ],
+  chapters: [{ id: 50, standard: 10, subject: 21, name: "Real Numbers", is_active: true }],
 };
 
 const PAPER = {
@@ -126,7 +124,7 @@ describe("UploadPage", () => {
     await user.click(await screen.findByRole("checkbox", { name: "CBSE" }));
     await user.selectOptions(screen.getByLabelText("Standard"), "10");
     await user.selectOptions(screen.getByLabelText("Subject"), "21");
-    await user.click(await screen.findByLabelText("1. Real Numbers"));
+    await user.click(await screen.findByLabelText("Real Numbers"));
     await user.type(screen.getByLabelText("Max marks"), "25");
   }
 

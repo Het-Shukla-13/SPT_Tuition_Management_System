@@ -63,9 +63,9 @@ export function UploadPage({ kind }: { kind: Kind }) {
     },
   });
   const errors = form.formState.errors;
-  const [boards, standard, subject] = useWatch({
+  const [standard, subject] = useWatch({
     control: form.control,
-    name: ["boards", "standard", "subject"],
+    name: ["standard", "subject"],
   });
   const years = useYearNames();
 
@@ -287,7 +287,6 @@ export function UploadPage({ kind }: { kind: Kind }) {
             name="chapters"
             render={({ field }) => (
               <ChapterPicker
-                boards={boards}
                 standard={standard}
                 subject={subject}
                 value={field.value}
