@@ -246,12 +246,12 @@ export const REFERENCE_CONFIGS: ReferenceConfig[] = [
     key: "chapters",
     title: "Chapters",
     singular: "chapter",
-    description: "Chapters per board, standard and subject. Tests and notes are tagged with them.",
+    description:
+      "Topics per standard and subject (any board), used to tag tests and notes so they're easy to find.",
     searchable: true,
     searchPlaceholder: "Search chapter name",
-    ordering: "number",
+    ordering: "name",
     filters: [
-      BOARD_FILTER,
       {
         name: "standard",
         label: "Standard",
@@ -268,23 +268,11 @@ export const REFERENCE_CONFIGS: ReferenceConfig[] = [
       },
     ],
     columns: [
-      { header: "No.", cell: (i) => <b className="tabular">{s(i, "number")}</b>, align: "right" },
       { header: "Chapter", cell: (i) => <b>{s(i, "name")}</b> },
-      {
-        header: "Class",
-        cell: (i) => `${s(i, "board_code")} · ${s(i, "standard_name")} · ${s(i, "subject_name")}`,
-      },
+      { header: "Standard", cell: (i) => s(i, "standard_name") },
+      { header: "Subject", cell: (i) => s(i, "subject_name") },
     ],
     fields: [
-      {
-        name: "board",
-        label: "Board",
-        type: "select",
-        required: true,
-        optionsFrom: "boards",
-        optionLabel: boardLabel,
-        width: "half",
-      },
       {
         name: "standard",
         label: "Standard",
@@ -303,8 +291,13 @@ export const REFERENCE_CONFIGS: ReferenceConfig[] = [
         optionLabel: (i) => s(i, "name"),
         width: "half",
       },
-      { name: "number", label: "Chapter no.", type: "number", required: true, width: "half" },
-      { name: "name", label: "Chapter name", type: "text", required: true },
+      {
+        name: "name",
+        label: "Chapter name",
+        type: "text",
+        required: true,
+        hint: "Just the topic, e.g. Light. Anything else goes in a test's or note's description.",
+      },
     ],
   },
 ];

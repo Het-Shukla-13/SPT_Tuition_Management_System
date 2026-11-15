@@ -1,19 +1,14 @@
 import { ChipToggleGroup } from "@/components/shared/ChipToggleGroup";
 import { useReferenceOptions } from "@/features/academics";
 
-/**
- * Chapters of the chosen standard + subject, from the chosen boards (every
- * board's when none are chosen). With several boards, each says its board.
- */
+/** Topics (chapters) of the chosen standard + subject, A to Z, as chips. Any board. */
 export function ChapterPicker({
-  boards,
   standard,
   subject,
   value,
   onChange,
   error,
 }: {
-  boards: number[];
   standard: string;
   subject: string;
   value: number[];
@@ -21,11 +16,7 @@ export function ChapterPicker({
   error?: string;
 }) {
   const ready = Boolean(standard && subject);
-  const chapters = useReferenceOptions(
-    "chapters",
-    { standard, subject, ordering: "number" },
-    ready,
-  );
+  const chapters = useReferenceOptions("chapters", { standard, subject, ordering: "name" }, ready);
 
   if (!ready) {
     return (
@@ -35,28 +26,22 @@ export function ChapterPicker({
       </div>
     );
   }
-  const shown = (chapters.data ?? []).filter(
-    (c) => boards.length === 0 || boards.includes(Number(c.board)),
-  );
-  if (chapters.data && shown.length === 0) {
+  if (chapters.data && chapters.data.length === 0) {
     return (
       <div className="flex flex-col gap-1">
         <span className="text-[13px] font-bold">Chapters</span>
         <span className="text-sm text-muted">
-          No chapters set up for this class yet (Academics setup → Chapters). You can still upload.
+          No chapters set up for this standard and subject yet (Academics setup → Chapters). You can
+          still upload.
         </span>
       </div>
     );
   }
-  const labelBoard = boards.length !== 1;
   return (
     <ChipToggleGroup
       label="Chapters"
-      options={shown.map((c) => ({
-        value: c.id,
-        label: `${labelBoard ? `${String(c.board_code)} · ` : ""}${String(c.number)}. ${String(c.name)}`,
-      }))}
-      value={value.filter((id) => shown.some((c) => c.id === id))}
+      options={(chapters.data ?? []).map((c) => ({ value: c.id, label: String(c.name) }))}
+      value={value}
       onChange={onChange}
       loading={chapters.isPending}
       error={error}

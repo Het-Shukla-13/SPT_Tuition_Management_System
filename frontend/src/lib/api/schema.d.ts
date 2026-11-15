@@ -2394,13 +2394,10 @@ export interface components {
          */
         Chapter: {
             readonly id: number;
-            board: number;
-            readonly board_code: string;
             standard: number;
             readonly standard_name: string;
             subject: number;
             readonly subject_name: string;
-            number: number;
             name: string;
             is_active?: boolean;
             /** Format: date-time */
@@ -2416,10 +2413,8 @@ export interface components {
          *     ci_unique: tuples of field names that must be unique together, ignoring case.
          */
         ChapterRequest: {
-            board: number;
             standard: number;
             subject: number;
-            number: number;
             name: string;
             is_active?: boolean;
         };
@@ -3310,10 +3305,8 @@ export interface components {
          *     ci_unique: tuples of field names that must be unique together, ignoring case.
          */
         PatchedChapterRequest: {
-            board?: number;
             standard?: number;
             subject?: number;
-            number?: number;
             name?: string;
             is_active?: boolean;
         };
@@ -4347,7 +4340,6 @@ export interface operations {
     academics_chapters_list: {
         parameters: {
             query?: {
-                board?: number;
                 is_active?: boolean;
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
