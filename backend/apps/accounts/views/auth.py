@@ -31,6 +31,7 @@ from apps.accounts.services.auth_cookies import (
 from apps.accounts.services.devices import revoke_trusted_devices
 from apps.accounts.services.otp import request_otp, verify_otp
 from apps.accounts.services.sessions import SID_CLAIM, revoke_session
+from apps.accounts.services.sms import sms_enabled
 from apps.accounts.services.tokens import (
     issue_tokens,
     logout,
@@ -91,6 +92,35 @@ class OTPRequestView(APIView):
                 "expires_in_seconds": settings.OTP_TTL_SECONDS,
                 "resend_after_seconds": settings.OTP_RESEND_COOLDOWN_SECONDS,
             },
+        )
+
+
+class SignInMethodsView(APIView):
+    """Which ways to sign in this installation offers, for the login screen."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=AUTH_TAG,
+        summary="Available sign-in methods",
+        description=(
+            "Email + password is always available. `phone` is true only when an SMS "
+            "provider is configured; `google` when a Google client ID is set."
+        ),
+        responses={
+            200: OpenApiResponse(
+                description='{"email": true, "phone": bool, "google": bool}'
+            )
+        },
+    )
+    def get(self, request):
+        return ApiResponse.success(
+            data={
+                "email": True,
+                "phone": sms_enabled(),
+                "google": bool(settings.GOOGLE_OAUTH_CLIENT_ID),
+            }
         )
 
 

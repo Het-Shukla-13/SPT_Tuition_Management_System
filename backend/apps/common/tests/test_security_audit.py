@@ -37,6 +37,7 @@ PUBLIC = {
     "public-enquiry",
     "auth-invite-check",
     "auth-invite-accept",
+    "auth-methods",
     "public-enquiry-options",
 }
 METHODS = ["get", "post", "put", "patch", "delete"]

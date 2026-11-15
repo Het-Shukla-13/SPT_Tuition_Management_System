@@ -25,6 +25,9 @@ Design: `docs/plans/phase-1-5-password-login.md`. Logic: `apps/accounts/services
 | Google (`POST google/`) | `AUTHENTICATED` | `OTP_REQUIRED`; code emailed → `POST google/verify/` → tokens, device trusted |
 | Phone (`otp/request/` + `otp/verify/`, `channel: PHONE`) | SMS code every time (no password, no device trust) | same |
 
+`GET methods/` (public) tells the login screen what to offer: `{email: true, phone, google}`;
+`phone` is true only when an SMS provider is configured.
+
 - **First password / forgot password** are one flow: `POST password/reset/` `{email}` (same answer
   whether or not the email exists) → code emailed → `POST password/reset/confirm/`
   `{email, code, new_password}` → logged in, device trusted. Invited users have no password until
