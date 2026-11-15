@@ -34,6 +34,7 @@ export function PortalNotesPage() {
           value={search}
           onChange={(v) => void setParams({ search: v || null })}
           placeholder="Search title, subject or chapter"
+          className="w-full"
         />
         {subjects.length > 1 && (
           <FilterSelect
