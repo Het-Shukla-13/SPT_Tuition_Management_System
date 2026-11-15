@@ -29,11 +29,8 @@ export function StructuresTab() {
   const [editing, setEditing] = useState<FeeStructure | null | undefined>(undefined);
 
   const columns: ColumnDef<FeeStructure, unknown>[] = [
-    {
-      id: "year",
-      header: "Year",
-      cell: ({ row }) => `${row.original.board_code} ${row.original.academic_year_name}`,
-    },
+    { id: "board", header: "Board", cell: ({ row }) => row.original.board_code },
+    { id: "year", header: "Year", cell: ({ row }) => row.original.academic_year_name },
     { id: "standard", header: "Standard", cell: ({ row }) => <b>{row.original.standard_name}</b> },
     {
       id: "fee",
