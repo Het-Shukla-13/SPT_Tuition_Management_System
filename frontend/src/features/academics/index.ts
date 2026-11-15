@@ -2,3 +2,4 @@
 export { type ReferenceItem, type ReferenceKey, useReferenceOptions } from "./api";
 export { ReferenceFilter } from "./components/ReferenceFilter";
 export { ReferenceSelect } from "./components/ReferenceSelect";
+export { useYearNames } from "./yearNames";

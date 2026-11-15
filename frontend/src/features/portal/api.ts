@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api/client";
 import { openFile } from "@/lib/api/openFile";
+import { formatDate, formatDateTime } from "@/lib/format";
 import type { PortalFeeAccount, PortalNote, PortalStudent, PortalTest } from "@/lib/api/types";
 
 const PORTAL = ["portal"] as const;
@@ -124,9 +125,16 @@ export const openNote = (studentId: number, id: number) =>
 export const openPortalReceipt = (studentId: number, entryId: number) =>
   openFile(`${base(studentId)}fees/receipts/${entryId}/`);
 
-/** Upcoming until it ends; the answer key and marks only make sense after that. */
-export const isUpcoming = (test: Pick<PortalTest, "test_ends_at">, now = Date.now()) =>
-  new Date(test.test_ends_at).getTime() > now;
+/** Upcoming until the test is over (the server decides, from its date, time and duration). */
+export const isUpcoming = (test: Pick<PortalTest, "is_over">) => !test.is_over;
+
+/** When the test is: "15 Nov 2026, 10:00 am", "15 Nov 2026 (from 8:00 am)", or "Open now". */
+export function whenLabel(test: Pick<PortalTest, "test_starts_at" | "has_start_time">) {
+  if (!test.test_starts_at) return "Open now";
+  return test.has_start_time
+    ? formatDateTime(test.test_starts_at)
+    : `${formatDate(test.test_starts_at)} (from 8:00 am)`;
+}
 
 /** Notes are few per student, so search and the subject filter work on the loaded list, instantly. */
 export function filterNotes(notes: PortalNote[], search: string, subject: string) {

@@ -11,17 +11,19 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
-import { ReferenceSelect } from "@/features/academics";
+import { ReferenceSelect, useYearNames } from "@/features/academics";
 import { ApiError } from "@/lib/api/envelope";
 
 import { type Kind, SEMESTER_OPTIONS, useCreateItem } from "../api";
+import { BoardsPicker } from "../components/BoardsPicker";
 import { ChapterPicker } from "../components/ChapterPicker";
 import { KIND_TEXT } from "../text";
 
 const schema = z.object({
   title: z.string().trim().min(1, "Give it a title."),
   description: z.string(),
-  board: z.string().min(1, "Choose a board."),
+  boards: z.array(z.number()),
+  academic_year_name: z.string(),
   standard: z.string().min(1, "Choose a standard."),
   subject: z.string().min(1, "Choose a subject."),
   chapters: z.array(z.number()),
@@ -46,7 +48,8 @@ export function UploadPage({ kind }: { kind: Kind }) {
     defaultValues: {
       title: "",
       description: "",
-      board: "",
+      boards: [],
+      academic_year_name: "",
       standard: "",
       subject: "",
       chapters: [],
@@ -60,16 +63,19 @@ export function UploadPage({ kind }: { kind: Kind }) {
     },
   });
   const errors = form.formState.errors;
-  const [board, standard, subject] = useWatch({
+  const [boards, standard, subject] = useWatch({
     control: form.control,
-    name: ["board", "standard", "subject"],
+    name: ["boards", "standard", "subject"],
   });
+  const years = useYearNames();
 
   const submit = async (values: Values, confirmDuplicate = false) => {
     const body: Record<string, unknown> = {
       title: values.title.trim(),
       description: values.description.trim(),
-      board: values.board,
+      boards: values.boards,
+      // Empty = the current year (the server's default).
+      academic_year_name: values.academic_year_name || years.current,
       standard: values.standard,
       subject: values.subject,
       chapters: values.chapters,
@@ -188,8 +194,25 @@ export function UploadPage({ kind }: { kind: Kind }) {
             )}
           </FormField>
           <Grid>
-            <FormField label="Board" error={errors.board?.message}>
-              {(p) => <ReferenceSelect {...p} {...form.register("board")} resource="boards" />}
+            <FormField label="Academic year" error={errors.academic_year_name?.message}>
+              {(p) => (
+                <NativeSelect
+                  {...p}
+                  {...form.register("academic_year_name")}
+                  disabled={years.isPending}
+                >
+                  <option value="">
+                    {years.current ? `${years.current} (current)` : "Current year"}
+                  </option>
+                  {years.names
+                    .filter((name) => name !== years.current)
+                    .map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                </NativeSelect>
+              )}
             </FormField>
             <FormField label="Standard" error={errors.standard?.message}>
               {(p) => (
@@ -250,10 +273,21 @@ export function UploadPage({ kind }: { kind: Kind }) {
           </Grid>
           <Controller
             control={form.control}
+            name="boards"
+            render={({ field }) => (
+              <BoardsPicker
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.boards?.message}
+              />
+            )}
+          />
+          <Controller
+            control={form.control}
             name="chapters"
             render={({ field }) => (
               <ChapterPicker
-                board={board}
+                boards={boards}
                 standard={standard}
                 subject={subject}
                 value={field.value}

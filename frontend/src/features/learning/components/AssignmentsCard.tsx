@@ -6,12 +6,13 @@ import { ErrorState } from "@/components/shared/States";
 import { Badge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
+import { Dialog, DialogClose, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { ApiError } from "@/lib/api/envelope";
 import type { NoteAssignment, TestAssignment } from "@/lib/api/types";
-import { formatDateTime, formatMarks } from "@/lib/format";
+import { formatDate, formatDateTime, formatMarks } from "@/lib/format";
 
 import {
   isTest,
@@ -20,10 +21,20 @@ import {
   useAssignments,
   useGrade,
   useRevokeAssignments,
+  useUpdateTestAssignment,
 } from "../api";
+import { type Timing, timingBody, timingFrom } from "../timing";
+import { TestTimingFields } from "./TestTimingFields";
 
 type Row = TestAssignment | NoteAssignment;
 const studentLabel = (r: Row) => `${r.student.first_name} ${r.student.last_name}`;
+
+/** "Open now" · "15 Nov 2026, from 8:00 am" · "15 Nov 2026, 10:00 am · 60 min". */
+function scheduleLabel(r: TestAssignment) {
+  if (!r.test_starts_at) return "Open now";
+  if (!r.has_start_time) return `${formatDate(r.test_starts_at)}, from 8:00 am`;
+  return `${formatDateTime(r.test_starts_at)}${r.duration_minutes ? ` · ${r.duration_minutes} min` : ""}`;
+}
 
 /** Who has this item. For tests: the marks grid (each row saves when you leave it). */
 export function AssignmentsCard({
@@ -39,6 +50,7 @@ export function AssignmentsCard({
   const revoke = useRevokeAssignments(kind);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [confirm, setConfirm] = useState(false);
+  const [editingTime, setEditingTime] = useState(false);
   const rows = assignments.data?.items ?? [];
   const tests = kind === "tests";
   const maxMarks = isTest(item) ? item.max_marks : null;
@@ -93,6 +105,7 @@ export function AssignmentsCard({
                 <Th>Student</Th>
                 {tests ? (
                   <>
+                    <Th>Test time</Th>
                     <Th>Marks / {formatMarks(maxMarks)}</Th>
                     <Th>Remarks</Th>
                     <Th />
@@ -123,7 +136,12 @@ export function AssignmentsCard({
                     </span>
                   </Td>
                   {tests ? (
-                    <MarksCells row={row as TestAssignment} />
+                    <>
+                      <Td className="text-sm whitespace-nowrap text-muted">
+                        {scheduleLabel(row as TestAssignment)}
+                      </Td>
+                      <MarksCells row={row as TestAssignment} />
+                    </>
                   ) : (
                     <Td className="text-muted">{formatDateTime(row.assigned_at)}</Td>
                   )}
@@ -134,21 +152,39 @@ export function AssignmentsCard({
           <div className="flex flex-wrap items-center justify-between gap-3">
             {tests ? (
               <span className="text-[13px] text-muted">
-                Marks save as you leave each box. Clear the box to remove marks.
+                Marks open once a student's test is over, and save as you leave each box.
               </span>
             ) : (
               <span />
             )}
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={selected.size === 0}
-              onClick={() => setConfirm(true)}
-            >
-              Remove {selected.size || ""} selected
-            </Button>
+            <span className="flex gap-2">
+              {tests && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={selected.size === 0}
+                  onClick={() => setEditingTime(true)}
+                >
+                  Edit time{selected.size ? ` (${selected.size})` : ""}
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={selected.size === 0}
+                onClick={() => setConfirm(true)}
+              >
+                Remove {selected.size || ""} selected
+              </Button>
+            </span>
           </div>
         </>
+      )}
+      {editingTime && (
+        <EditTimeDialog
+          rows={(rows as TestAssignment[]).filter((r) => selected.has(r.id))}
+          onClose={() => setEditingTime(false)}
+        />
       )}
       <ConfirmDialog
         open={confirm}
@@ -209,6 +245,9 @@ function MarksCells({ row }: { row: TestAssignment }) {
           aria-invalid={error ? true : undefined}
           className="h-10 w-24 text-right font-bold"
           inputMode="decimal"
+          disabled={!row.is_over && marks === ""}
+          placeholder={row.is_over ? "" : "After test"}
+          title={row.is_over ? undefined : "Marks open once the test is over"}
           value={marks}
           onChange={(e) => {
             setMarks(e.target.value);
@@ -239,5 +278,55 @@ function MarksCells({ row }: { row: TestAssignment }) {
         ) : null}
       </Td>
     </>
+  );
+}
+
+/** Reschedule the selected students' test: one date, optional time and duration for all. */
+function EditTimeDialog({ rows, onClose }: { rows: TestAssignment[]; onClose: () => void }) {
+  const update = useUpdateTestAssignment();
+  const first = rows[0];
+  const [timing, setTiming] = useState<Timing>(() =>
+    timingFrom(
+      first?.test_starts_at,
+      Boolean(first?.has_start_time),
+      String(first?.duration_minutes ?? ""),
+    ),
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    setError(null);
+    try {
+      for (const row of rows) await update.mutateAsync({ id: row.id, body: timingBody(timing) });
+      toast.success(`Updated the time for ${rows.length} student${rows.length === 1 ? "" : "s"}.`);
+      onClose();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't update the time.");
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && !update.isPending && onClose()}>
+      <DialogContent
+        title={`Edit test time (${rows.length} student${rows.length === 1 ? "" : "s"})`}
+      >
+        <TestTimingFields value={timing} onChange={setTiming} />
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2.5">
+          <DialogClose asChild>
+            <Button variant="secondary" disabled={update.isPending}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button onClick={() => void save()} disabled={update.isPending}>
+            {update.isPending ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

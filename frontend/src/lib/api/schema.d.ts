@@ -1809,6 +1809,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/notes/bulk-archive/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive / unarchive several at once */
+        post: operations["staff_notes_bulk_archive_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/students/": {
         parameters: {
             query?: never;
@@ -2033,6 +2050,23 @@ export interface paths {
         get: operations["staff_tests_versions_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/tests/bulk-archive/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive / unarchive several at once */
+        post: operations["staff_tests_bulk_archive_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2284,15 +2318,20 @@ export interface components {
             remarks: string;
         };
         AssignTestRequest: {
+            /**
+             * Format: date
+             * @description The test day. Without a time, the paper opens at 8:00 that day.
+             */
+            test_date?: string | null;
+            /**
+             * Format: time
+             * @description Start time. The answer key opens after start + duration.
+             */
+            test_time?: string | null;
+            duration_minutes?: number | null;
             student_ids: number[];
             /** @default  */
             remarks: string;
-            /**
-             * Format: date-time
-             * @description When the test starts. The answer key unlocks for students after start + duration.
-             */
-            test_starts_at?: string | null;
-            duration_minutes?: number | null;
         };
         /** @description Response shape of a successful OTP verification (documentation only). */
         AuthTokens: {
@@ -2335,6 +2374,10 @@ export interface components {
             /** @description Short name, e.g. CBSE */
             code: string;
             is_active?: boolean;
+        };
+        BulkArchiveRequest: {
+            ids: number[];
+            archived: boolean;
         };
         /**
          * @description * `EMAIL` - Email
@@ -2704,17 +2747,17 @@ export interface components {
             readonly id: number;
             readonly title: string;
             readonly description: string;
-            readonly board: number;
+            readonly boards: number[];
             readonly standard: number;
             readonly subject: number;
             readonly chapters: number[];
             readonly semester: (components["schemas"]["SemesterEnum"] | components["schemas"]["NullEnum"]) | null;
-            readonly academic_year: number;
+            readonly academic_year_name: string;
             readonly remarks: string;
-            readonly board_code: string;
+            /** @description Boards it suits; empty = every board. */
+            readonly board_codes: string[];
             readonly standard_name: string;
             readonly subject_name: string;
-            readonly academic_year_name: string;
             readonly chapter_names: string[];
             readonly is_archived: boolean;
             /** @description Current PDF(s). */
@@ -2743,13 +2786,14 @@ export interface components {
         NoteCreateRequest: {
             title: string;
             description?: string;
-            board: number;
+            /** @description Boards it suits. Leave empty for every board. */
+            boards?: number[];
             standard: number;
             subject: number;
             chapters?: number[];
             semester?: (components["schemas"]["SemesterEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** @description Defaults to the board's current academic year. */
-            academic_year?: number;
+            /** @description The year by name, e.g. "2026-27". Defaults to the current year. */
+            academic_year_name?: string;
             remarks?: string;
             /**
              * Format: binary
@@ -3296,13 +3340,14 @@ export interface components {
         PatchedNoteWriteRequest: {
             title?: string;
             description?: string;
-            board?: number;
+            /** @description Boards it suits. Leave empty for every board. */
+            boards?: number[];
             standard?: number;
             subject?: number;
             chapters?: number[];
             semester?: (components["schemas"]["SemesterEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** @description Defaults to the board's current academic year. */
-            academic_year?: number;
+            /** @description The year by name, e.g. "2026-27". Defaults to the current year. */
+            academic_year_name?: string;
             remarks?: string;
         };
         /**
@@ -3359,22 +3404,32 @@ export interface components {
             code?: string;
             is_active?: boolean;
         };
+        /** @description Reschedule one student's test: date, optional time, duration, remarks. */
         PatchedTestAssignmentUpdateRequest: {
-            /** Format: date-time */
-            test_starts_at?: string | null;
+            /**
+             * Format: date
+             * @description The test day. Without a time, the paper opens at 8:00 that day.
+             */
+            test_date?: string | null;
+            /**
+             * Format: time
+             * @description Start time. The answer key opens after start + duration.
+             */
+            test_time?: string | null;
             duration_minutes?: number | null;
             remarks?: string;
         };
         PatchedTestPaperWriteRequest: {
             title?: string;
             description?: string;
-            board?: number;
+            /** @description Boards it suits. Leave empty for every board. */
+            boards?: number[];
             standard?: number;
             subject?: number;
             chapters?: number[];
             semester?: (components["schemas"]["SemesterEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** @description Defaults to the board's current academic year. */
-            academic_year?: number;
+            /** @description The year by name, e.g. "2026-27". Defaults to the current year. */
+            academic_year_name?: string;
             remarks?: string;
             /** @description If the paper is specific to one school. */
             school?: number | null;
@@ -3522,8 +3577,16 @@ export interface components {
             assigned_at?: string;
             /** Format: date-time */
             test_starts_at?: string | null;
+            has_start_time?: boolean;
+            /**
+             * Format: date-time
+             * @description When the question paper opens (start time, or 8:00 on the date).
+             */
+            visible_from: string;
             /** Format: date-time */
-            test_ends_at: string;
+            test_ends_at: string | null;
+            paper_available: boolean;
+            is_over: boolean;
             remarks?: string;
             /** Format: decimal */
             max_marks: string;
@@ -3869,9 +3932,14 @@ export interface components {
             assigned_by?: number | null;
             /** Format: date-time */
             test_starts_at?: string | null;
+            has_start_time?: boolean;
             duration_minutes?: number | null;
             /** Format: date-time */
-            test_ends_at: string;
+            visible_from: string;
+            /** Format: date-time */
+            test_ends_at: string | null;
+            /** @description Marks can be entered. */
+            is_over: boolean;
             answer_key_unlocked: boolean;
             remarks?: string;
             /** Format: decimal */
@@ -3888,17 +3956,17 @@ export interface components {
             readonly id: number;
             readonly title: string;
             readonly description: string;
-            readonly board: number;
+            readonly boards: number[];
             readonly standard: number;
             readonly subject: number;
             readonly chapters: number[];
             readonly semester: (components["schemas"]["SemesterEnum"] | components["schemas"]["NullEnum"]) | null;
-            readonly academic_year: number;
+            readonly academic_year_name: string;
             readonly remarks: string;
-            readonly board_code: string;
+            /** @description Boards it suits; empty = every board. */
+            readonly board_codes: string[];
             readonly standard_name: string;
             readonly subject_name: string;
-            readonly academic_year_name: string;
             readonly chapter_names: string[];
             /** @description If the paper is specific to one school. */
             readonly school: number | null;
@@ -3926,13 +3994,14 @@ export interface components {
         TestPaperCreateRequest: {
             title: string;
             description?: string;
-            board: number;
+            /** @description Boards it suits. Leave empty for every board. */
+            boards?: number[];
             standard: number;
             subject: number;
             chapters?: number[];
             semester?: (components["schemas"]["SemesterEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** @description Defaults to the board's current academic year. */
-            academic_year?: number;
+            /** @description The year by name, e.g. "2026-27". Defaults to the current year. */
+            academic_year_name?: string;
             remarks?: string;
             /** @description If the paper is specific to one school. */
             school?: number | null;
@@ -4825,6 +4894,7 @@ export interface operations {
                 academic_year?: number;
                 academic_year__board?: number;
                 academic_year__is_current?: boolean;
+                academic_year__name?: string;
                 is_active?: boolean;
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
@@ -4932,6 +5002,7 @@ export interface operations {
             query?: {
                 academic_year?: number;
                 academic_year__board?: number;
+                academic_year__name?: string;
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 /** @description A page number within the paginated result set. */
@@ -7414,8 +7485,7 @@ export interface operations {
     staff_notes_list: {
         parameters: {
             query?: {
-                academic_year?: number;
-                board?: number;
+                academic_year_name?: string;
                 chapters?: number[];
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
@@ -7636,8 +7706,7 @@ export interface operations {
     staff_notes_versions_list: {
         parameters: {
             query?: {
-                academic_year?: number;
-                board?: number;
+                academic_year_name?: string;
                 chapters?: number[];
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
@@ -7671,6 +7740,30 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PaginatedDocumentFileList"];
                 };
+            };
+        };
+    };
+    staff_notes_bulk_archive_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["BulkArchiveRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["BulkArchiveRequest"];
+                "application/json": components["schemas"]["BulkArchiveRequest"];
+            };
+        };
+        responses: {
+            /** @description {"done": [ids], "failed": [ids]} */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -7812,8 +7905,7 @@ export interface operations {
     staff_tests_list: {
         parameters: {
             query?: {
-                academic_year?: number;
-                board?: number;
+                academic_year_name?: string;
                 chapters?: number[];
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
@@ -8086,8 +8178,7 @@ export interface operations {
     staff_tests_versions_list: {
         parameters: {
             query?: {
-                academic_year?: number;
-                board?: number;
+                academic_year_name?: string;
                 chapters?: number[];
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
@@ -8122,6 +8213,30 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PaginatedDocumentFileList"];
                 };
+            };
+        };
+    };
+    staff_tests_bulk_archive_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["BulkArchiveRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["BulkArchiveRequest"];
+                "application/json": components["schemas"]["BulkArchiveRequest"];
+            };
+        };
+        responses: {
+            /** @description {"done": [ids], "failed": [ids]} */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
