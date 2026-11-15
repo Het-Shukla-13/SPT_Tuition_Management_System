@@ -25,7 +25,16 @@ import type { Enquiry } from "@/lib/api/types";
 
 import { type AdmissionBody, GENDER_OPTIONS, useAdmitStudent } from "../api";
 import { ExistingLoginPicker } from "../components/ExistingLoginPicker";
+import { GuardiansEditor } from "../components/GuardiansEditor";
 import { OptionalSubjectFees } from "../components/OptionalSubjectFees";
+import {
+  cleanGuardians,
+  emptyGuardian,
+  type GuardianRow,
+  guardianServerErrors,
+  keptIndexes,
+  validateGuardians,
+} from "../guardians";
 import { type ExtraChoice, optionalSubjectRows } from "../optionalSubjects";
 
 const requiredId = (what: string) => z.string().min(1, `Choose a ${what}.`);
@@ -47,10 +56,6 @@ const schema = z
     school: requiredId("school"),
     admission_date: z.string(),
     subjects: z.array(z.number()).min(1, "Choose at least one subject."),
-    guardian_name: z.string(),
-    guardian_relation: z.string(),
-    guardian_phone: z.string(),
-    guardian_email: z.union([z.literal(""), z.email("Enter a valid email address.")]),
     agreed_fee: money,
     opening_balance: z
       .string()
@@ -97,10 +102,6 @@ const EMPTY: Values = {
   school: "",
   admission_date: "",
   subjects: [],
-  guardian_name: "",
-  guardian_relation: "",
-  guardian_phone: "",
-  guardian_email: "",
   agreed_fee: "",
   opening_balance: "",
   opening_balance_reason: "",
@@ -118,9 +119,6 @@ function fromEnquiry(e: Enquiry): Values {
     board: e.board ? String(e.board) : "",
     standard: e.standard ? String(e.standard) : "",
     medium: e.medium ?? "",
-    guardian_name: e.parent_name,
-    guardian_phone: e.phone,
-    guardian_email: e.email ?? "",
     remarks: e.message ? `From the enquiry: ${e.message}` : "",
   };
 }
@@ -138,14 +136,37 @@ export function AdmissionPage() {
   }
   // If the enquiry can't be loaded, still allow a normal admission.
   return enquiryId !== null && enquiry.data ? (
-    <AdmissionForm initial={fromEnquiry(enquiry.data)} enquiry={enquiry.data} />
+    <AdmissionForm
+      initial={fromEnquiry(enquiry.data)}
+      initialGuardians={[
+        {
+          name: enquiry.data.parent_name,
+          relation: "",
+          phone: enquiry.data.phone,
+          email: enquiry.data.email ?? "",
+        },
+      ]}
+      enquiry={enquiry.data}
+    />
   ) : (
     <AdmissionForm initial={EMPTY} />
   );
 }
 
 /** The student, their class & subjects, the fee, and who can log in to see them. */
-function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquiry }) {
+function AdmissionForm({
+  initial,
+  initialGuardians,
+  enquiry,
+}: {
+  initial: Values;
+  initialGuardians?: GuardianRow[];
+  enquiry?: Enquiry;
+}) {
+  const [guardians, setGuardians] = useState<GuardianRow[]>(
+    () => initialGuardians ?? [emptyGuardian()],
+  );
+  const [guardianErrors, setGuardianErrors] = useState<Record<string, string>>({});
   const navigate = useNavigate();
   const linkEnquiry = useUpdateEnquiry(enquiry?.id ?? 0);
   const admit = useAdmitStudent();
@@ -167,6 +188,9 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
 
   const submit = async (values: Values, confirmDuplicate = false) => {
     const opt = (v: string) => v.trim() || undefined;
+    const guardianProblems = validateGuardians(guardians);
+    setGuardianErrors(guardianProblems);
+    if (Object.keys(guardianProblems).length) return;
     const included = extraRows.filter((r) => r.choice.on);
     if (included.some((r) => !/^\d+(\.\d{1,2})?$/.test(r.choice.amount))) {
       setExtrasError("Enter amounts like 2000, or untick the subject.");
@@ -180,10 +204,7 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
       gender: values.gender || undefined,
       medium: values.medium || undefined,
       address: opt(values.address),
-      guardian_name: opt(values.guardian_name),
-      guardian_relation: opt(values.guardian_relation),
-      guardian_phone: opt(values.guardian_phone),
-      guardian_email: opt(values.guardian_email),
+      guardians: cleanGuardians(guardians),
       remarks: opt(values.remarks),
       board: Number(values.board),
       standard: Number(values.standard),
@@ -249,6 +270,9 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
             shown = true;
           }
         });
+      } else if (field === "guardians") {
+        setGuardianErrors(guardianServerErrors(fields, keptIndexes(guardians)));
+        shown = true;
       } else if (field in EMPTY) {
         form.setError(field as keyof Values, { message: [value].flat().map(String).join(" ") });
         shown = true;
@@ -405,37 +429,12 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
           />
         </Section>
 
-        <Section n={3} title="Guardian">
-          <Grid>
-            <FormField label="Guardian name">
-              {(p) => <Input {...p} {...form.register("guardian_name")} autoComplete="off" />}
-            </FormField>
-            <FormField label="Relation" hint="e.g. Mother">
-              {(p) => <Input {...p} {...form.register("guardian_relation")} autoComplete="off" />}
-            </FormField>
-            <FormField label="Phone" error={errors.guardian_phone?.message}>
-              {(p) => (
-                <Input
-                  {...p}
-                  {...form.register("guardian_phone")}
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="off"
-                />
-              )}
-            </FormField>
-            <FormField label="Email (optional)" error={errors.guardian_email?.message}>
-              {(p) => (
-                <Input
-                  {...p}
-                  {...form.register("guardian_email")}
-                  type="email"
-                  inputMode="email"
-                  autoComplete="off"
-                />
-              )}
-            </FormField>
-          </Grid>
+        <Section n={3} title="Guardians">
+          <p className="-mt-2 text-sm text-muted">
+            Contacts the office can call, e.g. mother and father. They don't log in from here: add
+            logins in step 5.
+          </p>
+          <GuardiansEditor value={guardians} onChange={setGuardians} errors={guardianErrors} />
         </Section>
 
         <Section n={4} title="Fee for this academic year">
@@ -580,12 +579,14 @@ function AdmissionForm({ initial, enquiry }: { initial: Values; enquiry?: Enquir
             <Button
               variant="secondary"
               onClick={() => {
-                const [first, ...rest] = form.getValues("guardian_name").trim().split(/\s+/);
+                // Pre-fill each new login from the next guardian who has none yet.
+                const g = guardians[logins.fields.length];
+                const [first, ...rest] = (g?.name ?? "").trim().split(/\s+/);
                 logins.append({
-                  first_name: logins.fields.length ? "" : (first ?? ""),
-                  last_name: logins.fields.length ? "" : rest.join(" "),
-                  email: logins.fields.length ? "" : form.getValues("guardian_email"),
-                  phone: logins.fields.length ? "" : form.getValues("guardian_phone"),
+                  first_name: first ?? "",
+                  last_name: rest.join(" "),
+                  email: g?.email.trim() ?? "",
+                  phone: g?.phone.trim() ?? "",
                 });
               }}
             >

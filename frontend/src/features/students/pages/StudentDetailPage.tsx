@@ -115,12 +115,6 @@ function Rows({ rows }: { rows: [string, ReactNode][] }) {
 
 function DetailsCard({ student: s }: { student: StudentDetail }) {
   const gender = GENDER_OPTIONS.find((g) => g.value === s.gender)?.label;
-  const guardian = [
-    s.guardian_name,
-    s.guardian_relation && `(${s.guardian_relation.toLowerCase()})`,
-  ]
-    .filter(Boolean)
-    .join(" ");
   return (
     <Card>
       <CardHeader title="Details" />
@@ -131,9 +125,27 @@ function DetailsCard({ student: s }: { student: StudentDetail }) {
           ["Medium", mediumLabel(s.medium)],
           ["Admitted", formatDate(s.admission_date)],
           ...(s.left_on ? ([["Left on", formatDate(s.left_on)]] as [string, ReactNode][]) : []),
-          ["Guardian", guardian],
-          ["Guardian phone", s.guardian_phone ? formatPhone(s.guardian_phone) : ""],
-          ["Guardian email", s.guardian_email ?? ""],
+          ...s.guardians.map(
+            (g, i) =>
+              [
+                i === 0 ? "Main guardian" : `Guardian ${i + 1}`,
+                <span key={g.id} className="flex flex-col">
+                  <span>
+                    {g.name}
+                    {g.relation && (
+                      <span className="text-muted"> ({g.relation.toLowerCase()})</span>
+                    )}
+                  </span>
+                  {g.phone && (
+                    <a href={`tel:${g.phone}`} className="text-primary hover:underline">
+                      {formatPhone(g.phone)}
+                    </a>
+                  )}
+                  {g.email && <span className="break-all text-muted">{g.email}</span>}
+                </span>,
+              ] as [string, ReactNode],
+          ),
+          ...(s.guardians.length === 0 ? ([["Guardian", ""]] as [string, ReactNode][]) : []),
           ["Address", s.address ?? ""],
           ["Remarks", s.remarks ?? ""],
         ]}

@@ -22,6 +22,15 @@ import {
   useSetStudentStatus,
   useUpdateStudent,
 } from "../api";
+import {
+  cleanGuardians,
+  emptyGuardian,
+  type GuardianRow,
+  guardianServerErrors,
+  keptIndexes,
+  validateGuardians,
+} from "../guardians";
+import { GuardiansEditor } from "./GuardiansEditor";
 
 type DialogProps = { student: StudentDetail; open: boolean; onOpenChange: (open: boolean) => void };
 
@@ -52,10 +61,6 @@ const PERSONAL = [
   "gender",
   "medium",
   "address",
-  "guardian_name",
-  "guardian_relation",
-  "guardian_phone",
-  "guardian_email",
   "remarks",
 ] as const;
 type Personal = Record<(typeof PERSONAL)[number], string>;
@@ -66,6 +71,17 @@ export function EditDetailsDialog({ student, open, onOpenChange }: DialogProps) 
     () =>
       Object.fromEntries(PERSONAL.map((k) => [k, (student[k] as string | null) ?? ""])) as Personal,
   );
+  const [guardians, setGuardians] = useState<GuardianRow[]>(() =>
+    student.guardians.length
+      ? student.guardians.map((g) => ({
+          name: g.name,
+          relation: g.relation ?? "",
+          phone: g.phone ?? "",
+          email: g.email ?? "",
+        }))
+      : [emptyGuardian()],
+  );
+  const [guardianErrors, setGuardianErrors] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const bind = (key: keyof Personal) => ({
     value: values[key],
@@ -75,9 +91,15 @@ export function EditDetailsDialog({ student, open, onOpenChange }: DialogProps) 
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    const body = Object.fromEntries(
-      PERSONAL.map((k) => [k, k === "date_of_birth" ? values[k] || null : values[k].trim()]),
-    );
+    const problems = validateGuardians(guardians);
+    setGuardianErrors(problems);
+    if (Object.keys(problems).length) return;
+    const body = {
+      ...Object.fromEntries(
+        PERSONAL.map((k) => [k, k === "date_of_birth" ? values[k] || null : values[k].trim()]),
+      ),
+      guardians: cleanGuardians(guardians),
+    };
     update.mutate(body, {
       onSuccess: () => {
         toast.success("Details saved.");
@@ -86,6 +108,9 @@ export function EditDetailsDialog({ student, open, onOpenChange }: DialogProps) 
       onError: (err) => {
         const errs = fieldErrors(err);
         setErrors(errs);
+        if (err instanceof ApiError) {
+          setGuardianErrors(guardianServerErrors(err.errors, keptIndexes(guardians)));
+        }
         if (!Object.keys(errs).length) toast.error(err.message);
       },
     });
@@ -128,18 +153,10 @@ export function EditDetailsDialog({ student, open, onOpenChange }: DialogProps) 
               </NativeSelect>
             )}
           </FormField>
-          <FormField label="Guardian name" error={errors.guardian_name}>
-            {(p) => <Input {...p} {...bind("guardian_name")} />}
-          </FormField>
-          <FormField label="Relation">
-            {(p) => <Input {...p} {...bind("guardian_relation")} />}
-          </FormField>
-          <FormField label="Guardian phone" error={errors.guardian_phone}>
-            {(p) => <Input {...p} type="tel" {...bind("guardian_phone")} />}
-          </FormField>
-          <FormField label="Guardian email" error={errors.guardian_email}>
-            {(p) => <Input {...p} type="email" {...bind("guardian_email")} />}
-          </FormField>
+          <div className="flex flex-col gap-2 sm:col-span-2">
+            <h3 className="text-sm font-bold">Guardians</h3>
+            <GuardiansEditor value={guardians} onChange={setGuardians} errors={guardianErrors} />
+          </div>
           <div className="sm:col-span-2">
             <FormField label="Address">
               {(p) => <Textarea {...p} rows={2} {...bind("address")} />}

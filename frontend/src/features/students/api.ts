@@ -95,10 +95,7 @@ export type AdmissionBody = {
   gender?: string;
   medium?: string;
   address?: string;
-  guardian_name?: string;
-  guardian_relation?: string;
-  guardian_phone?: string;
-  guardian_email?: string;
+  guardians?: { name: string; relation: string; phone: string; email: string }[];
   remarks?: string;
   board: number;
   standard: number;

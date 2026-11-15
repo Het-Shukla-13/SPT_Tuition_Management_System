@@ -29,10 +29,9 @@ const STUDENT = {
   school: { id: 3, name: "DPS", city: "Ahmedabad" },
   status: "ACTIVE",
   admission_date: "2026-06-01",
-  guardian_name: "Kavita Shah",
-  guardian_phone: "+919876543210",
-  guardian_relation: "Mother",
-  guardian_email: "",
+  guardians: [
+    { id: 1, name: "Kavita Shah", relation: "Mother", phone: "+919876543210", email: "" },
+  ],
   date_of_birth: "2011-05-10",
   gender: "MALE",
   address: "",
@@ -92,7 +91,7 @@ async function fillAdmission(user: ReturnType<typeof renderScreen>["user"]) {
   await user.selectOptions(screen.getByLabelText("Standard"), "10");
   await user.selectOptions(screen.getByLabelText("School"), "3");
   await user.click(await screen.findByLabelText("Mathematics"));
-  await user.type(screen.getByLabelText("Guardian name"), "Kavita Shah");
+  await user.type(screen.getByLabelText("Name"), "Kavita Shah");
   await user.type(screen.getByLabelText("Phone"), "9876543210");
 }
 
@@ -138,7 +137,7 @@ describe("AdmissionPage from an enquiry", () => {
 
     expect(await screen.findByLabelText("First name")).toHaveValue("Riya");
     expect(screen.getByLabelText("Last name")).toHaveValue("Kumari Shah");
-    expect(screen.getByLabelText("Guardian name")).toHaveValue("Kavita Shah");
+    expect(screen.getByLabelText("Name")).toHaveValue("Kavita Shah");
     expect(screen.getByText(/Started from Kavita Shah's enquiry/)).toBeInTheDocument();
     expect(screen.getByLabelText("Medium (optional)")).toHaveValue("GUJARATI");
     expect(screen.getByText("The enquiry says:", { exact: false })).toHaveTextContent(
@@ -193,7 +192,7 @@ describe("AdmissionPage", () => {
       standard: 10,
       school: 3,
       subjects: [21],
-      guardian_phone: "9876543210",
+      guardians: [{ name: "Kavita Shah", relation: "", phone: "9876543210", email: "" }],
       new_logins: [
         {
           first_name: "Kavita",

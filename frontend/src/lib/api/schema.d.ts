@@ -2228,10 +2228,8 @@ export interface components {
             gender?: components["schemas"]["GenderEnum"] | components["schemas"]["BlankEnum"];
             medium?: components["schemas"]["MediumEnum"] | components["schemas"]["BlankEnum"];
             address?: string;
-            guardian_name?: string;
-            guardian_relation?: string;
-            guardian_phone?: string;
-            guardian_email?: string;
+            /** @description Contacts on file, main contact first. Sending the list replaces it. */
+            guardians?: components["schemas"]["GuardianRequest"][];
             remarks?: string;
             board: number;
             standard: number;
@@ -2569,6 +2567,13 @@ export interface components {
             marks_obtained: string | null;
             /** @default  */
             grade_remarks: string;
+        };
+        /** @description A contact on file (mother, father, ...). Not a login. */
+        GuardianRequest: {
+            name: string;
+            relation?: string;
+            phone?: string;
+            email?: string;
         };
         InviteAcceptRequest: {
             token: string;
@@ -3337,10 +3342,8 @@ export interface components {
             gender?: components["schemas"]["GenderEnum"] | components["schemas"]["BlankEnum"];
             medium?: components["schemas"]["MediumEnum"] | components["schemas"]["BlankEnum"];
             address?: string;
-            guardian_name?: string;
-            guardian_relation?: string;
-            guardian_phone?: string;
-            guardian_email?: string;
+            /** @description Contacts on file, main contact first. Sending the list replaces it. */
+            guardians?: components["schemas"]["GuardianRequest"][];
             remarks?: string;
         };
         /**
@@ -3753,16 +3756,13 @@ export interface components {
             medium?: components["schemas"]["MediumEnum"] | components["schemas"]["BlankEnum"];
             /** Format: date */
             admission_date?: string;
-            guardian_name?: string;
-            guardian_phone?: string;
+            readonly guardians: components["schemas"]["_GuardianRead"][];
             /** Format: date-time */
             readonly created_at: string;
             /** Format: date */
             date_of_birth?: string | null;
             gender?: components["schemas"]["GenderEnum"] | components["schemas"]["BlankEnum"];
             address?: string;
-            guardian_relation?: string;
-            guardian_email?: string;
             /** Format: date */
             left_on?: string | null;
             /** @description Admin-only notes. */
@@ -3796,8 +3796,7 @@ export interface components {
             medium?: components["schemas"]["MediumEnum"] | components["schemas"]["BlankEnum"];
             /** Format: date */
             admission_date?: string;
-            guardian_name?: string;
-            guardian_phone?: string;
+            readonly guardians: components["schemas"]["_GuardianRead"][];
             /** Format: date-time */
             readonly created_at: string;
         };
@@ -4026,6 +4025,13 @@ export interface components {
             code: string;
             /** @description e.g. Central Board of Secondary Education */
             name: string;
+        };
+        _GuardianRead: {
+            readonly id: number;
+            name: string;
+            relation?: string;
+            phone?: string;
+            email?: string;
         };
         _SchoolRef: {
             readonly id: number;

@@ -4964,21 +4964,12 @@ components:
           - $ref: '#/components/schemas/BlankEnum'
         address:
           type: string
-        guardian_name:
-          type: string
-          maxLength: 150
-        guardian_relation:
-          type: string
-          maxLength: 50
-        guardian_phone:
-          type: string
-          maxLength: 32
-        guardian_email:
-          oneOf:
-          - type: string
-            format: email
-          - type: string
-            maxLength: 0
+        guardians:
+          type: array
+          items:
+            $ref: '#/components/schemas/GuardianRequest'
+          description: Contacts on file, main contact first. Sending the list replaces
+            it.
         remarks:
           type: string
         board:
@@ -5729,6 +5720,29 @@ components:
           default: ''
       required:
       - marks_obtained
+    GuardianRequest:
+      type: object
+      description: A contact on file (mother, father, ...). Not a login.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        relation:
+          type: string
+          maxLength: 50
+        phone:
+          type: string
+          maxLength: 32
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+      required:
+      - name
     InviteAcceptRequest:
       type: object
       properties:
@@ -7307,21 +7321,12 @@ components:
           - $ref: '#/components/schemas/BlankEnum'
         address:
           type: string
-        guardian_name:
-          type: string
-          maxLength: 150
-        guardian_relation:
-          type: string
-          maxLength: 50
-        guardian_phone:
-          type: string
-          maxLength: 32
-        guardian_email:
-          oneOf:
-          - type: string
-            format: email
-          - type: string
-            maxLength: 0
+        guardians:
+          type: array
+          items:
+            $ref: '#/components/schemas/GuardianRequest'
+          description: Contacts on file, main contact first. Sending the list replaces
+            it.
         remarks:
           type: string
     PatchedSubjectRequest:
@@ -8244,12 +8249,11 @@ components:
         admission_date:
           type: string
           format: date
-        guardian_name:
-          type: string
-          maxLength: 150
-        guardian_phone:
-          type: string
-          maxLength: 16
+        guardians:
+          type: array
+          items:
+            $ref: '#/components/schemas/_GuardianRead'
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -8264,16 +8268,6 @@ components:
           - $ref: '#/components/schemas/BlankEnum'
         address:
           type: string
-        guardian_relation:
-          type: string
-          maxLength: 50
-        guardian_email:
-          oneOf:
-          - type: string
-            format: email
-            maxLength: 254
-          - type: string
-            maxLength: 0
         left_on:
           type: string
           format: date
@@ -8305,6 +8299,7 @@ components:
       - board
       - created_at
       - first_name
+      - guardians
       - has_photo
       - id
       - last_name
@@ -8349,12 +8344,11 @@ components:
         admission_date:
           type: string
           format: date
-        guardian_name:
-          type: string
-          maxLength: 150
-        guardian_phone:
-          type: string
-          maxLength: 16
+        guardians:
+          type: array
+          items:
+            $ref: '#/components/schemas/_GuardianRead'
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -8364,6 +8358,7 @@ components:
       - board
       - created_at
       - first_name
+      - guardians
       - id
       - last_name
       - school
@@ -8899,6 +8894,31 @@ components:
           maxLength: 150
       required:
       - code
+      - id
+      - name
+    _GuardianRead:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        relation:
+          type: string
+          maxLength: 50
+        phone:
+          type: string
+          maxLength: 16
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+      required:
       - id
       - name
     _SchoolRef:
