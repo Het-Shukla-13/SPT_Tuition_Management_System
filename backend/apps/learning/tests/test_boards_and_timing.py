@@ -49,26 +49,18 @@ class TestBoardsAndYearName:
             admin,
             ref,
             boards=[ref["cbse"].pk, gseb().pk],
-            chapters=[ref["ch1"].pk, ref["other_ch"].pk],
+            chapters=[ref["ch1"].pk],
         )
         data = client_for(admin).get(f"{TESTS}{paper.pk}/").json()["data"]
         assert sorted(data["board_codes"]) == ["CBSE", "GSEB"]
-        # With several boards, chapters say which board they're from.
-        assert sorted(data["chapter_names"]) == [
-            "CBSE · 1. Real Numbers",
-            "GSEB · 1. X",
-        ]
+        assert data["chapter_names"] == ["Real Numbers"]
         icse = Board.objects.get(code="ICSE")
         assert client_for(admin).get(TESTS, {"board": icse.pk}).json()["data"] == []
 
-    def test_chapter_must_belong_to_a_chosen_board(self, admin, ref):
-        response = client_for(admin).post(
-            TESTS,
-            paper_form(ref, boards=[ref["cbse"].pk], chapters=[ref["other_ch"].pk]),
-            format="multipart",
-        )
-        assert response.status_code == 400
-        assert "chapters" in response.json()["errors"]
+    def test_chapters_work_for_any_board(self, admin, ref):
+        # Topics aren't tied to a board: a GSEB paper can use them too.
+        paper = create_paper(admin, ref, boards=[gseb().pk], chapters=[ref["ch1"].pk])
+        assert list(paper.chapters.values_list("name", flat=True)) == ["Real Numbers"]
 
     def test_year_name_defaults_and_is_checked(self, admin, ref):
         paper = create_paper(admin, ref)

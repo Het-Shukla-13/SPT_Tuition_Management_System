@@ -123,42 +123,37 @@ class TestAdminWrites:
         )
         assert other_city.status_code == 201
 
-    def test_chapter_number_unique_per_syllabus(self, admin):
-        cbse, gseb = Board.objects.get(code="CBSE"), Board.objects.get(code="GSEB")
+    def test_chapter_name_unique_per_standard_and_subject(self, admin):
         tenth, maths = Standard.objects.get(level=10), Subject.objects.get(code="MATH")
-        body = {
-            "board": cbse.pk,
-            "standard": tenth.pk,
-            "subject": maths.pk,
-            "number": 1,
-            "name": "Real Numbers",
-        }
+        sci = Subject.objects.get(code="SCI")
+        body = {"standard": tenth.pk, "subject": maths.pk, "name": "Real Numbers"}
         client = client_for(admin)
         assert client.post(f"{BASE}chapters/", body, format="json").status_code == 201
-        assert client.post(f"{BASE}chapters/", body, format="json").status_code == 400
+        # Same topic again, even in other capitals: refused.
+        again = client.post(
+            f"{BASE}chapters/", {**body, "name": "real numbers"}, format="json"
+        )
+        assert again.status_code == 400
+        # The same name in another subject is a different topic.
         assert (
             client.post(
-                f"{BASE}chapters/", {**body, "board": gseb.pk}, format="json"
+                f"{BASE}chapters/", {**body, "subject": sci.pk}, format="json"
             ).status_code
             == 201
         )
 
     def test_chapter_filters(self, admin):
-        cbse, tenth = Board.objects.get(code="CBSE"), Standard.objects.get(level=10)
+        tenth = Standard.objects.get(level=10)
         maths, sci = Subject.objects.get(code="MATH"), Subject.objects.get(code="SCI")
-        Chapter.objects.create(
-            board=cbse, standard=tenth, subject=maths, number=1, name="A"
-        )
-        Chapter.objects.create(
-            board=cbse, standard=tenth, subject=sci, number=1, name="B"
-        )
+        Chapter.objects.create(standard=tenth, subject=maths, name="A")
+        Chapter.objects.create(standard=tenth, subject=sci, name="B")
         data = (
             client_for(admin)
             .get(f"{BASE}chapters/", {"subject": maths.pk})
             .json()["data"]
         )
         assert [c["name"] for c in data] == ["A"]
-        assert data[0]["board_code"] == "CBSE"
+        assert data[0]["subject_name"] == "Mathematics"
 
 
 @pytest.mark.django_db

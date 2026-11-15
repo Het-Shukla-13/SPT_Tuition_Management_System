@@ -351,9 +351,9 @@ owner may edit another admin (`OWNER_REQUIRED`). Audited with `by_admin: true`.
 - **Write:** admins only (`POST`, `PATCH`). **No DELETE (405):** deactivate with `PATCH {"is_active": false}`.
   Rows referenced by other records are protected from deletion at the database level too.
 - **Uniqueness (ignoring case):** board `code`; subject `name` and `code`; school `name` + `city`;
-  standard `level`; chapter `number` per board + standard + subject.
-- **Chapters** belong to a board + standard + subject (CBSE 10th Maths ch. 1 ≠ GSEB 10th Maths ch. 1).
-  Filter: `?board=&standard=&subject=`.
+  standard `level`; chapter `name` per standard + subject.
+- **Chapters** are topics of a standard + subject (e.g. "Light", 10th Science), used to tag and
+  filter tests and notes. No board and no chapter number. Filter: `?standard=&subject=`.
 - **Academic year:** exactly one can be current. Creating/updating one with `is_current: true`
   switches the previous one off in the same transaction. `end_date` must be after `start_date`.
 
@@ -462,7 +462,7 @@ download → `403 PAPER_LOCKED`) so families can prepare.
 | Endpoint | Notes |
 |---|---|
 | `GET/POST /staff/tests/` | Archive list (search title/subject/chapter; filter `board` (that board's items **plus every-board items**)/standard/subject/semester/`academic_year_name`/chapters/school; sort; archived hidden unless `?is_archived=true`). POST = multipart upload: details + `file` (+ optional `answer_key`) |
-| `GET/PATCH /staff/tests/{id}/` | Details. `boards` = list (empty = every board); `academic_year_name` = YYYY-YY (defaults to the current year). Chapters must match standard + subject and one of the boards |
+| `GET/PATCH /staff/tests/{id}/` | Details. `boards` = list (empty = every board); `academic_year_name` = YYYY-YY (defaults to the current year). Chapters must belong to the same standard + subject (any board) |
 | `POST /staff/tests/{id}/paper/` · `POST/DELETE .../answer-key/` | Replace PDF → **new version, old kept**; students always get the latest |
 | `GET .../versions/` · `GET .../download/?kind=PAPER\|ANSWER_KEY&version=&inline=` | |
 | `POST .../archive/` `{archived}` · `POST /staff/tests/bulk-archive/` `{ids, archived}` | Archived = hidden + can't be newly assigned; existing assignments stay. Bulk returns `done` + `failed` |

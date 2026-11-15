@@ -34,7 +34,11 @@ class _ReferenceSerializer(serializers.ModelSerializer):
             values = {f: attrs.get(f, getattr(self.instance, f, None)) for f in fields}
             if any(v is None for v in values.values()):
                 continue
-            lookup = {f"{f}__iexact": v for f, v in values.items()}
+            # Text ignores case; anything else (e.g. a standard) must match exactly.
+            lookup = {
+                (f"{f}__iexact" if isinstance(v, str) else f): v
+                for f, v in values.items()
+            }
             clash = model.objects.filter(**lookup)
             if self.instance is not None:
                 clash = clash.exclude(pk=self.instance.pk)
@@ -76,7 +80,7 @@ class SubjectSerializer(_ReferenceSerializer):
 
 
 class ChapterSerializer(_ReferenceSerializer):
-    board_code = serializers.CharField(source="board.code", read_only=True)
+    ci_unique = (("name", "standard", "subject"),)
     standard_name = serializers.CharField(source="standard.name", read_only=True)
     subject_name = serializers.CharField(source="subject.name", read_only=True)
 
@@ -84,13 +88,10 @@ class ChapterSerializer(_ReferenceSerializer):
         model = Chapter
         fields = [
             "id",
-            "board",
-            "board_code",
             "standard",
             "standard_name",
             "subject",
             "subject_name",
-            "number",
             "name",
             "is_active",
             "created_at",

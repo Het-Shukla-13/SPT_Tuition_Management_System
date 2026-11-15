@@ -86,11 +86,11 @@ class SubjectViewSet(_ReferenceViewSet):
 
 @_docs("chapters", TAG)
 class ChapterViewSet(_ReferenceViewSet):
-    queryset = Chapter.objects.select_related("board", "standard", "subject")
+    queryset = Chapter.objects.select_related("standard", "subject")
     serializer_class = ChapterSerializer
-    filterset_fields = ["board", "standard", "subject", "is_active"]
+    filterset_fields = ["standard", "subject", "is_active"]
     search_fields = ["name"]
-    ordering_fields = ["number", "name"]
+    ordering_fields = ["name"]
 
 
 @_docs("schools", TAG)

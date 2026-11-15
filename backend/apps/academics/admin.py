@@ -30,8 +30,8 @@ class SubjectAdmin(admin.ModelAdmin):
 
 @admin.register(Chapter)
 class ChapterAdmin(admin.ModelAdmin):
-    list_display = ["board", "standard", "subject", "number", "name", "is_active"]
-    list_filter = ["board", "standard", "subject", "is_active"]
+    list_display = ["name", "standard", "subject", "is_active"]
+    list_filter = ["standard", "subject", "is_active"]
     search_fields = ["name"]
 
 

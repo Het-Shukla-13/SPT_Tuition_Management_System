@@ -85,14 +85,11 @@ def ref(db):
         "maths": maths,
         "school": School.objects.create(name="DPS", city="Ahmedabad"),
         "ch1": Chapter.objects.create(
-            board=cbse, standard=tenth, subject=maths, number=1, name="Real Numbers"
+            standard=tenth, subject=maths, name="Real Numbers"
         ),
+        # A topic of another subject: can't be put on a Maths paper.
         "other_ch": Chapter.objects.create(
-            board=Board.objects.get(code="GSEB"),
-            standard=tenth,
-            subject=maths,
-            number=1,
-            name="X",
+            standard=tenth, subject=Subject.objects.get(code="SCI"), name="Light"
         ),
     }
 

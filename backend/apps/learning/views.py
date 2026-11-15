@@ -86,7 +86,7 @@ class _ItemViewSet(viewsets.GenericViewSet):
             self.queryset.select_related("standard", "subject")
             .prefetch_related(
                 "boards",
-                "chapters__board",
+                "chapters",
                 Prefetch(
                     "files",
                     queryset=DocumentFile.objects.filter(is_current=True),
