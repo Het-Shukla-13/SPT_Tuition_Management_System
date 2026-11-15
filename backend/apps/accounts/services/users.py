@@ -28,6 +28,7 @@ from apps.accounts.exceptions import (
 )
 from apps.accounts.models import TrustedDevice, User, UserSession
 from apps.accounts.services.devices import revoke_trusted_devices
+from apps.accounts.services.invites import create_invite_link, invite_url
 from apps.accounts.services.otp_delivery import OTPDeliveryError, deliver_invite
 from apps.accounts.services.sessions import revoke_all_sessions
 from apps.audit.models import AuditLog
@@ -173,11 +174,17 @@ def send_invite(user: User) -> dict:
         if not to:
             continue
         try:
+            link = (
+                invite_url(create_invite_link(user))
+                if channel == OTPChannel.EMAIL
+                else ""
+            )
             deliver_invite(
                 channel=channel,
                 to=to,
                 first_name=user.first_name or "there",
                 role_label=User.Role(user.role).label.lower(),
+                invite_url=link,
             )
             results[channel.lower()] = True
         except OTPDeliveryError:

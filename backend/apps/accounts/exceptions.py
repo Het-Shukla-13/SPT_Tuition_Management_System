@@ -69,6 +69,15 @@ class AccountAlreadyExists(ConflictError):
     default_code = "ACCOUNT_ALREADY_EXISTS"
 
 
+class InviteLinkInvalid(AppException):
+    default_detail = (
+        "This invite link didn't work. It may have expired or already been used. "
+        "Ask the institute to send a new invite, or use "
+        '"First time here, or forgot your password?" on the login page.'
+    )
+    default_code = "INVITE_LINK_INVALID"
+
+
 class AccountDisabled(ForbiddenError):
     default_detail = "This account has been disabled. Please contact the institute."
     default_code = "ACCOUNT_DISABLED"

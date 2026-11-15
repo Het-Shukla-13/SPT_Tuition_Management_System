@@ -26,6 +26,7 @@ details. Branch on `error_code`, never on `message` text.
 | 400 | `INVALID_PHOTO` | The photo must be a JPEG, PNG or WebP image. | Show `message`. |
 | 400 | `INVALID_REFRESH_TOKEN` | The refresh token is invalid. | Show `message`. |
 | 400 | `INVITE_ALREADY_ACCEPTED` | This person has already logged in; no invite is needed. | Show `message`. |
+| 400 | `INVITE_LINK_INVALID` | This invite link didn't work. It may have expired or already been used. Ask the institute to send a new invite, or use "First time here, or forgot your password?" on the login page. | Show `message`. |
 | 400 | `ITEM_ARCHIVED` | This item is archived and can't be assigned. | Show `message`. |
 | 400 | `LAST_CONTACT_METHOD` | You can't remove this: an account needs at least one email or phone to log in. | Show `message`. |
 | 400 | `LOGIN_TICKET_INVALID` | This sign-in has expired. Please enter your email and password again. | Go back to the email + password step. |

@@ -21,6 +21,8 @@ from apps.accounts.views.google import (
     GoogleVerifyView,
 )
 from apps.accounts.views.password import (
+    InviteAcceptView,
+    InviteCheckView,
     LoginResendView,
     LoginVerifyView,
     LoginView,
@@ -46,6 +48,8 @@ urlpatterns = [
         name="auth-password-reset-confirm",
     ),
     path("password/change/", PasswordChangeView.as_view(), name="auth-password-change"),
+    path("invite/check/", InviteCheckView.as_view(), name="auth-invite-check"),
+    path("invite/accept/", InviteAcceptView.as_view(), name="auth-invite-accept"),
     path("devices/", TrustedDeviceListView.as_view(), name="auth-devices"),
     path(
         "devices/<int:pk>/",

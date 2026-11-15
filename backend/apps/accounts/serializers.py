@@ -76,6 +76,9 @@ class AdminContactSerializer(_ChannelIdentifierSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     google_linked = serializers.SerializerMethodField()
+    has_password = serializers.SerializerMethodField(
+        help_text='False for people who only ever used Google or codes: offer "Set a password".'
+    )
     is_owner = serializers.BooleanField(
         source="is_superuser",
         read_only=True,
@@ -94,6 +97,7 @@ class UserSerializer(serializers.ModelSerializer):
             "email_verified_at",
             "phone_verified_at",
             "google_linked",
+            "has_password",
             "is_owner",
             "created_at",
         ]
@@ -101,6 +105,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_google_linked(self, obj) -> bool:
         return bool(obj.google_id)
+
+    def get_has_password(self, obj) -> bool:
+        return obj.has_usable_password()
 
 
 class GoogleSignInSerializer(serializers.Serializer):
@@ -352,6 +359,22 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     email = _EmailField()
     code = _otp_code_field()
     new_password = _password_field()
+
+
+class InviteCheckSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=200)
+
+
+class InviteAcceptSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=200)
+    new_password = _password_field()
+
+
+class InviteInfoSerializer(serializers.Serializer):
+    """Documentation only."""
+
+    first_name = serializers.CharField()
+    email = serializers.EmailField()
 
 
 class PasswordChangeSerializer(serializers.Serializer):

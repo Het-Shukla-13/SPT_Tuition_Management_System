@@ -19,6 +19,10 @@ class AuditLog(models.Model):
         GOOGLE_LINKED = "GOOGLE_LINKED", "Google account linked"
         GOOGLE_UNLINKED = "GOOGLE_UNLINKED", "Google account unlinked"
         PASSWORD_SET = "PASSWORD_SET", "Password set or reset (emailed code)"
+        INVITE_ACCEPTED = (
+            "INVITE_ACCEPTED",
+            "Invite accepted (password set from the link)",
+        )
         PASSWORD_CHANGED = "PASSWORD_CHANGED", "Password changed"
         TRUSTED_DEVICE_REMOVED = "TRUSTED_DEVICE_REMOVED", "Trusted device removed"
         CONTACT_CHANGED = "CONTACT_CHANGED", "Email/phone added or changed"

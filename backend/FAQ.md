@@ -31,7 +31,16 @@ Design: `docs/plans/phase-1-5-password-login.md`. Logic: `apps/accounts/services
   they do this; the office never sees or sets passwords.
 - An email code alone never logs in: `otp/request/` with `channel: EMAIL` answers
   `EMAIL_LOGIN_NEEDS_PASSWORD`.
-- The first successful login sets `users.activated_at` ("invite accepted").
+- **Invite link (the usual first step):** the invite email carries a single-use "Set your
+  password" link (`{FRONTEND_URL}/set-password?token=...`, valid `INVITE_LINK_TTL_DAYS` = 7;
+  only its SHA-256 is stored; a resend cancels the old link). `POST invite/check/` `{token}` →
+  `{first_name, email}`; `POST invite/accept/` `{token, new_password}` → password set, email
+  verified, link used, **this browser trusted** (so the sign-in right after needs no code). It
+  does not log in: the app sends them to sign in. Bad/used/expired → `400 INVITE_LINK_INVALID`.
+- The first successful login of any kind (password, code or Google) sets `users.activated_at`
+  ("invite accepted") **and uses up any open invite link**, so Google can still be used straight
+  away without setting a password. `/auth/me/` says `has_password` so the app can offer
+  "Set a password" (code to their email) to Google/code-only users.
 
 ### What is a "trusted device"?
 A browser that passed the emailed code for that user. It keeps a random token in the HttpOnly

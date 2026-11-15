@@ -66,10 +66,12 @@ def deliver_otp(*, channel: str, to: str, code: str, purpose: str) -> None:
     )
 
 
-def deliver_invite(*, channel: str, to: str, first_name: str, role_label: str) -> None:
+def deliver_invite(
+    *, channel: str, to: str, first_name: str, role_label: str, invite_url: str = ""
+) -> None:
     """
-    "You've been added" message for a newly created login. Contains no code
-    and no link: the person simply logs in with this email/phone (OTP).
+    "You've been added" message for a newly created login. The email carries a
+    single-use "Set your password" link; the SMS just says to log in with a code.
     """
     _send(
         channel,
@@ -80,7 +82,12 @@ def deliver_invite(*, channel: str, to: str, first_name: str, role_label: str) -
             f"Hi {first_name}, you've been added to {settings.INSTITUTE_NAME} as a "
             f"{role_label}. Log in with this number using a one-time code."
         ),
-        context=_context(first_name=first_name, role_label=role_label),
+        context=_context(
+            first_name=first_name,
+            role_label=role_label,
+            invite_url=invite_url,
+            invite_days=settings.INVITE_LINK_TTL_DAYS,
+        ),
     )
 
 

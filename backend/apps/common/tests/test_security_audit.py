@@ -35,6 +35,8 @@ PUBLIC = {
     "auth-password-reset",
     "auth-password-reset-confirm",
     "public-enquiry",
+    "auth-invite-check",
+    "auth-invite-accept",
     "public-enquiry-options",
 }
 METHODS = ["get", "post", "put", "patch", "delete"]
