@@ -47,6 +47,11 @@ export function ReferenceForm({
         .filter((f) => f.required && f.type !== "checkbox" && !String(values[f.name] ?? "").trim())
         .map((f) => [f.name, `Enter ${f.label.toLowerCase()}.`]),
     );
+    for (const field of config.fields) {
+      if (missing[field.name] || !field.check) continue;
+      const problem = field.check(String(values[field.name] ?? ""), values);
+      if (problem) missing[field.name] = problem;
+    }
     setErrors(missing);
     if (Object.keys(missing).length) return;
 

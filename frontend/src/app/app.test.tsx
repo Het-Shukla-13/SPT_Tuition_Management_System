@@ -12,6 +12,8 @@ import { routes } from "./router";
 import { isStaleBuildError } from "./staleBuild";
 
 const server = setupMockServer();
+// These load real page code on demand, which is slow while every test file runs at once.
+const LAZY = { timeout: 15_000 };
 
 function renderApp(path: string, me: ReturnType<typeof makeUser> | null = null) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -34,13 +36,17 @@ describe("app routes", () => {
 
   it("loads a page's code on demand and names the browser tab after it", async () => {
     renderApp("/enquire");
-    expect(await screen.findByRole("heading", { name: "Ask about admission" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Ask about admission" }, LAZY),
+    ).toBeInTheDocument();
     expect(document.title).toBe("Ask about admission · Chalkboard");
   });
 
   it("shows a friendly page for unknown links", async () => {
     renderApp("/no-such-page");
-    expect(await screen.findByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Page not found" }, LAZY),
+    ).toBeInTheDocument();
     expect(document.title).toBe("Page not found · Chalkboard");
   });
 
@@ -51,7 +57,7 @@ describe("app routes", () => {
       http.get(`${API}/admin/enquiries/`, () => ok([])),
     );
     renderApp("/staff/account", makeUser());
-    const skip = await screen.findByRole("link", { name: "Skip to content" });
+    const skip = await screen.findByRole("link", { name: "Skip to content" }, LAZY);
     expect(skip).toHaveAttribute("href", "#main");
     expect(document.getElementById("main")?.tagName).toBe("MAIN");
   });
