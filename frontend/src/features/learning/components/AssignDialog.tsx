@@ -2,10 +2,8 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { FilterBar, SearchInput } from "@/components/shared/FilterBar";
-import { FormField } from "@/components/shared/FormField";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { ReferenceFilter } from "@/features/academics";
 import { ApiError } from "@/lib/api/envelope";
 
@@ -18,6 +16,8 @@ import {
   useAssign,
   useStaffStudents,
 } from "../api";
+import { type Timing, timingBody } from "../timing";
+import { TestTimingFields } from "./TestTimingFields";
 
 /**
  * Assign to students: starts with everyone in the item's class taking its
@@ -36,7 +36,8 @@ export function AssignDialog({
   onClose: () => void;
 }) {
   const [filters, setFilters] = useState({
-    board: String(item.board),
+    // One board: start from it. Several or every board: show all students.
+    board: item.boards.length === 1 ? String(item.boards[0]) : "",
     standard: String(item.standard),
     subject: String(item.subject),
     school: isTest(item) && item.school ? String(item.school) : "",
@@ -51,8 +52,11 @@ export function AssignDialog({
   );
   const [unticked, setUnticked] = useState<Set<number>>(new Set());
   const chosen = available.filter((s) => !unticked.has(s.id)).map((s) => s.id);
-  const [startsAt, setStartsAt] = useState("");
-  const [duration, setDuration] = useState(isTest(item) ? String(item.duration_minutes ?? "") : "");
+  const [timing, setTiming] = useState<Timing>({
+    date: "",
+    time: "",
+    duration: isTest(item) ? String(item.duration_minutes ?? "") : "",
+  });
   const assign = useAssign(kind, item.id);
   const [result, setResult] = useState<AssignResult | null>(null);
   const names = new Map((students.data ?? []).map((s) => [s.id, `${s.first_name} ${s.last_name}`]));
@@ -73,12 +77,7 @@ export function AssignDialog({
     assign.mutate(
       {
         student_ids: chosen,
-        ...(kind === "tests"
-          ? {
-              test_starts_at: startsAt ? new Date(startsAt).toISOString() : null,
-              duration_minutes: duration ? Number(duration) : null,
-            }
-          : {}),
+        ...(kind === "tests" ? timingBody(timing) : {}),
       },
       {
         onSuccess: (r) => {
@@ -124,6 +123,13 @@ export function AssignDialog({
             value={filters.search}
             onChange={set("search")}
             placeholder="Name or admission no."
+          />
+          <ReferenceFilter
+            resource="boards"
+            label="Board"
+            allLabel="All boards"
+            value={filters.board}
+            onChange={set("board")}
           />
           <ReferenceFilter
             resource="standards"
@@ -200,30 +206,7 @@ export function AssignDialog({
           ))}
         </ul>
 
-        {kind === "tests" && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="Test starts (optional)" hint="Needed for the answer key to unlock.">
-              {(p) => (
-                <Input
-                  {...p}
-                  type="datetime-local"
-                  value={startsAt}
-                  onChange={(e) => setStartsAt(e.target.value)}
-                />
-              )}
-            </FormField>
-            <FormField label="Duration (minutes)">
-              {(p) => (
-                <Input
-                  {...p}
-                  inputMode="numeric"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value.replace(/\D/g, ""))}
-                />
-              )}
-            </FormField>
-          </div>
-        )}
+        {kind === "tests" && <TestTimingFields value={timing} onChange={setTiming} />}
 
         <div className="flex justify-end gap-2.5">
           <DialogClose asChild>

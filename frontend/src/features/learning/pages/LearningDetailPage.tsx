@@ -9,8 +9,9 @@ import { ErrorState } from "@/components/shared/States";
 import { Badge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent } from "@/components/ui/dialog";
-import { Input, Textarea } from "@/components/ui/input";
+import { Input, Textarea, NativeSelect } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useYearNames } from "@/features/academics";
 import { ApiError } from "@/lib/api/envelope";
 import { formatDate, formatMarks } from "@/lib/format";
 
@@ -23,10 +24,14 @@ import {
   useItem,
   useUpdateItem,
 } from "../api";
+import { BoardsPicker } from "../components/BoardsPicker";
 import { AssignDialog } from "../components/AssignDialog";
 import { AssignmentsCard } from "../components/AssignmentsCard";
 import { FilesCard } from "../components/FilesCard";
 import { KIND_TEXT } from "../text";
+
+/** "CBSE, GSEB", or "All boards" when none are chosen. */
+const boardsLabel = (codes: string[]) => (codes.length ? codes.join(", ") : "All boards");
 
 export function LearningDetailPage({ kind }: { kind: Kind }) {
   const id = Number(useParams().id);
@@ -57,8 +62,9 @@ export function LearningDetailPage({ kind }: { kind: Kind }) {
         title={it.title}
         eyebrow={
           <span className="flex flex-wrap items-center gap-2">
+            <Badge tone="neutral">{it.academic_year_name}</Badge>
             <Badge tone="brand">
-              {it.standard_name} · {it.board_code} · {it.subject_name}
+              {it.standard_name} · {boardsLabel(it.board_codes)} · {it.subject_name}
             </Badge>
             {isTest(it) && (
               <span>
@@ -141,6 +147,9 @@ function EditItemDialog({
 }) {
   const update = useUpdateItem(kind, item.id);
   const [title, setTitle] = useState(item.title);
+  const [boards, setBoards] = useState<number[]>(item.boards);
+  const [yearName, setYearName] = useState(item.academic_year_name);
+  const years = useYearNames();
   const [description, setDescription] = useState(item.description ?? "");
   const [maxMarks, setMaxMarks] = useState(
     isTest(item) && item.max_marks ? formatMarks(item.max_marks) : "",
@@ -159,6 +168,8 @@ function EditItemDialog({
             const body: Record<string, unknown> = {
               title: title.trim(),
               description: description.trim(),
+              boards,
+              academic_year_name: yearName,
             };
             if (kind === "tests") {
               body.max_marks = maxMarks || null;
@@ -184,6 +195,19 @@ function EditItemDialog({
         >
           <FormField label="Title" error={errors.title}>
             {(p) => <Input {...p} value={title} onChange={(e) => setTitle(e.target.value)} />}
+          </FormField>
+          <BoardsPicker value={boards} onChange={setBoards} error={errors.boards} />
+          <FormField label="Academic year" error={errors.academic_year_name}>
+            {(p) => (
+              <NativeSelect {...p} value={yearName} onChange={(e) => setYearName(e.target.value)}>
+                {[...new Set([yearName, ...years.names])].map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                    {name === years.current ? " (current)" : ""}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
           </FormField>
           {kind === "tests" && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

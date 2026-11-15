@@ -94,6 +94,12 @@ export const useArchiveItem = (kind: Kind, id: number) =>
     api.post<LearningItem>(`${itemUrl(kind, id)}archive/`, { archived }),
   );
 
+/** Archive or unarchive several at once. */
+export const useBulkArchive = (kind: Kind) =>
+  useLearningMutation(kind, (body: { ids: number[]; archived: boolean }) =>
+    api.post<{ done: number[]; failed: number[] }>(`staff/${kind}/bulk-archive/`, body),
+  );
+
 /** Upload a new version of the main PDF (paper / notes) or the answer key. */
 export const useReplaceFile = (kind: Kind, id: number) =>
   useLearningMutation(
@@ -142,7 +148,8 @@ export const useAssign = (kind: Kind, id: number) =>
     kind,
     (body: {
       student_ids: number[];
-      test_starts_at?: string | null;
+      test_date?: string | null;
+      test_time?: string | null;
       duration_minutes?: number | null;
       remarks?: string;
     }) => api.post<AssignResult>(`${itemUrl(kind, id)}assign/`, body),
@@ -185,3 +192,16 @@ export const SEMESTER_OPTIONS = [
 ];
 
 export const isTest = (item: LearningItem): item is TestPaper => "max_marks" in item;
+
+/** Reschedule one student's test (date, optional time, duration). */
+export const useUpdateTestAssignment = () =>
+  useLearningMutation(
+    "tests",
+    ({
+      id,
+      body,
+    }: {
+      id: number;
+      body: { test_date: string | null; test_time: string | null; duration_minutes: number | null };
+    }) => api.patch<TestAssignment>(`staff/test-assignments/${id}/`, body),
+  );

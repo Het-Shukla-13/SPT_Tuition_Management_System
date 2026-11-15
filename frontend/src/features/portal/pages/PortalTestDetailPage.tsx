@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/envelope";
 import { formatDateTime, formatMarks } from "@/lib/format";
 
-import { isUpcoming, openTestFile, usePortalTest } from "../api";
+import { isUpcoming, openTestFile, usePortalTest, whenLabel } from "../api";
 import { PortalHeader } from "../components/PortalHeader";
 import { useActiveStudent } from "../student";
 
@@ -64,8 +64,8 @@ export function PortalTestDetailPage() {
           <Fact label="Standard">
             {t.standard} · Semester {t.semester}
           </Fact>
-          {t.test_starts_at && <Fact label="Starts">{formatDateTime(t.test_starts_at)}</Fact>}
-          <Fact label="Ends">{formatDateTime(t.test_ends_at)}</Fact>
+          <Fact label="When">{whenLabel(t)}</Fact>
+          {t.test_ends_at && <Fact label="Ends">{formatDateTime(t.test_ends_at)}</Fact>}
           <Fact label="Out of">{formatMarks(t.max_marks)} marks</Fact>
           {t.chapters.length > 0 && (
             <Fact label="Chapters">
@@ -82,10 +82,17 @@ export function PortalTestDetailPage() {
         </dl>
       </Card>
       <div className="flex flex-col gap-2">
-        <Button size="lg" onClick={() => open("PAPER")}>
-          <FileTextIcon className="size-5" aria-hidden="true" />
-          Open question paper
-        </Button>
+        {t.paper_available ? (
+          <Button size="lg" onClick={() => open("PAPER")}>
+            <FileTextIcon className="size-5" aria-hidden="true" />
+            Open question paper
+          </Button>
+        ) : (
+          <p className="flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-subtle py-3 text-sm text-muted">
+            <LockIcon className="size-4" aria-hidden="true" />
+            The question paper opens {formatDateTime(t.visible_from)}.
+          </p>
+        )}
         {t.answer_key_available ? (
           <Button size="lg" variant="secondary" onClick={() => open("ANSWER_KEY")}>
             <KeyRoundIcon className="size-5" aria-hidden="true" />

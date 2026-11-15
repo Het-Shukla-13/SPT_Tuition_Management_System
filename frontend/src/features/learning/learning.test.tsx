@@ -15,20 +15,21 @@ const REF = {
   standards: [{ id: 10, name: "Standard 10", level: 10, is_active: true }],
   subjects: [{ id: 21, name: "Mathematics", code: "MATH", is_active: true }],
   schools: [{ id: 3, name: "DPS", city: "Ahmedabad", is_active: true }],
-  chapters: [{ id: 50, number: 1, name: "Real Numbers", is_active: true }],
+  chapters: [
+    { id: 50, board: 1, board_code: "CBSE", number: 1, name: "Real Numbers", is_active: true },
+  ],
 };
 
 const PAPER = {
   id: 9,
   title: "Real Numbers: unit test",
   description: "",
-  board: 1,
+  boards: [1],
   standard: 10,
   subject: 21,
   chapters: [50],
   semester: null,
-  academic_year: 4,
-  board_code: "CBSE",
+  board_codes: ["CBSE"],
   standard_name: "Standard 10",
   subject_name: "Mathematics",
   academic_year_name: "2026-27",
@@ -72,6 +73,14 @@ const ASSIGNMENT = {
   max_marks: "25.00",
   marks_obtained: null,
   grade_remarks: "",
+  // The test already happened, so marks can be entered.
+  test_starts_at: "2026-11-01T10:00:00+05:30",
+  has_start_time: true,
+  duration_minutes: 60,
+  visible_from: "2026-11-01T10:00:00+05:30",
+  test_ends_at: "2026-11-01T11:00:00+05:30",
+  is_over: true,
+  answer_key_unlocked: true,
 };
 
 /** Value of one multipart field (MSW can't parse jsdom File parts, so read the raw body). */
@@ -114,7 +123,7 @@ describe("UploadPage", () => {
   async function fill(user: ReturnType<typeof renderScreen>["user"]) {
     await user.upload(screen.getByLabelText("Question paper (required)"), pdf());
     await user.type(screen.getByLabelText("Title"), "Real Numbers: unit test");
-    await user.selectOptions(await screen.findByLabelText("Board"), "1");
+    await user.click(await screen.findByRole("checkbox", { name: "CBSE" }));
     await user.selectOptions(screen.getByLabelText("Standard"), "10");
     await user.selectOptions(screen.getByLabelText("Subject"), "21");
     await user.click(await screen.findByLabelText("1. Real Numbers"));
@@ -251,13 +260,15 @@ describe("LearningDetailPage (tests)", () => {
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText("Riya Shah")).toBeInTheDocument();
     expect(within(dialog).queryByText("Aarav Shah")).not.toBeInTheDocument(); // already assigned
-    await user.type(within(dialog).getByLabelText("Test starts (optional)"), "2026-11-11T16:00");
+    await user.type(within(dialog).getByLabelText("Test date (optional)"), "2026-11-11");
+    await user.type(within(dialog).getByLabelText("Start time (optional)"), "16:00");
     await user.click(within(dialog).getByRole("button", { name: "Assign to 2" }));
 
     expect(await screen.findByText(/Om Bhatt: not an active student/)).toBeInTheDocument();
     expect(body.student_ids).toEqual([8, 9]);
     expect(body.duration_minutes).toBe(60);
-    expect(typeof body.test_starts_at).toBe("string");
+    expect(body.test_date).toBe("2026-11-11");
+    expect(body.test_time).toBe("16:00");
   });
 });
 

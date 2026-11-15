@@ -964,6 +964,10 @@ paths:
         schema:
           type: boolean
       - in: query
+        name: academic_year__name
+        schema:
+          type: string
+      - in: query
         name: is_active
         schema:
           type: boolean
@@ -1100,6 +1104,10 @@ paths:
         name: academic_year__board
         schema:
           type: integer
+      - in: query
+        name: academic_year__name
+        schema:
+          type: string
       - name: ordering
         required: false
         in: query
@@ -3566,13 +3574,9 @@ paths:
       summary: Notes archive (search / filter / sort)
       parameters:
       - in: query
-        name: academic_year
+        name: academic_year_name
         schema:
-          type: integer
-      - in: query
-        name: board
-        schema:
-          type: integer
+          type: string
       - in: query
         name: chapters
         schema:
@@ -3851,13 +3855,9 @@ paths:
       summary: Versions of the PDF(s)
       parameters:
       - in: query
-        name: academic_year
+        name: academic_year_name
         schema:
-          type: integer
-      - in: query
-        name: board
-        schema:
-          type: integer
+          type: string
       - in: query
         name: chapters
         schema:
@@ -3926,6 +3926,29 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedDocumentFileList'
           description: ''
+  /api/v1/staff/notes/bulk-archive/:
+    post:
+      operationId: staff_notes_bulk_archive_create
+      summary: Archive / unarchive several at once
+      tags:
+      - staff
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BulkArchiveRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BulkArchiveRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkArchiveRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: '{"done": [ids], "failed": [ids]}'
   /api/v1/staff/students/:
     get:
       operationId: staff_students_list
@@ -4111,13 +4134,9 @@ paths:
       summary: Test archive (search / filter / sort)
       parameters:
       - in: query
-        name: academic_year
+        name: academic_year_name
         schema:
-          type: integer
-      - in: query
-        name: board
-        schema:
-          type: integer
+          type: string
       - in: query
         name: chapters
         schema:
@@ -4459,13 +4478,9 @@ paths:
       summary: Versions of the PDF(s)
       parameters:
       - in: query
-        name: academic_year
+        name: academic_year_name
         schema:
-          type: integer
-      - in: query
-        name: board
-        schema:
-          type: integer
+          type: string
       - in: query
         name: chapters
         schema:
@@ -4538,6 +4553,29 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedDocumentFileList'
           description: ''
+  /api/v1/staff/tests/bulk-archive/:
+    post:
+      operationId: staff_tests_bulk_archive_create
+      summary: Archive / unarchive several at once
+      tags:
+      - staff
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BulkArchiveRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BulkArchiveRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkArchiveRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: '{"done": [ids], "failed": [ids]}'
 components:
   schemas:
     AcademicChangeReasonEnum:
@@ -5082,6 +5120,21 @@ components:
     AssignTestRequest:
       type: object
       properties:
+        test_date:
+          type: string
+          format: date
+          nullable: true
+          description: The test day. Without a time, the paper opens at 8:00 that
+            day.
+        test_time:
+          type: string
+          format: time
+          nullable: true
+          description: Start time. The answer key opens after start + duration.
+        duration_minutes:
+          type: integer
+          minimum: 1
+          nullable: true
         student_ids:
           type: array
           items:
@@ -5092,16 +5145,6 @@ components:
         remarks:
           type: string
           default: ''
-        test_starts_at:
-          type: string
-          format: date-time
-          nullable: true
-          description: When the test starts. The answer key unlocks for students after
-            start + duration.
-        duration_minutes:
-          type: integer
-          minimum: 1
-          nullable: true
       required:
       - student_ids
     AuthTokens:
@@ -5183,6 +5226,21 @@ components:
       required:
       - code
       - name
+    BulkArchiveRequest:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+          maxItems: 200
+          minItems: 1
+        archived:
+          type: boolean
+      required:
+      - archived
+      - ids
     ChannelEnum:
       enum:
       - EMAIL
@@ -6048,8 +6106,10 @@ components:
         description:
           type: string
           readOnly: true
-        board:
-          type: integer
+        boards:
+          type: array
+          items:
+            type: integer
           readOnly: true
         standard:
           type: integer
@@ -6068,22 +6128,22 @@ components:
           oneOf:
           - $ref: '#/components/schemas/SemesterEnum'
           - $ref: '#/components/schemas/NullEnum'
-        academic_year:
-          type: integer
+        academic_year_name:
+          type: string
           readOnly: true
         remarks:
           type: string
           readOnly: true
-        board_code:
-          type: string
+        board_codes:
+          type: array
+          items:
+            type: string
           readOnly: true
+          description: Boards it suits; empty = every board.
         standard_name:
           type: string
           readOnly: true
         subject_name:
-          type: string
-          readOnly: true
-        academic_year_name:
           type: string
           readOnly: true
         chapter_names:
@@ -6117,11 +6177,10 @@ components:
           format: date-time
           readOnly: true
       required:
-      - academic_year
       - academic_year_name
       - active_assignments
-      - board
-      - board_code
+      - board_codes
+      - boards
       - chapter_names
       - chapters
       - created_at
@@ -6176,8 +6235,11 @@ components:
           maxLength: 200
         description:
           type: string
-        board:
-          type: integer
+        boards:
+          type: array
+          items:
+            type: integer
+          description: Boards it suits. Leave empty for every board.
         standard:
           type: integer
         subject:
@@ -6191,9 +6253,11 @@ components:
           oneOf:
           - $ref: '#/components/schemas/SemesterEnum'
           - $ref: '#/components/schemas/NullEnum'
-        academic_year:
-          type: integer
-          description: Defaults to the board's current academic year.
+        academic_year_name:
+          type: string
+          minLength: 1
+          description: The year by name, e.g. "2026-27". Defaults to the current year.
+          maxLength: 7
         remarks:
           type: string
         file:
@@ -6206,7 +6270,6 @@ components:
           writeOnly: true
           default: false
       required:
-      - board
       - file
       - standard
       - subject
@@ -7230,8 +7293,11 @@ components:
           maxLength: 200
         description:
           type: string
-        board:
-          type: integer
+        boards:
+          type: array
+          items:
+            type: integer
+          description: Boards it suits. Leave empty for every board.
         standard:
           type: integer
         subject:
@@ -7245,9 +7311,11 @@ components:
           oneOf:
           - $ref: '#/components/schemas/SemesterEnum'
           - $ref: '#/components/schemas/NullEnum'
-        academic_year:
-          type: integer
-          description: Defaults to the board's current academic year.
+        academic_year_name:
+          type: string
+          minLength: 1
+          description: The year by name, e.g. "2026-27". Defaults to the current year.
+          maxLength: 7
         remarks:
           type: string
     PatchedSchoolRequest:
@@ -7351,11 +7419,20 @@ components:
           type: boolean
     PatchedTestAssignmentUpdateRequest:
       type: object
+      description: 'Reschedule one student''s test: date, optional time, duration,
+        remarks.'
       properties:
-        test_starts_at:
+        test_date:
           type: string
-          format: date-time
+          format: date
           nullable: true
+          description: The test day. Without a time, the paper opens at 8:00 that
+            day.
+        test_time:
+          type: string
+          format: time
+          nullable: true
+          description: Start time. The answer key opens after start + duration.
         duration_minutes:
           type: integer
           minimum: 1
@@ -7371,8 +7448,11 @@ components:
           maxLength: 200
         description:
           type: string
-        board:
-          type: integer
+        boards:
+          type: array
+          items:
+            type: integer
+          description: Boards it suits. Leave empty for every board.
         standard:
           type: integer
         subject:
@@ -7386,9 +7466,11 @@ components:
           oneOf:
           - $ref: '#/components/schemas/SemesterEnum'
           - $ref: '#/components/schemas/NullEnum'
-        academic_year:
-          type: integer
-          description: Defaults to the board's current academic year.
+        academic_year_name:
+          type: string
+          minLength: 1
+          description: The year by name, e.g. "2026-27". Defaults to the current year.
+          maxLength: 7
         remarks:
           type: string
         school:
@@ -7741,9 +7823,20 @@ components:
           type: string
           format: date-time
           nullable: true
+        has_start_time:
+          type: boolean
+        visible_from:
+          type: string
+          format: date-time
+          description: When the question paper opens (start time, or 8:00 on the date).
         test_ends_at:
           type: string
           format: date-time
+          nullable: true
+        paper_available:
+          type: boolean
+        is_over:
+          type: boolean
         remarks:
           type: string
         max_marks:
@@ -7770,12 +7863,15 @@ components:
       - description
       - has_answer_key
       - id
+      - is_over
       - max_marks
+      - paper_available
       - semester
       - standard
       - subject
       - test_ends_at
       - title
+      - visible_from
     PublicEnquiryRequest:
       type: object
       description: 'The homepage form. `website` is a honeypot: humans never see or
@@ -8492,14 +8588,23 @@ components:
           type: string
           format: date-time
           nullable: true
+        has_start_time:
+          type: boolean
         duration_minutes:
           type: integer
           maximum: 2147483647
           minimum: 0
           nullable: true
+        visible_from:
+          type: string
+          format: date-time
         test_ends_at:
           type: string
           format: date-time
+          nullable: true
+        is_over:
+          type: boolean
+          description: Marks can be entered.
         answer_key_unlocked:
           type: boolean
         remarks:
@@ -8526,11 +8631,13 @@ components:
       required:
       - answer_key_unlocked
       - id
+      - is_over
       - max_marks
       - student
       - test_ends_at
       - test_paper
       - test_title
+      - visible_from
     TestPaper:
       type: object
       properties:
@@ -8543,8 +8650,10 @@ components:
         description:
           type: string
           readOnly: true
-        board:
-          type: integer
+        boards:
+          type: array
+          items:
+            type: integer
           readOnly: true
         standard:
           type: integer
@@ -8563,22 +8672,22 @@ components:
           oneOf:
           - $ref: '#/components/schemas/SemesterEnum'
           - $ref: '#/components/schemas/NullEnum'
-        academic_year:
-          type: integer
+        academic_year_name:
+          type: string
           readOnly: true
         remarks:
           type: string
           readOnly: true
-        board_code:
-          type: string
+        board_codes:
+          type: array
+          items:
+            type: string
           readOnly: true
+          description: Boards it suits; empty = every board.
         standard_name:
           type: string
           readOnly: true
         subject_name:
-          type: string
-          readOnly: true
-        academic_year_name:
           type: string
           readOnly: true
         chapter_names:
@@ -8633,11 +8742,10 @@ components:
           format: date-time
           readOnly: true
       required:
-      - academic_year
       - academic_year_name
       - active_assignments
-      - board
-      - board_code
+      - board_codes
+      - boards
       - chapter_names
       - chapters
       - created_at
@@ -8667,8 +8775,11 @@ components:
           maxLength: 200
         description:
           type: string
-        board:
-          type: integer
+        boards:
+          type: array
+          items:
+            type: integer
+          description: Boards it suits. Leave empty for every board.
         standard:
           type: integer
         subject:
@@ -8682,9 +8793,11 @@ components:
           oneOf:
           - $ref: '#/components/schemas/SemesterEnum'
           - $ref: '#/components/schemas/NullEnum'
-        academic_year:
-          type: integer
-          description: Defaults to the board's current academic year.
+        academic_year_name:
+          type: string
+          minLength: 1
+          description: The year by name, e.g. "2026-27". Defaults to the current year.
+          maxLength: 7
         remarks:
           type: string
         school:
@@ -8721,7 +8834,6 @@ components:
           writeOnly: true
           default: false
       required:
-      - board
       - file
       - standard
       - subject

@@ -6,10 +6,10 @@ import { EmptyState, ErrorState } from "@/components/shared/States";
 import { Badge } from "@/components/shared/StatusBadge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PortalTest } from "@/lib/api/types";
-import { formatDateTime, formatMarks } from "@/lib/format";
+import { formatMarks } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import { isUpcoming, usePortalTests } from "../api";
+import { isUpcoming, usePortalTests, whenLabel } from "../api";
 import { PortalHeader } from "../components/PortalHeader";
 import { useActiveStudent } from "../student";
 
@@ -26,12 +26,10 @@ export function PortalTestsPage() {
   const all = tests.data ?? [];
   const upcoming = all
     .filter((t) => isUpcoming(t))
-    .sort((a, b) =>
-      (a.test_starts_at ?? a.test_ends_at).localeCompare(b.test_starts_at ?? b.test_ends_at),
-    );
+    .sort((a, b) => (a.visible_from ?? "").localeCompare(b.visible_from ?? ""));
   const past = all
     .filter((t) => !isUpcoming(t))
-    .sort((a, b) => b.test_ends_at.localeCompare(a.test_ends_at));
+    .sort((a, b) => (b.visible_from ?? "").localeCompare(a.visible_from ?? ""));
   const shown = view === "upcoming" ? upcoming : past;
 
   return (
@@ -90,9 +88,7 @@ function TestCard({ test }: { test: PortalTest }) {
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="text-xs font-bold tracking-wide text-muted uppercase">{test.subject}</span>
         <b className="text-base">{test.title}</b>
-        <span className="text-sm text-muted">
-          {formatDateTime(test.test_starts_at ?? test.test_ends_at)}
-        </span>
+        <span className="text-sm text-muted">{whenLabel(test)}</span>
         {!isUpcoming(test) && !graded && (
           <span>
             <Badge tone="neutral">Marks not added yet</Badge>
