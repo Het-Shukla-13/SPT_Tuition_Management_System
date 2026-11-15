@@ -17,8 +17,42 @@ beforeEach(() => {
     http.get(`${API}/academics/academic-years/`, () =>
       ok(
         [
-          { id: 1, board: 1, board_code: "CBSE", name: "2026-27", is_active: true },
-          { id: 2, board: 2, board_code: "GSEB", name: "2026-27", is_active: true },
+          {
+            id: 1,
+            board: 1,
+            board_code: "CBSE",
+            name: "2026-27",
+            start_date: "2026-04-01",
+            is_current: true,
+            is_active: true,
+          },
+          {
+            id: 2,
+            board: 2,
+            board_code: "GSEB",
+            name: "2026-27",
+            start_date: "2026-06-01",
+            is_current: true,
+            is_active: true,
+          },
+          {
+            id: 3,
+            board: 2,
+            board_code: "GSEB",
+            name: "2027-28",
+            start_date: "2027-06-01",
+            is_current: false,
+            is_active: true,
+          },
+        ],
+        page(3),
+      ),
+    ),
+    http.get(`${API}/academics/boards/`, () =>
+      ok(
+        [
+          { id: 1, code: "CBSE", name: "Central Board", is_active: true },
+          { id: 2, code: "GSEB", name: "Gujarat Board", is_active: true },
         ],
         page(2),
       ),
@@ -31,7 +65,7 @@ beforeEach(() => {
 });
 
 describe("Fee structures with optional subject fees", () => {
-  it("names the board in the year dropdown and saves the extras", async () => {
+  it("picks the board, then that board's year (current first), and saves the extras", async () => {
     let body: Record<string, unknown> | undefined;
     server.use(
       http.get(`${API}/admin/fee-structures/`, () => ok([], page(0))),
@@ -45,9 +79,23 @@ describe("Fee structures with optional subject fees", () => {
     await user.click(screen.getByRole("button", { name: "+ Add fee structure" }));
     const dialog = await screen.findByRole("dialog", { name: "Add fee structure" });
     const year = within(dialog).getByLabelText("Academic year");
-    // Same year name on two boards: the board makes them tell-apart-able.
-    expect(await within(year).findByRole("option", { name: "GSEB 2026-27" })).toBeInTheDocument();
-    await user.selectOptions(year, "2");
+    expect(year).toBeDisabled(); // a board comes first
+    const board = within(dialog).getByLabelText("Board");
+    await waitFor(() =>
+      expect(within(board).getByRole("option", { name: /GSEB/ })).toBeInTheDocument(),
+    );
+    await user.selectOptions(board, "2");
+    // Only GSEB's years, by plain name, starting on its current one.
+    expect(year).toHaveValue("2");
+    expect(
+      within(year)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Choose…", "2027-28", "2026-27 (current)"]);
+    expect(within(dialog).getByRole("link", { name: "Add a subject" })).toHaveAttribute(
+      "href",
+      "/staff/academics?tab=subjects",
+    );
     await user.selectOptions(within(dialog).getByLabelText("Standard"), "10");
     await user.type(within(dialog).getByLabelText("Yearly fee (₹)"), "20000");
 
@@ -68,7 +116,7 @@ describe("Fee structures with optional subject fees", () => {
         add_ons: [{ subject: 31, amount: "2000" }],
       }),
     );
-  });
+  }, 20_000); // a long form to fill: give it time when the whole suite runs in parallel
 
   it("asks for an amount for each extra", async () => {
     server.use(http.get(`${API}/admin/fee-structures/`, () => ok([], page(0))));

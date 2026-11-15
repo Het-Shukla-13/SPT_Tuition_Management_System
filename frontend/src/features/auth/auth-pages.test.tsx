@@ -148,8 +148,10 @@ describe("LoginPage", () => {
     const { user } = renderAt("/login");
     await fillLogin(user);
 
-    // A second may tick by on a busy machine before this check runs.
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Try again in (10:00|9:5\d)/);
+    // The countdown appears just after the message, and a second may tick by on
+    // a busy machine, so keep checking until it shows.
+    const alert = await screen.findByRole("alert");
+    await waitFor(() => expect(alert).toHaveTextContent(/Try again in (10:00|9:5\d)/));
     expect(screen.getByRole("button", { name: /Try again in/ })).toBeDisabled();
   });
 

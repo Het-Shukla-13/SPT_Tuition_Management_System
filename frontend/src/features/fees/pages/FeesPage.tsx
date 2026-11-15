@@ -24,6 +24,7 @@ const PARAMS = {
   page: parseAsString,
   search: parseAsString,
   academic_year: parseAsString,
+  academic_year__name: parseAsString,
   academic_year__board: parseAsString,
   student__standard: parseAsString,
   ordering: parseAsString,

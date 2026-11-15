@@ -10,8 +10,14 @@ import { formatDate } from "@/lib/format";
 import { useListParams } from "@/lib/useListParams";
 
 import { useFeeAccounts } from "../api";
+import { YearNameFilter } from "./YearNameFilter";
 
-const FILTERS = ["academic_year", "academic_year__board", "student__standard", "ordering"] as const;
+const FILTERS = [
+  "academic_year__name",
+  "academic_year__board",
+  "student__standard",
+  "ordering",
+] as const;
 const SORT_OPTIONS = [
   { value: "-pending", label: "Highest pending first" },
   { value: "student__first_name", label: "Name A–Z" },
@@ -93,18 +99,16 @@ export function AccountsTab() {
           placeholder="Search student, admission no., parent phone"
         />
         <ReferenceFilter
-          resource="academic-years"
-          label="Academic year"
-          allLabel="All years"
-          value={list.filters.academic_year}
-          onChange={(v) => list.setFilter("academic_year", v)}
-        />
-        <ReferenceFilter
           resource="boards"
           label="Board"
           allLabel="All boards"
           value={list.filters.academic_year__board}
           onChange={(v) => list.setFilter("academic_year__board", v)}
+        />
+        <YearNameFilter
+          value={list.filters.academic_year__name}
+          onChange={(v) => list.setFilter("academic_year__name", v)}
+          board={list.filters.academic_year__board}
         />
         <ReferenceFilter
           resource="standards"

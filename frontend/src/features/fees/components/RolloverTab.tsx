@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/shared/FormField";
@@ -10,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogClose, DialogContent } from "@/components/ui/dialog";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
-import { ReferenceSelect } from "@/features/academics";
+import { ReferenceSelect, useReferenceOptions } from "@/features/academics";
 
 import {
   ROLLOVER_ACTIONS,
@@ -20,6 +21,7 @@ import {
   useRolloverApply,
   useRolloverPreview,
 } from "../api";
+import { asYears, laterYears } from "../years";
 
 type Choice = { action: RolloverAction; fee: string };
 const KEEPS_STUDYING = (a: RolloverAction) => a === "PROMOTE" || a === "REPEAT";
@@ -39,6 +41,13 @@ export function RolloverTab() {
   const apply = useRolloverApply();
   const [board, setBoard] = useState("");
   const [toYear, setToYear] = useState("");
+  const years = useReferenceOptions("academic-years");
+  const allYears = asYears(years.data);
+  // Only years after the board's current one make sense to move into.
+  const nextYears = board ? laterYears(allYears, board) : [];
+  const currentName = board
+    ? allYears.find((y) => String(y.board) === board && y.is_current)?.name
+    : undefined;
   const [makeCurrent, setMakeCurrent] = useState(true);
   const [choices, setChoices] = useState<Record<number, Choice>>({});
   const [confirming, setConfirming] = useState(false);
@@ -135,23 +144,48 @@ export function RolloverTab() {
         <div className="min-w-48">
           <FormField label="Move into year">
             {(p) => (
-              <ReferenceSelect
+              <NativeSelect
                 {...p}
-                resource="academic-years"
-                filters={board ? { board } : undefined}
-                disabled={!board}
+                disabled={!board || nextYears.length === 0}
                 value={toYear}
                 onChange={(e) => {
                   setToYear(e.target.value);
                   preview.reset();
                 }}
-              />
+              >
+                <option value="">
+                  {!board
+                    ? "Pick a board first"
+                    : nextYears.length
+                      ? "Choose…"
+                      : "No later year yet"}
+                </option>
+                {nextYears.map((y) => (
+                  <option key={y.id} value={y.id}>
+                    {y.name}
+                  </option>
+                ))}
+              </NativeSelect>
             )}
           </FormField>
         </div>
         <Button disabled={!board || !toYear || preview.isPending} onClick={load}>
           {preview.isPending ? "Loading…" : "Preview students"}
         </Button>
+        {board && years.isSuccess && nextYears.length === 0 && (
+          <p role="status" className="basis-full text-sm text-warning">
+            {currentName
+              ? `There's no year after ${currentName} for this board yet.`
+              : "This board has no academic years yet."}{" "}
+            <Link
+              to="/staff/academics?tab=academic-years"
+              className="font-bold text-primary hover:underline"
+            >
+              Create the next academic year
+            </Link>{" "}
+            (and its fee structures) first, then come back here.
+          </p>
+        )}
       </Card>
 
       {result && <ResultReport result={result} names={names} />}
