@@ -31,6 +31,7 @@ from apps.students.models import (
     AdmissionSequence,
     StudentAcademicHistory,
     StudentAccess,
+    StudentGuardian,
     StudentProfile,
     StudentSubject,
 )
@@ -44,10 +45,6 @@ PERSONAL_FIELDS = (
     "gender",
     "medium",
     "address",
-    "guardian_name",
-    "guardian_relation",
-    "guardian_phone",
-    "guardian_email",
     "remarks",
 )
 
@@ -89,7 +86,7 @@ def next_admission_number(on_date) -> str:
 
 
 def find_possible_duplicates(
-    *, first_name, last_name, date_of_birth=None, guardian_phone="", exclude_pk=None
+    *, first_name, last_name, date_of_birth=None, guardian_phones=(), exclude_pk=None
 ):
     """
     Same name AND (same date of birth, or same guardian phone, or no date of
@@ -103,9 +100,10 @@ def find_possible_duplicates(
         # A known, different birth date tells two same-name children apart,
         # unless they also share the guardian's phone.
         same_or_unknown = Q(date_of_birth=date_of_birth) | Q(date_of_birth__isnull=True)
-        if guardian_phone:
-            same_or_unknown |= Q(guardian_phone=guardian_phone)
-        candidates = candidates.filter(same_or_unknown)
+        phones = [p for p in guardian_phones if p]
+        if phones:
+            same_or_unknown |= Q(guardians__phone__in=phones)
+        candidates = candidates.filter(same_or_unknown).distinct()
     if exclude_pk:
         candidates = candidates.exclude(pk=exclude_pk)
     return list(candidates.select_related("standard")[:10])
@@ -152,6 +150,7 @@ def admit_student(
     subjects: list,
     link_users: list[User],
     new_logins: list[dict],
+    guardians: list[dict] = (),
     confirm_duplicate: bool = False,
     fee: dict | None = None,
     ip=None,
@@ -173,7 +172,7 @@ def admit_student(
                 first_name=profile["first_name"],
                 last_name=profile["last_name"],
                 date_of_birth=profile.get("date_of_birth"),
-                guardian_phone=profile.get("guardian_phone", ""),
+                guardian_phones=[g.get("phone", "") for g in guardians],
             )
             if dups:
                 raise PossibleDuplicateStudent(
@@ -199,6 +198,7 @@ def admit_student(
             created_by=actor,
             updated_by=actor,
         )
+        _save_guardians(student, guardians)
         StudentAcademicHistory.objects.create(
             student=student,
             academic_year=year,
@@ -284,6 +284,32 @@ def _open_fee_account(*, actor, student, year, fee: dict, subjects, ip) -> None:
     )
 
 
+def _save_guardians(student: StudentProfile, guardians) -> None:
+    """Replace the student's guardians with this list (main contact first)."""
+    student.guardians.all().delete()
+    StudentGuardian.objects.bulk_create(
+        StudentGuardian(
+            student=student,
+            name=g["name"],
+            relation=g.get("relation", ""),
+            phone=g.get("phone", ""),
+            email=g.get("email", ""),
+            position=i,
+        )
+        for i, g in enumerate(guardians)
+    )
+
+
+def _guardian_summary(guardians) -> str:
+    def get(g, key):
+        return (g.get(key, "") if isinstance(g, dict) else getattr(g, key)) or ""
+
+    return "; ".join(
+        f"{get(g, 'name')} ({get(g, 'relation')}) {get(g, 'phone')} {get(g, 'email')}".strip()
+        for g in guardians
+    )
+
+
 # ─────────────────────────────────────────────────────────────
 # Updates
 # ─────────────────────────────────────────────────────────────
@@ -296,10 +322,17 @@ def update_student(*, actor: User, student: StudentProfile, changes: dict, ip=No
         if field in changes and changes[field] != getattr(locked, field):
             diff[field] = [getattr(locked, field), changes[field]]
             setattr(locked, field, changes[field])
+    if "guardians" in changes:
+        before = _guardian_summary(list(locked.guardians.all()))
+        after = _guardian_summary(changes["guardians"])
+        if before != after:
+            _save_guardians(locked, changes["guardians"])
+            diff["guardians"] = [before, after]
     if not diff:
         return locked
     locked.updated_by = actor
-    locked.save(update_fields=[*diff, "updated_by", "updated_at"])
+    fields = [f for f in diff if f != "guardians"]
+    locked.save(update_fields=[*fields, "updated_by", "updated_at"])
     record(
         AuditLog.Action.STUDENT_UPDATED,
         actor=actor,

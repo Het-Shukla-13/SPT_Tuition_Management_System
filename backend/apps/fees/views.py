@@ -100,7 +100,7 @@ class FeeAccountListView(generics.ListAPIView):
         "student__first_name",
         "student__last_name",
         "student__admission_number",
-        "student__guardian_phone",
+        "student__guardians__phone",
     ]
     ordering_fields = [
         "pending",

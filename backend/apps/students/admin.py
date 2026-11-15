@@ -36,7 +36,7 @@ class StudentProfileAdmin(admin.ModelAdmin):
         "status",
     ]
     list_filter = ["status", "board", "standard"]
-    search_fields = ["admission_number", "first_name", "last_name", "guardian_phone"]
+    search_fields = ["admission_number", "first_name", "last_name", "guardians__phone"]
     readonly_fields = [
         "admission_number",
         "created_by",
