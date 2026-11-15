@@ -342,6 +342,8 @@ owner may edit another admin (`OWNER_REQUIRED`). Audited with `by_admin: true`.
 
 `boards/`, `standards/`, `subjects/`, `chapters/`, `schools/`, `academic-years/`. Logic: `apps/academics`.
 
+- **Academic year names** must be `YYYY-YY` with consecutive years and the first matching the
+  start date's year (e.g. a year starting 1 Jun 2026 is "2026-27"), so boards line up by name.
 - **Seeded:** boards CBSE / GSEB / ICSE; standards 1st-10th; subjects English, Mathematics, Science,
   Social Studies, Gujarati, Hindi (English medium only); academic year 2026-27 (1 Apr 2026 - 31 Mar 2027)
   as current. Admins can change all of it.

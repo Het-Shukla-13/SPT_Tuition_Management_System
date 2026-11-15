@@ -235,7 +235,7 @@ class TestAcademicYear:
             f"{BASE}academic-years/",
             {
                 "board": Board.objects.get(code="CBSE").pk,
-                "name": "bad",
+                "name": "2027-28",
                 "start_date": "2027-04-01",
                 "end_date": "2027-03-01",
             },
