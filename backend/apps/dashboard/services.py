@@ -7,7 +7,7 @@ records, not manually updated counters").
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from apps.fees.models import LedgerEntry, StudentFeeAccount
@@ -79,7 +79,9 @@ def _learning_summary(board) -> dict:
         revoked_at__isnull=True, student__status="ACTIVE"
     )
     if board is not None:
-        tests, notes = tests.filter(board=board), notes.filter(board=board)
+        for_board = Q(boards=board) | Q(boards__isnull=True)
+        tests = tests.filter(for_board).distinct()
+        notes = notes.filter(for_board).distinct()
         assignments = assignments.filter(student__board=board)
     # Tests that are over but not graded yet ("to grade" list for teachers).
     to_grade = [
@@ -87,7 +89,7 @@ def _learning_summary(board) -> dict:
         for a in assignments.filter(
             marks_obtained__isnull=True, test_starts_at__lte=now
         ).select_related("test_paper")
-        if a.test_ends_at and a.test_ends_at <= now
+        if a.is_over
     ]
     return {
         "upcoming_tests_7_days": assignments.filter(

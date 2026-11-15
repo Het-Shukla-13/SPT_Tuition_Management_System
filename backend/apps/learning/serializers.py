@@ -1,6 +1,10 @@
+import datetime
+
+from django.utils import timezone
 from rest_framework import serializers
 
-from apps.academics.models import AcademicYear, Chapter
+from apps.academics.models import AcademicYear, Board, Chapter
+from apps.academics.serializers import YEAR_NAME
 from apps.learning.models import (
     DocumentFile,
     Note,
@@ -13,12 +17,12 @@ from apps.learning.models import (
 ITEM_BASE_FIELDS = [
     "title",
     "description",
-    "board",
+    "boards",
     "standard",
     "subject",
     "chapters",
     "semester",
-    "academic_year",
+    "academic_year_name",
     "remarks",
 ]
 
@@ -33,18 +37,28 @@ class DocumentFileSerializer(serializers.ModelSerializer):
 
 
 class _ItemReadSerializer(serializers.ModelSerializer):
-    board_code = serializers.CharField(source="board.code", read_only=True)
+    board_codes = serializers.SerializerMethodField(
+        help_text="Boards it suits; empty = every board."
+    )
     standard_name = serializers.CharField(source="standard.name", read_only=True)
     subject_name = serializers.CharField(source="subject.name", read_only=True)
-    academic_year_name = serializers.CharField(
-        source="academic_year.name", read_only=True
-    )
     chapter_names = serializers.SerializerMethodField()
+
+    def get_board_codes(self, obj) -> list[str]:
+        return [b.code for b in obj.boards.all()]
+
     files = serializers.SerializerMethodField(help_text="Current PDF(s).")
     active_assignments = serializers.SerializerMethodField()
 
     def get_chapter_names(self, obj) -> list[str]:
-        return [f"{c.number}. {c.name}" for c in obj.chapters.all()]
+        # Uses the prefetched boards / chapters__board (no query per row).
+        several = len(obj.boards.all()) != 1
+        return [
+            f"{c.board.code} · {c.number}. {c.name}"
+            if several
+            else f"{c.number}. {c.name}"
+            for c in obj.chapters.all()
+        ]
 
     def get_files(self, obj) -> list[dict]:
         current = getattr(obj, "current_files", None)  # prefetched by list views
@@ -67,10 +81,9 @@ class TestPaperSerializer(_ItemReadSerializer):
         fields = [
             "id",
             *ITEM_BASE_FIELDS,
-            "board_code",
+            "board_codes",
             "standard_name",
             "subject_name",
-            "academic_year_name",
             "chapter_names",
             "school",
             "test_date",
@@ -92,10 +105,9 @@ class NoteSerializer(_ItemReadSerializer):
         fields = [
             "id",
             *ITEM_BASE_FIELDS,
-            "board_code",
+            "board_codes",
             "standard_name",
             "subject_name",
-            "academic_year_name",
             "chapter_names",
             "is_archived",
             "files",
@@ -114,37 +126,51 @@ class _ItemWriteSerializer(serializers.ModelSerializer):
     semester = serializers.ChoiceField(
         choices=Semester.choices, required=False, allow_null=True
     )
-    academic_year = serializers.PrimaryKeyRelatedField(
-        queryset=AcademicYear.objects.all(),
+    boards = serializers.PrimaryKeyRelatedField(
+        queryset=Board.objects.all(),
+        many=True,
         required=False,
-        help_text="Defaults to the board's current academic year.",
+        help_text="Boards it suits. Leave empty for every board.",
     )
+    academic_year_name = serializers.CharField(
+        max_length=7,
+        required=False,
+        help_text='The year by name, e.g. "2026-27". Defaults to the current year.',
+    )
+
+    def validate_academic_year_name(self, value):
+        value = value.strip()
+        match = YEAR_NAME.fullmatch(value)
+        if not match or int(match["second"]) != (int(match["first"]) + 1) % 100:
+            raise serializers.ValidationError("Use the format YYYY-YY, e.g. 2026-27.")
+        return value
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        board = attrs.get("board", getattr(self.instance, "board", None))
-        if (
-            self.instance is None
-            and not attrs.get("academic_year")
-            and board is not None
-        ):
-            current = AcademicYear.current(board)
+        if "boards" in attrs:
+            boards = list(attrs["boards"])
+        elif self.instance is not None:
+            boards = list(self.instance.boards.all())
+        else:
+            boards = []
+        if self.instance is None and not attrs.get("academic_year_name"):
+            # The first chosen board's current year, else the newest current year.
+            years = AcademicYear.objects.filter(is_current=True)
+            if boards:
+                years = years.filter(board__in=boards)
+            current = years.order_by("-start_date").first()
             if current is None:
                 raise serializers.ValidationError(
-                    {"academic_year": [f"No current academic year is set for {board}."]}
+                    {"academic_year_name": ["No current academic year is set yet."]}
                 )
-            attrs["academic_year"] = current
-        year = attrs.get("academic_year", getattr(self.instance, "academic_year", None))
-        if year is not None and board is not None and year.board_id != board.pk:
-            raise serializers.ValidationError(
-                {"academic_year": ["This academic year belongs to a different board."]}
-            )
-        # Chapters must belong to the item's board + standard + subject.
+            attrs["academic_year_name"] = current.name
+        # Chapters must match the standard + subject, and one of the boards.
         standard = attrs.get("standard", getattr(self.instance, "standard", None))
         subject = attrs.get("subject", getattr(self.instance, "subject", None))
+        board_ids = {b.pk for b in boards}
         for chapter in attrs.get("chapters", []):
-            if (chapter.board_id, chapter.standard_id, chapter.subject_id) != (
-                getattr(board, "pk", None),
+            wrong_board = board_ids and chapter.board_id not in board_ids
+            if wrong_board or (chapter.standard_id, chapter.subject_id) != (
                 getattr(standard, "pk", None),
                 getattr(subject, "pk", None),
             ):
@@ -155,7 +181,12 @@ class _ItemWriteSerializer(serializers.ModelSerializer):
                         ]
                     }
                 )
-        for ref in ("board", "standard", "subject"):
+        for board in attrs.get("boards", []):
+            if not board.is_active:
+                raise serializers.ValidationError(
+                    {"boards": [f"{board.code} is deactivated."]}
+                )
+        for ref in ("standard", "subject"):
             value = attrs.get(ref)
             if value is not None and not value.is_active:
                 raise serializers.ValidationError({ref: ["This item is deactivated."]})
@@ -217,6 +248,13 @@ class ArchiveSerializer(serializers.Serializer):
     archived = serializers.BooleanField()
 
 
+class BulkArchiveSerializer(serializers.Serializer):
+    ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), min_length=1, max_length=200
+    )
+    archived = serializers.BooleanField()
+
+
 # ─────────────────────────────────────────────────────────────
 # Staff: assignments
 # ─────────────────────────────────────────────────────────────
@@ -227,15 +265,46 @@ class _AssignBase(serializers.Serializer):
     remarks = serializers.CharField(required=False, allow_blank=True, default="")
 
 
-class AssignTestSerializer(_AssignBase):
-    test_starts_at = serializers.DateTimeField(
+def _start(attrs: dict) -> dict:
+    """
+    test_date (+ optional test_time) -> test_starts_at + has_start_time.
+    Only a date means 8:00 that day, with no fixed end.
+    """
+    if "test_date" not in attrs and "test_time" not in attrs:
+        return attrs
+    date, time = attrs.pop("test_date", None), attrs.pop("test_time", None)
+    if time is not None and date is None:
+        raise serializers.ValidationError({"test_date": ["Choose the date too."]})
+    if date is None:
+        attrs["test_starts_at"], attrs["has_start_time"] = None, True
+    else:
+        local = datetime.datetime.combine(date, time or datetime.time(8, 0))
+        attrs["test_starts_at"] = timezone.make_aware(local)
+        attrs["has_start_time"] = time is not None
+    return attrs
+
+
+class _TestTiming(serializers.Serializer):
+    test_date = serializers.DateField(
         required=False,
         allow_null=True,
-        help_text="When the test starts. The answer key unlocks for students after start + duration.",
+        help_text="The test day. Without a time, the paper opens at 8:00 that day.",
+    )
+    test_time = serializers.TimeField(
+        required=False,
+        allow_null=True,
+        help_text="Start time. The answer key opens after start + duration.",
     )
     duration_minutes = serializers.IntegerField(
         required=False, allow_null=True, min_value=1
     )
+
+    def validate(self, attrs):
+        return _start(super().validate(attrs))
+
+
+class AssignTestSerializer(_TestTiming, _AssignBase):
+    pass
 
 
 class AssignNoteSerializer(_AssignBase):
@@ -261,7 +330,9 @@ class TestAssignmentSerializer(serializers.ModelSerializer):
     max_marks = serializers.DecimalField(
         source="test_paper.max_marks", max_digits=6, decimal_places=2
     )
-    test_ends_at = serializers.DateTimeField()
+    test_ends_at = serializers.DateTimeField(allow_null=True)
+    visible_from = serializers.DateTimeField()
+    is_over = serializers.BooleanField(help_text="Marks can be entered.")
     answer_key_unlocked = serializers.BooleanField()
 
     class Meta:
@@ -274,8 +345,11 @@ class TestAssignmentSerializer(serializers.ModelSerializer):
             "assigned_at",
             "assigned_by",
             "test_starts_at",
+            "has_start_time",
             "duration_minutes",
+            "visible_from",
             "test_ends_at",
+            "is_over",
             "answer_key_unlocked",
             "remarks",
             "max_marks",
@@ -304,11 +378,9 @@ class NoteAssignmentSerializer(serializers.ModelSerializer):
         ]
 
 
-class TestAssignmentUpdateSerializer(serializers.Serializer):
-    test_starts_at = serializers.DateTimeField(required=False, allow_null=True)
-    duration_minutes = serializers.IntegerField(
-        required=False, allow_null=True, min_value=1
-    )
+class TestAssignmentUpdateSerializer(_TestTiming):
+    """Reschedule one student's test: date, optional time, duration, remarks."""
+
     remarks = serializers.CharField(required=False, allow_blank=True)
 
 
@@ -334,7 +406,12 @@ class PortalTestSerializer(serializers.ModelSerializer):
     max_marks = serializers.DecimalField(
         source="test_paper.max_marks", max_digits=6, decimal_places=2
     )
-    test_ends_at = serializers.DateTimeField()
+    test_ends_at = serializers.DateTimeField(allow_null=True)
+    visible_from = serializers.DateTimeField(
+        help_text="When the question paper opens (start time, or 8:00 on the date)."
+    )
+    paper_available = serializers.BooleanField()
+    is_over = serializers.BooleanField()
     has_answer_key = serializers.SerializerMethodField()
     answer_key_available = serializers.SerializerMethodField(
         help_text="True once the test is over and an answer key exists."
@@ -352,7 +429,11 @@ class PortalTestSerializer(serializers.ModelSerializer):
             "chapters",
             "assigned_at",
             "test_starts_at",
+            "has_start_time",
+            "visible_from",
             "test_ends_at",
+            "paper_available",
+            "is_over",
             "remarks",
             "max_marks",
             "marks_obtained",

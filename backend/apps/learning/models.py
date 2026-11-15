@@ -19,7 +19,6 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.academics.models import (
-    AcademicYear,
     Board,
     Chapter,
     School,
@@ -40,16 +39,16 @@ class _LearningItem(GlobalTimeStampedModel):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    board = models.ForeignKey(Board, on_delete=models.PROTECT, related_name="+")
+    # Which boards it suits; none = every board.
+    boards = models.ManyToManyField(Board, blank=True, related_name="+")
     standard = models.ForeignKey(Standard, on_delete=models.PROTECT, related_name="+")
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name="+")
     chapters = models.ManyToManyField(Chapter, blank=True, related_name="+")
     semester = models.PositiveSmallIntegerField(
         choices=Semester.choices, null=True, blank=True
     )
-    academic_year = models.ForeignKey(
-        AcademicYear, on_delete=models.PROTECT, related_name="+"
-    )
+    # The year by name ("2026-27"), shared by every board's year of that name.
+    academic_year_name = models.CharField(max_length=7, default="", db_index=True)
     remarks = models.TextField(blank=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+"
@@ -187,6 +186,9 @@ class TestAssignment(_Assignment):
         TestPaper, on_delete=models.PROTECT, related_name="assignments"
     )
     test_starts_at = models.DateTimeField(null=True, blank=True)
+    # False = only a date was given: the test opens at 8:00 that day and has
+    # no fixed end, so the answer key opens with it.
+    has_start_time = models.BooleanField(default=True)
     duration_minutes = models.PositiveIntegerField(null=True, blank=True)
     marks_obtained = models.DecimalField(
         max_digits=6, decimal_places=2, null=True, blank=True
@@ -215,17 +217,36 @@ class TestAssignment(_Assignment):
     def __str__(self) -> str:
         return f"test {self.test_paper_id} -> student {self.student_id}"
 
+    # ── Timing ──────────────────────────────────────────────────────────
+    # With a start time: the paper opens at the start, the test ends after
+    # its duration, and then the answer key opens and marks can be entered.
+    # With only a date: everything opens at 8:00 that day (no fixed end).
+    # With neither: everything is open from the moment it's assigned.
+
+    @property
+    def visible_from(self):
+        """When students can open the question paper."""
+        return self.test_starts_at or self.assigned_at
+
     @property
     def test_ends_at(self):
-        if self.test_starts_at is None:
+        if self.test_starts_at is None or not self.has_start_time:
             return None
         minutes = self.duration_minutes or self.test_paper.duration_minutes
         return self.test_starts_at + timedelta(minutes=minutes)
 
     @property
+    def is_over(self) -> bool:
+        """The test has happened: the answer key is open and marks can be entered."""
+        return timezone.now() >= (self.test_ends_at or self.visible_from)
+
+    @property
+    def paper_available(self) -> bool:
+        return timezone.now() >= self.visible_from
+
+    @property
     def answer_key_unlocked(self) -> bool:
-        ends = self.test_ends_at
-        return ends is not None and timezone.now() >= ends
+        return self.is_over
 
 
 class NoteAssignment(_Assignment):

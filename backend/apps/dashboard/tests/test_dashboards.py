@@ -73,10 +73,9 @@ def world(db):
 
     paper = TestPaper.objects.create(
         title="Unit 1",
-        board=cbse,
         standard=tenth,
         subject=maths,
-        academic_year=AcademicYear.current(cbse),
+        academic_year_name=(AcademicYear.current(cbse)).name,
         max_marks=25,
         duration_minutes=60,
     )

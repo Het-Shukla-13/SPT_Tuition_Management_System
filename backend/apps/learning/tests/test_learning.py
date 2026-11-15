@@ -117,7 +117,7 @@ def make_student(ref, name="Aarav", phone="+919876543210", status="ACTIVE"):
 def paper_form(ref, **kw):
     return {
         "title": "Unit test 1",
-        "board": ref["cbse"].pk,
+        "boards": [ref["cbse"].pk],
         "standard": ref["tenth"].pk,
         "subject": ref["maths"].pk,
         "chapters": [ref["ch1"].pk],
@@ -133,10 +133,19 @@ def create_paper(user, ref, **kw):
     return TestPaper.objects.get(pk=response.json()["data"]["id"])
 
 
+def timing(starts_at):
+    """A start moment as the date + time fields the form sends (local time)."""
+    local = timezone.localtime(starts_at)
+    return {
+        "test_date": local.date().isoformat(),
+        "test_time": local.strftime("%H:%M:%S"),
+    }
+
+
 def assign_test(user, paper, students, starts_at=None):
     payload = {"student_ids": [s.pk for s in students]}
     if starts_at is not None:
-        payload["test_starts_at"] = starts_at.isoformat()
+        payload.update(timing(starts_at))
     return client_for(user).post(f"{TESTS}{paper.pk}/assign/", payload, format="json")
 
 
@@ -155,7 +164,9 @@ class TestUploads:
             DocumentFile.objects.filter(test_paper=paper).values_list("kind", flat=True)
         )
         assert kinds == {"PAPER", "ANSWER_KEY"}
-        assert paper.academic_year == AcademicYear.current(ref["cbse"])  # board default
+        assert (
+            paper.academic_year_name == AcademicYear.current(ref["cbse"]).name
+        )  # default
         assert AuditLog.objects.filter(action="DOCUMENT_UPLOADED").exists()
 
     def test_portal_user_cannot_upload(self, ref):
@@ -369,9 +380,10 @@ class TestAnswerKey:
         listing = client.get(PORTAL.format(sid=student.pk) + "tests/").json()["data"][0]
         assert listing["answer_key_available"] is True
 
-    def test_no_test_time_means_never(self, admin, ref):
+    def test_no_test_time_means_open_from_the_start(self, admin, ref):
+        # No date or time: the paper and the answer key are open once assigned.
         client, url, *_ = self._setup(admin, ref, None)
-        assert client.get(url).json()["error_code"] == "ANSWER_KEY_LOCKED"
+        assert client.get(url).status_code == 200
 
     def test_missing_key_reported(self, admin, ref):
         client, url, *_ = self._setup(
@@ -383,10 +395,8 @@ class TestAnswerKey:
         client, url, _, assignment = self._setup(
             admin, ref, timezone.now() - timedelta(minutes=30)
         )
-        later = (timezone.now() - timedelta(hours=3)).isoformat()
-        client_for(admin).patch(
-            f"{TA}{assignment.pk}/", {"test_starts_at": later}, format="json"
-        )
+        earlier = timezone.now() - timedelta(hours=3)
+        client_for(admin).patch(f"{TA}{assignment.pk}/", timing(earlier), format="json")
         assert client.get(url).status_code == 200
 
 
@@ -453,7 +463,7 @@ class TestNotes:
             NOTES,
             {
                 "title": "Real numbers notes",
-                "board": ref["cbse"].pk,
+                "boards": [ref["cbse"].pk],
                 "standard": ref["tenth"].pk,
                 "subject": ref["maths"].pk,
                 "chapters": [ref["ch1"].pk],

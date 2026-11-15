@@ -37,6 +37,7 @@ from apps.learning.serializers import (
     ArchiveSerializer,
     AssignNoteSerializer,
     AssignTestSerializer,
+    BulkArchiveSerializer,
     DocumentFileSerializer,
     GradeSerializer,
     NoteAssignmentSerializer,
@@ -82,11 +83,10 @@ class _ItemViewSet(viewsets.GenericViewSet):
 
     def get_queryset(self):
         queryset = (
-            self.queryset.select_related(
-                "board", "standard", "subject", "academic_year"
-            )
+            self.queryset.select_related("standard", "subject")
             .prefetch_related(
-                "chapters",
+                "boards",
+                "chapters__board",
                 Prefetch(
                     "files",
                     queryset=DocumentFile.objects.filter(is_current=True),
@@ -106,6 +106,12 @@ class _ItemViewSet(viewsets.GenericViewSet):
                 self.request.query_params.get("is_archived", "false").lower() == "true"
             )
             queryset = queryset.filter(is_archived=archived)
+        board = self.request.query_params.get("board")
+        if board:
+            # Items for that board, plus those for every board (no boards set).
+            queryset = queryset.filter(
+                Q(boards=board) | Q(boards__isnull=True)
+            ).distinct()
         if self.request.query_params.get("search"):
             queryset = queryset.distinct()  # chapter join may duplicate rows
         return queryset
@@ -169,6 +175,36 @@ class _ItemViewSet(viewsets.GenericViewSet):
         )
         return ApiResponse.success(
             message="PDF replaced.", data=DocumentFileSerializer(doc).data
+        )
+
+    @extend_schema(
+        request=BulkArchiveSerializer,
+        summary="Archive / unarchive several at once",
+        responses={
+            200: OpenApiResponse(description='{"done": [ids], "failed": [ids]}')
+        },
+    )
+    @action(detail=False, methods=["post"], url_path="bulk-archive")
+    def bulk_archive(self, request):
+        serializer = BulkArchiveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        ids = serializer.validated_data["ids"]
+        found = {item.pk: item for item in self.queryset.filter(pk__in=ids)}
+        done, failed = [], []
+        for pk in dict.fromkeys(ids):
+            item = found.get(pk)
+            if item is None:
+                failed.append(pk)
+                continue
+            services.set_archived(
+                actor=request.user,
+                item=item,
+                archived=serializer.validated_data["archived"],
+                ip=client_ip(request),
+            )
+            done.append(pk)
+        return ApiResponse.success(
+            message=f"Updated {len(done)}.", data={"done": done, "failed": failed}
         )
 
     @extend_schema(request=ArchiveSerializer, summary="Archive / unarchive")
@@ -255,11 +291,10 @@ class TestPaperViewSet(_ItemViewSet):
         AssignTestSerializer,
     )
     filterset_fields = [
-        "board",
         "standard",
         "subject",
         "semester",
-        "academic_year",
+        "academic_year_name",
         "chapters",
         "school",
     ]
@@ -324,7 +359,9 @@ class TestPaperViewSet(_ItemViewSet):
     )
     @action(detail=True, methods=["post"])
     def assign(self, request, pk=None):
-        return self._assign(request, pk, ("test_starts_at", "duration_minutes"))
+        return self._assign(
+            request, pk, ("test_starts_at", "has_start_time", "duration_minutes")
+        )
 
 
 @extend_schema_view(
@@ -347,11 +384,10 @@ class NoteViewSet(_ItemViewSet):
     read_serializer, write_serializer = NoteSerializer, NoteWriteSerializer
     create_serializer, assign_serializer = NoteCreateSerializer, AssignNoteSerializer
     filterset_fields = [
-        "board",
         "standard",
         "subject",
         "semester",
-        "academic_year",
+        "academic_year_name",
         "chapters",
     ]
 
