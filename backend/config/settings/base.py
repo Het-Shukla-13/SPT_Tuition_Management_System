@@ -230,6 +230,7 @@ REST_FRAMEWORK = {
         # Per-IP limits on the public OTP endpoints (fail closed).
         "otp_request": env("THROTTLE_RATE_OTP_REQUEST", default="20/hour"),
         "otp_verify": env("THROTTLE_RATE_OTP_VERIFY", default="60/hour"),
+        "invite": env("THROTTLE_RATE_INVITE", default="30/hour"),
         # Per-IP limit on password logins (on top of the per-email lockout).
         "login": env("THROTTLE_RATE_LOGIN", default="60/hour"),
         # Per-user limit on starting an email/phone change (also limits
@@ -282,6 +283,9 @@ SESSION_MAX_LIFETIME_DAYS = env.int("SESSION_MAX_LIFETIME_DAYS", default=30)
 # OTP authentication
 # ─────────────────────────────────────────────────────────────
 INSTITUTE_NAME = env("INSTITUTE_NAME", default="Sai Personal Tuitions")
+# Where the web app lives, for links in emails (e.g. the invite's "Set your password").
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173")
+INVITE_LINK_TTL_DAYS = env.int("INVITE_LINK_TTL_DAYS", default=7)
 
 OTP_LENGTH = 6
 OTP_TTL_SECONDS = env.int("OTP_TTL_SECONDS", default=300)  # 5 minutes

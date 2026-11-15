@@ -257,6 +257,11 @@ def request_password_code(*, email: str, ip: str | None = None) -> None:
     )
 
 
+def validate_new_password(password: str, user: User | None) -> None:
+    """Public: the same strength rules wherever a password is chosen."""
+    _validate_new_password(password, user)
+
+
 def _validate_new_password(password: str, user: User | None) -> None:
     try:
         validate_password(password, user=user)

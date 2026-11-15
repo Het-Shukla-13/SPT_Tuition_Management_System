@@ -68,9 +68,13 @@ def issue_tokens(user: User, *, ip=None, user_agent: str = "") -> dict:
     )
     update_last_login(None, user)
     if user.activated_at is None:
-        # First successful login: the invite has been accepted.
+        # First successful login (password, code or Google): the invite has
+        # been accepted, so its "Set your password" link is spent.
+        from apps.accounts.services.invites import use_up_invite_links
+
         user.activated_at = timezone.now()
         user.save(update_fields=["activated_at", "updated_at"])
+        use_up_invite_links(user)
     return {"access": str(refresh.access_token), "refresh": str(refresh)}
 
 

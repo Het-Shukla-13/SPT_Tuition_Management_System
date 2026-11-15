@@ -8,6 +8,7 @@ phone OTP, so email and phone are optional individually but at least one
 must exist.
 """
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.validators import RegexValidator
 from django.db import models
@@ -316,3 +317,35 @@ class TrustedDevice(GlobalTimeStampedModel):
     @property
     def is_active(self) -> bool:
         return self.revoked_at is None and self.expires_at > timezone.now()
+
+
+class InviteLink(GlobalTimeStampedModel):
+    """
+    The "set your password" link in an invite email. Single use, expires, and
+    only its SHA-256 hash is stored (the raw token lives only in the email).
+    Sending a new invite cancels older links; any first login (password,
+    code or Google) also marks the link used.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="invite_links"
+    )
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "invite_links"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Invite link for user {self.user_id}"
+
+    @property
+    def is_usable(self) -> bool:
+        return (
+            self.used_at is None
+            and self.revoked_at is None
+            and self.expires_at > timezone.now()
+        )

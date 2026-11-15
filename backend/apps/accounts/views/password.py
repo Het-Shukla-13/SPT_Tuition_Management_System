@@ -14,6 +14,9 @@ from rest_framework.views import APIView
 from apps.accounts.models import TrustedDevice
 from apps.accounts.serializers import (
     AuthTokensSerializer,
+    InviteAcceptSerializer,
+    InviteCheckSerializer,
+    InviteInfoSerializer,
     LoginResultSerializer,
     LoginSerializer,
     LoginTicketSerializer,
@@ -30,6 +33,7 @@ from apps.accounts.services.devices import (
     hash_device_token,
     trust_device,
 )
+from apps.accounts.services.invites import accept_invite, check_invite_link
 from apps.accounts.services.passwords import (
     change_password,
     login_with_password,
@@ -255,6 +259,79 @@ class PasswordResetConfirmView(APIView):
         return log_in(
             request, user, message="Password saved. You're logged in.", trust=True
         )
+
+
+class InviteCheckView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ResilientScopedRateThrottle]
+    throttle_scope = "invite"
+
+    @extend_schema(
+        tags=PASSWORD_TAG,
+        summary="Invite link: who is it for?",
+        description="For the Set password screen. The token stays in the body, not the URL.",
+        request=InviteCheckSerializer,
+        responses={
+            200: InviteInfoSerializer,
+            400: OpenApiResponse(
+                description="INVITE_LINK_INVALID (unknown, used, expired)"
+            ),
+            403: OpenApiResponse(description="ACCOUNT_DISABLED"),
+        },
+    )
+    def post(self, request):
+        serializer = InviteCheckSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = check_invite_link(serializer.validated_data["token"])
+        return ApiResponse.success(
+            data={"first_name": user.first_name, "email": user.email}
+        )
+
+
+class InviteAcceptView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ResilientScopedRateThrottle]
+    throttle_scope = "invite"
+
+    @extend_schema(
+        tags=PASSWORD_TAG,
+        summary="Invite link: set my first password",
+        description=(
+            "Sets the password, confirms the email and uses the link up. Trusts this "
+            "browser (the link proved the inbox), so signing in next needs no code. "
+            "Does not log in: the app sends them to sign in with the new password."
+        ),
+        request=InviteAcceptSerializer,
+        responses={
+            200: InviteInfoSerializer,
+            400: OpenApiResponse(
+                description="INVITE_LINK_INVALID / VALIDATION_ERROR (weak password: errors.new_password)"
+            ),
+            403: OpenApiResponse(description="ACCOUNT_DISABLED"),
+        },
+    )
+    def post(self, request):
+        serializer = InviteAcceptSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = accept_invite(
+            raw=serializer.validated_data["token"],
+            new_password=serializer.validated_data["new_password"],
+            ip=client_ip(request),
+        )
+        response = ApiResponse.success(
+            message="Password set. Sign in to continue.",
+            data={"first_name": user.first_name, "email": user.email},
+        )
+        token = trust_device(
+            user,
+            token=device_token_from(request),
+            ip=client_ip(request),
+            user_agent=user_agent(request),
+        )
+        set_device_cookie(response, token)
+        return response
 
 
 class PasswordChangeView(APIView):

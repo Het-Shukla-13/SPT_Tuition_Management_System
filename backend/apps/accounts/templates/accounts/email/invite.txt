@@ -1,12 +1,19 @@
-Hello {{ first_name }},
+{% autoescape off %}Hello {{ first_name }},
 
 You've been added to {{ institute_name }} as a {{ role_label }}.
+{% if invite_url %}
+Set your password here (the link works once and for {{ invite_days }} days):
+{{ invite_url }}
 
-To get started, open the app, choose "Set or reset password" and enter this
-email address. We'll email you a one-time code, then you choose your own
-password. You can also use "Continue with Google" if this is your Google
-account's email.
+Then sign in with this email address and your new password.
+{% endif %}
+Prefer Google? If this email is your Google account, choose "Continue with
+Google" on the login page instead. No password needed.
+
+Link expired or already used? On the login page, choose "First time here, or
+forgot your password?" and enter this email. We'll send you a code.
 
 If you weren't expecting this, you can ignore this email.
 
 - {{ institute_name }}
+{% endautoescape %}
