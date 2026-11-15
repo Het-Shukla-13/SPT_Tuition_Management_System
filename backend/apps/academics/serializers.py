@@ -1,3 +1,5 @@
+import re
+
 from django.db import transaction
 from rest_framework import serializers
 
@@ -9,6 +11,9 @@ from apps.academics.models import (
     Standard,
     Subject,
 )
+
+# "2026-27": the year it starts, a hyphen, the next year's last two digits.
+YEAR_NAME = re.compile(r"(?P<first>\d{4})-(?P<second>\d{2})")
 
 
 class _ReferenceSerializer(serializers.ModelSerializer):
@@ -141,10 +146,34 @@ class AcademicYearSerializer(_ReferenceSerializer):
         # the old one off. save() handles it; the database still enforces it.
         validators = []
 
+    def validate_name(self, value):
+        """One format everywhere, so boards' years line up by name (e.g. 2026-27)."""
+        value = value.strip()
+        match = YEAR_NAME.fullmatch(value)
+        if not match:
+            raise serializers.ValidationError("Use the format YYYY-YY, e.g. 2026-27.")
+        first, second = int(match["first"]), int(match["second"])
+        if second != (first + 1) % 100:
+            raise serializers.ValidationError(
+                f"The two years must follow on: {first}-{(first + 1) % 100:02d}."
+            )
+        return value
+
     def validate(self, attrs):
         attrs = super().validate(attrs)
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))
         end = attrs.get("end_date", getattr(self.instance, "end_date", None))
+        name = attrs.get("name", getattr(self.instance, "name", None))
+        match = YEAR_NAME.fullmatch(name or "")
+        if start and match and int(match["first"]) != start.year:
+            raise serializers.ValidationError(
+                {
+                    "name": [
+                        f"A year starting in {start.year} should be called "
+                        f"{start.year}-{(start.year + 1) % 100:02d}."
+                    ]
+                }
+            )
         if start and end and end <= start:
             raise serializers.ValidationError(
                 {"end_date": ["Must be after the start date."]}
