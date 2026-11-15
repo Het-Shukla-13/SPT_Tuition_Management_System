@@ -37,9 +37,9 @@ const columns: ColumnDef<StudentListItem, unknown>[] = [
     header: "Parent",
     cell: ({ row }) => (
       <span className="flex flex-col">
-        <span>{row.original.guardian_name || "–"}</span>
-        {row.original.guardian_phone && (
-          <span className="text-xs text-muted">{formatPhone(row.original.guardian_phone)}</span>
+        <span>{row.original.guardians[0]?.name || "–"}</span>
+        {row.original.guardians[0]?.phone && (
+          <span className="text-xs text-muted">{formatPhone(row.original.guardians[0].phone)}</span>
         )}
       </span>
     ),
