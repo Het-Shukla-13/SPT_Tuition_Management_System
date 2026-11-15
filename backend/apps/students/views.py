@@ -88,7 +88,9 @@ class AdminStudentListView(generics.ListAPIView):
     ordering = ["first_name", "last_name"]
 
     def get_queryset(self):
-        queryset = StudentProfile.objects.select_related("board", "standard", "school")
+        queryset = StudentProfile.objects.select_related(
+            "board", "standard", "school"
+        ).prefetch_related("guardians")
         term = (self.request.query_params.get("search") or "").strip()
         if term:
             # Explicit search (instead of SearchFilter) so the login join only
@@ -101,9 +103,9 @@ class AdminStudentListView(generics.ListAPIView):
                 Q(first_name__icontains=term)
                 | Q(last_name__icontains=term)
                 | Q(admission_number__icontains=term)
-                | Q(guardian_name__icontains=term)
-                | Q(guardian_phone__icontains=term)
-                | Q(guardian_email__icontains=term)
+                | Q(guardians__name__icontains=term)
+                | Q(guardians__phone__icontains=term)
+                | Q(guardians__email__icontains=term)
                 | active_login
             ).distinct()
         return queryset

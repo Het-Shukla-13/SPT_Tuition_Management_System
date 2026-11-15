@@ -52,8 +52,7 @@ def payload(refs, **overrides):
         "first_name": "Aarav",
         "last_name": "Shah",
         "date_of_birth": "2011-05-10",
-        "guardian_name": "Kavita Shah",
-        "guardian_phone": "98765 43210",
+        "guardians": [{"name": "Kavita Shah", "phone": "98765 43210"}],
         "board": refs["cbse"].pk,
         "standard": refs["tenth"].pk,
         "school": refs["school"].pk,
@@ -91,7 +90,7 @@ class TestAdmission:
             "MATH",
             "SCI",
         }
-        assert data["student"]["guardian_phone"] == "+919876543210"  # normalised
+        assert data["student"]["guardians"][0]["phone"] == "+919876543210"  # normalised
 
         student = StudentProfile.objects.get()
         history = StudentAcademicHistory.objects.get(student=student)
@@ -156,8 +155,8 @@ class TestAdmission:
         assert StudentProfile.objects.count() == 2
 
     def test_same_name_different_birth_date_is_not_a_duplicate(self, admin, refs):
-        admit(admin, refs, new_logins=[], guardian_phone="")
-        admit(admin, refs, new_logins=[], guardian_phone="", date_of_birth="2012-12-12")
+        admit(admin, refs, new_logins=[], guardians=[])
+        admit(admin, refs, new_logins=[], guardians=[], date_of_birth="2012-12-12")
         assert StudentProfile.objects.count() == 2
 
     def test_cannot_link_a_non_portal_login(self, admin, refs):
@@ -376,7 +375,7 @@ class TestAccessAndPortal:
             admin,
             refs,
             first_name="Kabir",
-            guardian_phone="9111111111",
+            guardians=[{"name": "Kabir's father", "phone": "9111111111"}],
             date_of_birth="2011-01-01",
             new_logins=[{"first_name": "X", "last_name": "Y", "phone": "9111111111"}],
         )
@@ -500,8 +499,7 @@ class TestStudentSearch:
             refs,
             first_name="Riya",
             last_name="Patel",
-            guardian_name="Meena Patel",
-            guardian_phone="98111 22233",
+            guardians=[{"name": "Meena Patel", "phone": "98111 22233"}],
             new_logins=[],
         )
         response = client_for(admin).get(f"{ADMIN_URL}?search={term}")

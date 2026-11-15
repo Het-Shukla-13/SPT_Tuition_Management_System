@@ -9,6 +9,7 @@ from apps.accounts.services.sms import EMAIL_REQUIRED_MESSAGE, sms_enabled
 from apps.students.models import (
     StudentAcademicHistory,
     StudentAccess,
+    StudentGuardian,
     StudentProfile,
     StudentSubject,
 )
@@ -98,7 +99,14 @@ class AcademicHistorySerializer(serializers.ModelSerializer):
 # ─────────────────────────────────────────────────────────────
 # Admin: read
 # ─────────────────────────────────────────────────────────────
+class _GuardianRead(serializers.ModelSerializer):
+    class Meta:
+        model = StudentGuardian
+        fields = ["id", "name", "relation", "phone", "email"]
+
+
 class StudentListSerializer(serializers.ModelSerializer):
+    guardians = _GuardianRead(many=True, read_only=True)
     board = _BoardRef()
     standard = _StandardRef()
     school = _SchoolRef()
@@ -116,8 +124,7 @@ class StudentListSerializer(serializers.ModelSerializer):
             "status",
             "medium",
             "admission_date",
-            "guardian_name",
-            "guardian_phone",
+            "guardians",
             "created_at",
         ]
 
@@ -133,8 +140,6 @@ class StudentDetailSerializer(StudentListSerializer):
             "date_of_birth",
             "gender",
             "address",
-            "guardian_relation",
-            "guardian_email",
             "left_on",
             "remarks",
             "subjects",
@@ -158,16 +163,37 @@ class StudentDetailSerializer(StudentListSerializer):
 # ─────────────────────────────────────────────────────────────
 # Admin: write
 # ─────────────────────────────────────────────────────────────
-def _normalize_guardian(attrs: dict) -> dict:
-    phone = attrs.get("guardian_phone")
-    if phone:
+MAX_GUARDIANS = 4
+
+
+class GuardianSerializer(serializers.ModelSerializer):
+    """A contact on file (mother, father, ...). Not a login."""
+
+    class Meta:
+        model = StudentGuardian
+        fields = ["name", "relation", "phone", "email"]
+        extra_kwargs = {
+            "relation": {"required": False},
+            "phone": {"required": False, "max_length": 32},
+            "email": {"required": False},
+        }
+
+    def validate_phone(self, value):
+        if not value:
+            return ""
         try:
-            attrs["guardian_phone"] = normalize_phone(phone)
+            return normalize_phone(value)
         except DjangoValidationError as exc:
-            raise serializers.ValidationError(
-                {"guardian_phone": exc.messages}
-            ) from None
-    return attrs
+            raise serializers.ValidationError(exc.messages) from None
+
+
+def _guardians_field():
+    return GuardianSerializer(
+        many=True,
+        required=False,
+        max_length=MAX_GUARDIANS,
+        help_text="Contacts on file, main contact first. Sending the list replaces it.",
+    )
 
 
 class NewLoginSerializer(serializers.Serializer):
@@ -211,20 +237,8 @@ class _PersonalFields(serializers.Serializer):
         choices=StudentProfile.Medium.choices, required=False, allow_blank=True
     )
     address = serializers.CharField(required=False, allow_blank=True)
-    guardian_name = serializers.CharField(
-        max_length=150, required=False, allow_blank=True
-    )
-    guardian_relation = serializers.CharField(
-        max_length=50, required=False, allow_blank=True
-    )
-    guardian_phone = serializers.CharField(
-        max_length=32, required=False, allow_blank=True
-    )
-    guardian_email = serializers.EmailField(required=False, allow_blank=True)
+    guardians = _guardians_field()
     remarks = serializers.CharField(required=False, allow_blank=True)
-
-    def validate(self, attrs):
-        return _normalize_guardian(super().validate(attrs))
 
 
 class _SubjectFeeSerializer(serializers.Serializer):
@@ -293,10 +307,6 @@ class AdmissionSerializer(_PersonalFields):
         "gender",
         "medium",
         "address",
-        "guardian_name",
-        "guardian_relation",
-        "guardian_phone",
-        "guardian_email",
         "remarks",
         "board",
         "standard",
@@ -330,6 +340,7 @@ class AdmissionSerializer(_PersonalFields):
         data = self.validated_data
         return {
             "profile": {k: data[k] for k in self.PROFILE_FIELDS if k in data},
+            "guardians": data.get("guardians", []),
             "subjects": data["subjects"],
             "link_users": data["link_user_ids"],
             "new_logins": data["new_logins"],

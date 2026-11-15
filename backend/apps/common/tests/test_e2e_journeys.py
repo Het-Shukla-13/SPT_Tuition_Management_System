@@ -115,8 +115,7 @@ def admit(admin: Browser, school_id, refs, first_name, **extra):
         "first_name": first_name,
         "last_name": "Shah",
         "date_of_birth": "2011-05-10" if first_name == "Aarav" else "2014-02-01",
-        "guardian_name": "Kavita Shah",
-        "guardian_phone": "98765 43210",
+        "guardians": [{"name": "Kavita Shah", "phone": "98765 43210"}],
         "board": refs["cbse"].pk,
         "standard": refs["tenth"].pk,
         "school": school_id,
@@ -253,7 +252,7 @@ def test_parent_journey_two_children_tests_notes_fees(owner_browser, refs):
         school["id"],
         refs,
         "Dev",
-        guardian_phone="98000 00000",
+        guardians=[{"name": "Dev's mother", "phone": "98000 00000"}],
         date_of_birth="2012-01-01",
     )
     assert parent.get(f"portal/students/{stranger['id']}/tests/").status_code == 404

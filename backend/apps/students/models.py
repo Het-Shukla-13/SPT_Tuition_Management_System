@@ -63,11 +63,7 @@ class StudentProfile(AbstractTimeStampedModel):
     )
     address = models.TextField(blank=True)
 
-    # Contact on file for the institute to call. This is NOT a login.
-    guardian_name = models.CharField(max_length=150, blank=True)
-    guardian_relation = models.CharField(max_length=50, blank=True)
-    guardian_phone = models.CharField(max_length=16, blank=True, db_index=True)
-    guardian_email = models.EmailField(blank=True)
+    # Guardians (contacts on file, not logins) live in StudentGuardian.
 
     # Current academic placement (history in StudentAcademicHistory).
     board = models.ForeignKey(Board, on_delete=models.PROTECT, related_name="students")
@@ -127,6 +123,30 @@ class AdmissionSequence(models.Model):
 
     def __str__(self) -> str:
         return f"{self.year}: {self.last_number}"
+
+
+class StudentGuardian(GlobalTimeStampedModel):
+    """
+    A contact on file for the institute to call (mother, father, ...). NOT a
+    login: who can see the student is decided by StudentAccess. The first one
+    (position 0) is the main contact shown in lists.
+    """
+
+    student = models.ForeignKey(
+        StudentProfile, on_delete=models.CASCADE, related_name="guardians"
+    )
+    name = models.CharField(max_length=150)
+    relation = models.CharField(max_length=50, blank=True)
+    phone = models.CharField(max_length=16, blank=True, db_index=True)
+    email = models.EmailField(blank=True)
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "student_guardians"
+        ordering = ["position", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.relation or 'guardian'}) of {self.student_id}"
 
 
 class StudentAccess(models.Model):

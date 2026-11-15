@@ -51,7 +51,7 @@ def admit(admin, refs, name="Aarav", standard="tenth", phone="9876543210", **ext
         "standard": refs[standard].pk,
         "school": refs["school"].pk,
         "subjects": [refs["maths"].pk],
-        "guardian_phone": phone,
+        "guardians": [{"name": f"Parent {name}", "phone": phone}],
         "confirm_duplicate": True,
         "new_logins": [{"first_name": "Parent", "last_name": name, "phone": phone}],
         **extra,

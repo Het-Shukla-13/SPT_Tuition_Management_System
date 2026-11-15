@@ -360,7 +360,10 @@ owner may edit another admin (`OWNER_REQUIRED`). Audited with `by_admin: true`.
 Logic: `apps/students/services.py`. Design: `docs/plans/phase-2-core-data.md`.
 
 ### What is a "student" vs a "login"?
-- **StudentProfile** = the child (name, board, standard, school, guardian contact on file…). Not a login.
+- **StudentProfile** = the child (name, board, standard, school, medium…). Not a login.
+- **StudentGuardian** = a contact on file (up to 4 per student: `name`, `relation`, `phone`, `email`;
+  the first is the main contact). Sent as `guardians: [...]` on admission / edit (the list is
+  replaced). Not a login: who can see the student is `StudentAccess`.
 - **Login** (`User`, role `PORTAL`) = whoever signs in: usually a parent, sometimes the student.
 - **StudentAccess** links them: one login can see several students (siblings), one student can be
   seen by several logins (mom, dad, the kid's own phone). Everyone linked sees the same student data.
@@ -375,7 +378,7 @@ access for `link_user_ids` (existing logins, e.g. a sibling's parent) and `new_l
 - Fails as a whole (nothing created, no invite sent) on: `NO_CURRENT_ACADEMIC_YEAR`,
   `INACTIVE_REFERENCE` (deactivated board/standard/school/subject), `NOT_A_PORTAL_LOGIN`
   (linking an admin/teacher), `CONTACT_IN_USE` (new login's phone/email taken).
-- **Possible duplicate** (same name AND same/unknown birth date or same guardian phone) →
+- **Possible duplicate** (same name AND same/unknown birth date or the same phone as any guardian) →
   `409 POSSIBLE_DUPLICATE_STUDENT` listing candidates; resend with `confirm_duplicate: true`.
   Same name with a different birth date is fine.
 - Guardian phone is normalised like login phones (`+91…`).
@@ -383,7 +386,7 @@ access for `link_user_ids` (existing logins, e.g. a sibling's parent) and `new_l
 ### What else can admins do?
 | Endpoint | Notes |
 |---|---|
-| `GET /` | Search (name, admission no., guardian phone/email, linked login's phone/email), filter `standard`/`board`/`school`/`status`, sort, paginate |
+| `GET /` | Search (name, admission no., any guardian's name/phone/email, linked login's phone/email), filter `standard`/`board`/`school`/`status`, sort, paginate |
 | `GET /{id}/` | Profile + current subjects + linked logins (with `invite_accepted`) |
 | `PATCH /{id}/` | Personal details only |
 | `POST /{id}/academic/` `{board?, standard?, school?, reason}` | Closes the current history row, opens a new one. `NOTHING_CHANGED` if identical |
