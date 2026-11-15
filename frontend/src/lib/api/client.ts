@@ -26,6 +26,7 @@ const NO_REFRESH_PATHS = [
   "auth/password/reset/",
   "auth/otp/",
   "auth/google/",
+  "auth/invite/",
 ];
 
 const common = {

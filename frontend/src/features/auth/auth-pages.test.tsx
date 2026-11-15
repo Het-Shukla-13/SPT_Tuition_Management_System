@@ -48,7 +48,12 @@ const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
-beforeEach(() => session.clear(null, false));
+beforeEach(() => {
+  session.clear(null, false);
+  server.use(
+    mock.get(`${BASE}/auth/methods/`, () => ok({ email: true, phone: false, google: false })),
+  );
+});
 
 function renderAt(path: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -70,7 +75,13 @@ function renderAt(path: string) {
   return { router, user: userEvent.setup() };
 }
 
+/** The login page opens on a choice of method; pick email. */
+async function openEmail(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: "Continue with email" }));
+}
+
 async function fillLogin(user: ReturnType<typeof userEvent.setup>) {
+  await openEmail(user);
   await user.type(screen.getByLabelText("Email"), "kavita@example.com");
   await user.type(screen.getByLabelText("Password"), "Chalk-and-board-2026");
   await user.click(screen.getByRole("button", { name: "Log in" }));
@@ -137,12 +148,14 @@ describe("LoginPage", () => {
     const { user } = renderAt("/login");
     await fillLogin(user);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Try again in 10:00");
+    // A second may tick by on a busy machine before this check runs.
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Try again in (10:00|9:5\d)/);
     expect(screen.getByRole("button", { name: /Try again in/ })).toBeDisabled();
   });
 
   it("validates the form before calling the server", async () => {
     const { user } = renderAt("/login");
+    await openEmail(user);
     await user.click(screen.getByRole("button", { name: "Log in" }));
     expect(await screen.findByText("Enter a valid email address.")).toBeInTheDocument();
     expect(screen.getByText("Enter your password.")).toBeInTheDocument();
@@ -150,6 +163,7 @@ describe("LoginPage", () => {
 
   it("the 'first time / forgot' link carries the typed email", async () => {
     const { user, router } = renderAt("/login");
+    await openEmail(user);
     await user.type(screen.getByLabelText("Email"), "kavita@example.com");
     await user.click(screen.getByRole("link", { name: /First time here/ }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/reset-password"));
