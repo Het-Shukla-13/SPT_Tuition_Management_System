@@ -2,6 +2,7 @@ import { SearchIcon, XIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useState } from "react";
 
 import { Input, Label, NativeSelect } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 /** The row of search + filters above every list. Wraps on small screens. */
 export function FilterBar({ children }: { children: ReactNode }) {
@@ -21,11 +22,14 @@ export function SearchInput({
   onChange,
   placeholder,
   label = "Search",
+  className = "flex-[1_1_300px]",
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   label?: string;
+  /** Sizing. The default grows sideways in a filter bar row; use "w-full" in a column. */
+  className?: string;
 }) {
   const id = useId();
   const [draft, setDraft] = useState(value);
@@ -43,7 +47,7 @@ export function SearchInput({
   }, [draft, value, onChange]);
 
   return (
-    <div className="relative min-w-0 flex-[1_1_300px]">
+    <div className={cn("relative min-w-0", className)}>
       <Label htmlFor={id} className="sr-only">
         {label}
       </Label>

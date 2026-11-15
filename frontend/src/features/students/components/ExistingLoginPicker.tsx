@@ -30,6 +30,7 @@ export function ExistingLoginPicker({
         onChange={setSearch}
         label="Find an existing parent login"
         placeholder="Type an email, phone or name (2+ letters)"
+        className="w-full"
       />
       {search.trim().length >= 2 && (
         <ul className="flex flex-col rounded-[var(--radius-control)] border border-line">
