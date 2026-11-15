@@ -68,6 +68,7 @@ class FeeStructureViewSet(EnvelopeModelViewSet):
     ).prefetch_related("add_ons__subject")
     filterset_fields = [
         "academic_year",
+        "academic_year__name",
         "academic_year__board",
         "academic_year__is_current",
         "standard",
@@ -90,6 +91,8 @@ class FeeAccountListView(generics.ListAPIView):
     serializer_class = FeeAccountListSerializer
     filterset_fields = {
         "academic_year": ["exact"],
+        # The year by name across boards, e.g. every board's "2026-27".
+        "academic_year__name": ["exact"],
         "academic_year__board": ["exact"],
         "student__standard": ["exact"],
         "student__school": ["exact"],
