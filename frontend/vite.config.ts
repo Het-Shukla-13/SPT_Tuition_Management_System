@@ -30,5 +30,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    // Files run in parallel; on a busy laptop a long form test can pass 5 s.
+    testTimeout: 15_000,
   },
 });

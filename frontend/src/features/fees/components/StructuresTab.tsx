@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { toast } from "sonner";
 
 import { type ColumnDef, DataTable } from "@/components/shared/DataTable";
@@ -8,15 +9,17 @@ import { Money } from "@/components/shared/Money";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { ReferenceFilter, ReferenceSelect } from "@/features/academics";
+import { Input, NativeSelect } from "@/components/ui/input";
+import { ReferenceFilter, ReferenceSelect, useReferenceOptions } from "@/features/academics";
 import { ApiError } from "@/lib/api/envelope";
 import type { FeeStructure } from "@/lib/api/types";
 import { useListParams } from "@/lib/useListParams";
 
 import { useFeeStructures, useSaveFeeStructure } from "../api";
+import { asYears, yearsOfBoard } from "../years";
+import { YearNameFilter } from "./YearNameFilter";
 
-const FILTERS = ["academic_year", "standard"] as const;
+const FILTERS = ["academic_year__board", "academic_year__name", "standard"] as const;
 
 /** The standard fee per academic year + standard; admission suggests it as the agreed fee. */
 export function StructuresTab() {
@@ -102,11 +105,16 @@ export function StructuresTab() {
       </div>
       <FilterBar>
         <ReferenceFilter
-          resource="academic-years"
-          label="Academic year"
-          allLabel="All years"
-          value={list.filters.academic_year}
-          onChange={(v) => list.setFilter("academic_year", v)}
+          resource="boards"
+          label="Board"
+          allLabel="All boards"
+          value={list.filters.academic_year__board}
+          onChange={(v) => list.setFilter("academic_year__board", v)}
+        />
+        <YearNameFilter
+          value={list.filters.academic_year__name}
+          onChange={(v) => list.setFilter("academic_year__name", v)}
+          board={list.filters.academic_year__board}
         />
         <ReferenceFilter
           resource="standards"
@@ -146,7 +154,15 @@ function StructureDialog({
   onClose: () => void;
 }) {
   const save = useSaveFeeStructure();
+  const yearOptions = useReferenceOptions("academic-years");
+  const allYears = asYears(yearOptions.data);
+  const [pickedBoard, setPickedBoard] = useState("");
+  // Editing: the structure's board comes from its year.
+  const board =
+    pickedBoard ||
+    (structure ? String(allYears.find((y) => y.id === structure.academic_year)?.board ?? "") : "");
   const [year, setYear] = useState(structure ? String(structure.academic_year) : "");
+  const boardYears = board ? yearsOfBoard(allYears, board) : [];
   const [standard, setStandard] = useState(structure ? String(structure.standard) : "");
   const [fee, setFee] = useState(structure ? String(Number(structure.total_fee)) : "");
   const [description, setDescription] = useState(structure?.description ?? "");
@@ -169,7 +185,8 @@ function StructureDialog({
           onSubmit={(e) => {
             e.preventDefault();
             const next: Record<string, string> = {};
-            if (!year) next.academic_year = "Choose the academic year.";
+            if (!board) next.board = "Choose the board.";
+            else if (!year) next.academic_year = "Choose the academic year.";
             if (!standard) next.standard = "Choose the standard.";
             if (!/^\d+(\.\d{1,2})?$/.test(fee))
               next.total_fee = "Enter the yearly fee, e.g. 22000.";
@@ -213,16 +230,44 @@ function StructureDialog({
             );
           }}
         >
-          <FormField label="Academic year" error={errors.academic_year ?? errors.non_field_errors}>
-            {(p) => (
-              <ReferenceSelect
-                {...p}
-                resource="academic-years"
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-              />
-            )}
-          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Board" error={errors.board}>
+              {(p) => (
+                <ReferenceSelect
+                  {...p}
+                  resource="boards"
+                  value={board}
+                  onChange={(e) => {
+                    setPickedBoard(e.target.value);
+                    // Start from that board's current year.
+                    const own = yearsOfBoard(allYears, e.target.value);
+                    setYear(String((own.find((y) => y.is_current) ?? own[0])?.id ?? ""));
+                  }}
+                />
+              )}
+            </FormField>
+            <FormField
+              label="Academic year"
+              error={errors.academic_year ?? errors.non_field_errors}
+            >
+              {(p) => (
+                <NativeSelect
+                  {...p}
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                  disabled={!board}
+                >
+                  <option value="">{board ? "Choose…" : "Pick a board first"}</option>
+                  {boardYears.map((y) => (
+                    <option key={y.id} value={y.id}>
+                      {y.name}
+                      {y.is_current ? " (current)" : ""}
+                    </option>
+                  ))}
+                </NativeSelect>
+              )}
+            </FormField>
+          </div>
           <FormField label="Standard" error={errors.standard}>
             {(p) => (
               <ReferenceSelect
@@ -291,6 +336,17 @@ function StructureDialog({
             >
               + Add optional subject fee
             </Button>
+            <p className="text-xs text-muted">
+              Subject not listed?{" "}
+              <Link
+                to="/staff/academics?tab=subjects"
+                target="_blank"
+                className="font-bold text-primary hover:underline"
+              >
+                Add a subject
+              </Link>{" "}
+              in Academics setup, then pick it here.
+            </p>
           </fieldset>
           <FormField label="Note (optional)">
             {(p) => (
