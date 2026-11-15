@@ -72,34 +72,32 @@ class Subject(ReferenceModel):
 
 class Chapter(ReferenceModel):
     """
-    A chapter belongs to a board + standard + subject: "Chapter 3, Maths" is
-    different for CBSE 10th and GSEB 10th. Tests and notes will be tagged with it.
+    A topic of a standard + subject (e.g. "Light", Standard 10 Science), used
+    to tag and filter tests and notes. Not tied to a board or a chapter number.
     """
 
-    board = models.ForeignKey(Board, on_delete=models.PROTECT, related_name="chapters")
     standard = models.ForeignKey(
         Standard, on_delete=models.PROTECT, related_name="chapters"
     )
     subject = models.ForeignKey(
         Subject, on_delete=models.PROTECT, related_name="chapters"
     )
-    number = models.PositiveSmallIntegerField()
     name = models.CharField(max_length=200)
 
     class Meta:
         db_table = "chapters"
-        ordering = ["board__code", "standard__level", "subject__name", "number"]
+        ordering = ["standard__level", "subject__name", "name"]
         constraints = [
             models.UniqueConstraint(
-                fields=["board", "standard", "subject", "number"],
-                name="chapters_unique_number_per_syllabus",
+                Lower("name"),
+                "standard",
+                "subject",
+                name="chapters_unique_name_per_class",
             ),
         ]
 
     def __str__(self) -> str:
-        return (
-            f"{self.board} {self.standard} {self.subject} - {self.number}. {self.name}"
-        )
+        return f"{self.standard} {self.subject} - {self.name}"
 
 
 class School(ReferenceModel):

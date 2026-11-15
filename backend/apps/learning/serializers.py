@@ -51,14 +51,7 @@ class _ItemReadSerializer(serializers.ModelSerializer):
     active_assignments = serializers.SerializerMethodField()
 
     def get_chapter_names(self, obj) -> list[str]:
-        # Uses the prefetched boards / chapters__board (no query per row).
-        several = len(obj.boards.all()) != 1
-        return [
-            f"{c.board.code} · {c.number}. {c.name}"
-            if several
-            else f"{c.number}. {c.name}"
-            for c in obj.chapters.all()
-        ]
+        return [c.name for c in obj.chapters.all()]
 
     def get_files(self, obj) -> list[dict]:
         current = getattr(obj, "current_files", None)  # prefetched by list views
@@ -164,20 +157,18 @@ class _ItemWriteSerializer(serializers.ModelSerializer):
                     {"academic_year_name": ["No current academic year is set yet."]}
                 )
             attrs["academic_year_name"] = current.name
-        # Chapters must match the standard + subject, and one of the boards.
+        # Chapters (topics) must belong to the item's standard + subject.
         standard = attrs.get("standard", getattr(self.instance, "standard", None))
         subject = attrs.get("subject", getattr(self.instance, "subject", None))
-        board_ids = {b.pk for b in boards}
         for chapter in attrs.get("chapters", []):
-            wrong_board = board_ids and chapter.board_id not in board_ids
-            if wrong_board or (chapter.standard_id, chapter.subject_id) != (
+            if (chapter.standard_id, chapter.subject_id) != (
                 getattr(standard, "pk", None),
                 getattr(subject, "pk", None),
             ):
                 raise serializers.ValidationError(
                     {
                         "chapters": [
-                            f"Chapter '{chapter.name}' is from a different board/standard/subject."
+                            f"Chapter '{chapter.name}' is from a different standard/subject."
                         ]
                     }
                 )
@@ -443,7 +434,7 @@ class PortalTestSerializer(serializers.ModelSerializer):
         ]
 
     def get_chapters(self, obj) -> list[str]:
-        return [f"{c.number}. {c.name}" for c in obj.test_paper.chapters.all()]
+        return [c.name for c in obj.test_paper.chapters.all()]
 
     def get_has_answer_key(self, obj) -> bool:
         keys = getattr(obj.test_paper, "current_answer_keys", None)  # prefetched
@@ -480,4 +471,4 @@ class PortalNoteSerializer(serializers.ModelSerializer):
         ]
 
     def get_chapters(self, obj) -> list[str]:
-        return [f"{c.number}. {c.name}" for c in obj.note.chapters.all()]
+        return [c.name for c in obj.note.chapters.all()]

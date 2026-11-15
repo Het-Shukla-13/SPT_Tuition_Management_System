@@ -50,9 +50,7 @@ def base(db, settings, tmp_path):
         "maths": maths,
         "year": AcademicYear.current(cbse),
         "school": School.objects.create(name="DPS", city="Ahd"),
-        "chapter": Chapter.objects.create(
-            board=cbse, standard=tenth, subject=maths, number=1, name="C1"
-        ),
+        "chapter": Chapter.objects.create(standard=tenth, subject=maths, name="C1"),
     }
 
 

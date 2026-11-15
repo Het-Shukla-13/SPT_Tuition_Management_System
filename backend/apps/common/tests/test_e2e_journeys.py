@@ -104,9 +104,7 @@ def refs(db):
     cbse = Board.objects.get(code="CBSE")
     tenth = Standard.objects.get(level=10)
     maths = Subject.objects.get(code="MATH")
-    chapter = Chapter.objects.create(
-        board=cbse, standard=tenth, subject=maths, number=1, name="Real Numbers"
-    )
+    chapter = Chapter.objects.create(standard=tenth, subject=maths, name="Real Numbers")
     return {"cbse": cbse, "tenth": tenth, "maths": maths, "chapter": chapter}
 
 
