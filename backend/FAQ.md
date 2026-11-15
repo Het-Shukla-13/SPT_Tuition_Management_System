@@ -491,7 +491,7 @@ year**. Student history, tests/notes and fee accounts use the student's board's 
 ### What do total / paid / pending / status mean?
 `total = opening_balance + agreed fee + adjustments`; `paid = payments - reversals - refunds`;
 `due = total + carried - paid`. `pending = due if > 0`, `credit = -due if < 0`.
-Status: `PAID`, `PARTIAL`, `PENDING`, `CREDIT` (overpaid), `CARRIED_FORWARD` (moved to next year).
+Status: `PAID`, ``academic_year__name` (a year across boards), `?status=PAID|PARTIAL`, `PENDING`, `CREDIT` (overpaid), `CARRIED_FORWARD` (moved to next year).
 `is_overdue` = dues after the year's end date; `is_ending_soon` = dues within 30 days of it.
 
 ### How are mistakes and duplicates handled? (spec 8.6)
@@ -513,9 +513,9 @@ reversals, refunds; agreed fee ≥ 0; one account per student per year.
 ### Endpoints
 | Endpoint | Notes |
 |---|---|
-| `/admin/fee-structures/` | CRUD (no delete); filter year/board/standard/`academic_year__is_current`. `add_ons: [{subject, amount}]` = extra yearly fees for optional subjects (e.g. Gujarati); sending the list replaces it |
+| `/admin/fee-structures/` | CRUD (no delete); filter year/`academic_year__name` (every board's "2026-27")/board/standard/`academic_year__is_current`. `add_ons: [{subject, amount}]` = extra yearly fees for optional subjects (e.g. Gujarati); sending the list replaces it |
 | `POST .../accounts/{id}/subject-fees/` | `{subject, action: ADD\|REMOVE, amount?, reason?}`: a student starts (CHARGE line) or drops (minus ADJUSTMENT) an optional subject mid-year |
-| `GET /admin/fees/accounts/` | Fees table. `?status=PAID\|PARTIAL\|PENDING\|CREDIT\|CARRIED_FORWARD\|OVERDUE\|ENDING_SOON`, `pending_min/max`, `paid_min/max`, `total_min/max`, `academic_year`, `academic_year__board`, `student__standard`, `student__school`, `student__status`, `student__admission_date__gte/lte`; search name/admission no./guardian phone; `ordering=-pending\|total\|paid\|credit\|last_payment_date\|student__first_name\|student__standard__level` |
+| `GET /admin/fees/accounts/` | Fees table. `academic_year__name` (a year across boards), `?status=PAID|PARTIAL\|PARTIAL\|PENDING\|CREDIT\|CARRIED_FORWARD\|OVERDUE\|ENDING_SOON`, `pending_min/max`, `paid_min/max`, `total_min/max`, `academic_year`, `academic_year__board`, `student__standard`, `student__school`, `student__status`, `student__admission_date__gte/lte`; search name/admission no./guardian phone; `ordering=-pending\|total\|paid\|credit\|last_payment_date\|student__first_name\|student__standard__level` |
 | `GET /admin/fees/accounts/{id}/` | Totals + full ledger |
 | `GET /admin/fees/students/{student_id}/accounts/` | Every year of one student |
 | `POST .../payments/` · `.../adjustments/` · `.../agreed-fee/` · `.../refunds/` | See above |
