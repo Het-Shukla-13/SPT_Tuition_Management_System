@@ -448,19 +448,29 @@ Logic: `apps/learning/services.py`. Design: `docs/plans/phase-3-tests-notes.md`.
 - Stored under random names; the DB keeps only the storage path. Local disk now, **Google Drive in Phase 6**.
 - The exact same PDF already uploaded elsewhere → `409 DUPLICATE_DOCUMENT` (resend `confirm_duplicate`).
 
+### When does a test open?
+| Assigned with | Question paper opens | Test ends / answer key + marks |
+|---|---|---|
+| Date + time | at the start time | start + duration |
+| Date only | 8:00 that day | at the same moment (no fixed end) |
+| Neither | straight away | straight away |
+
+Before the paper opens, the test is still listed in the portal (`paper_available: false`, paper
+download → `403 PAPER_LOCKED`) so families can prepare.
+
 ### Staff endpoints
 | Endpoint | Notes |
 |---|---|
-| `GET/POST /staff/tests/` | Archive list (search title/subject/chapter; filter board/standard/subject/semester/academic_year/chapters/school; sort; archived hidden unless `?is_archived=true`). POST = multipart upload: details + `file` (+ optional `answer_key`) |
-| `GET/PATCH /staff/tests/{id}/` | Details. Chapters must match the paper's board + standard + subject |
+| `GET/POST /staff/tests/` | Archive list (search title/subject/chapter; filter `board` (that board's items **plus every-board items**)/standard/subject/semester/`academic_year_name`/chapters/school; sort; archived hidden unless `?is_archived=true`). POST = multipart upload: details + `file` (+ optional `answer_key`) |
+| `GET/PATCH /staff/tests/{id}/` | Details. `boards` = list (empty = every board); `academic_year_name` = YYYY-YY (defaults to the current year). Chapters must match standard + subject and one of the boards |
 | `POST /staff/tests/{id}/paper/` · `POST/DELETE .../answer-key/` | Replace PDF → **new version, old kept**; students always get the latest |
 | `GET .../versions/` · `GET .../download/?kind=PAPER\|ANSWER_KEY&version=&inline=` | |
-| `POST .../archive/` `{archived}` | Archived = hidden + can't be newly assigned; existing assignments stay |
-| `POST .../assign/` `{student_ids, test_starts_at?, duration_minutes?, remarks}` | Bulk; returns `assigned` + `failed` (`NOT_FOUND`, `STUDENT_NOT_ACTIVE`, `ALREADY_ASSIGNED`) |
+| `POST .../archive/` `{archived}` · `POST /staff/tests/bulk-archive/` `{ids, archived}` | Archived = hidden + can't be newly assigned; existing assignments stay. Bulk returns `done` + `failed` |
+| `POST .../assign/` `{student_ids, test_date?, test_time?, duration_minutes?, remarks}` | Bulk; returns `assigned` + `failed` (`NOT_FOUND`, `STUDENT_NOT_ACTIVE`, `ALREADY_ASSIGNED`) |
 | Same for `/staff/notes/` (replace: `.../file/`) | No answer key / marks for notes |
 | `GET /staff/test-assignments/` `?student=&test_paper=&status=active\|revoked\|all` | Also `/staff/note-assignments/` |
-| `PATCH /staff/test-assignments/{id}/` | Change test time / duration / remarks |
-| `POST /staff/test-assignments/{id}/grade/` `{marks_obtained, grade_remarks}` | 0 ≤ marks ≤ `max_marks` (`MARKS_OUT_OF_RANGE`) |
+| `PATCH /staff/test-assignments/{id}/` `{test_date?, test_time?, duration_minutes?, remarks?}` | Reschedule one student |
+| `POST /staff/test-assignments/{id}/grade/` `{marks_obtained, grade_remarks}` | 0 ≤ marks ≤ `max_marks` (`MARKS_OUT_OF_RANGE`); only once the test is over (`TEST_NOT_OVER`); clearing is always allowed |
 | `POST /staff/{test,note}-assignments/revoke/` `{assignment_ids}` | Bulk; rows kept (history). Revoke + reassign keeps both |
 
 ### When can a student see the answer key?

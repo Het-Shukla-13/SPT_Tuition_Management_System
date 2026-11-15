@@ -72,6 +72,17 @@ class AssignmentRevoked(AppException):
     default_code = "ASSIGNMENT_REVOKED"
 
 
+class PaperLocked(AppException):
+    status_code = 403
+    default_detail = "The question paper opens when the test starts."
+    default_code = "PAPER_LOCKED"
+
+
+class TestNotOver(AppException):
+    default_detail = "Marks can be entered once the test is over."
+    default_code = "TEST_NOT_OVER"
+
+
 # ─────────────────────────────────────────────────────────────
 # PDF validation (spec 10.4: signatures, size, corruption)
 # ─────────────────────────────────────────────────────────────
@@ -150,9 +161,11 @@ def create_item(
 ):
     """files: {kind: upload}. Paper (or note) file required; answer key optional."""
     chapters = data.pop("chapters", [])
+    boards = data.pop("boards", [])  # none = every board
     with transaction.atomic():
         item = model.objects.create(**data, uploaded_by=actor)
         item.chapters.set(chapters)
+        item.boards.set(boards)
         stored = {}
         for kind, upload in files.items():
             if upload:
@@ -176,6 +189,7 @@ def create_item(
 @transaction.atomic
 def update_item(*, actor, item, data: dict, ip=None):
     chapters = data.pop("chapters", None)
+    boards = data.pop("boards", None)
     diff = {}
     for field, value in data.items():
         if getattr(item, field) != value:
@@ -186,6 +200,12 @@ def update_item(*, actor, item, data: dict, ip=None):
     if chapters is not None:
         item.chapters.set(chapters)
         diff["chapters"] = [c.pk for c in chapters]
+    if boards is not None:
+        before = sorted(b.code for b in item.boards.all())
+        after = sorted(b.code for b in boards)
+        if before != after:
+            item.boards.set(boards)
+            diff["boards"] = [before, after]
     if diff:
         record(
             AuditLog.Action.DOCUMENT_UPDATED,
@@ -358,6 +378,8 @@ def grade(*, actor, assignment: TestAssignment, marks, remarks: str = "", ip=Non
     )
     if locked.revoked_at:
         raise AssignmentRevoked()
+    if marks is not None and not locked.is_over:
+        raise TestNotOver()
     maximum = locked.test_paper.max_marks
     if marks is not None and (marks < 0 or (maximum is not None and marks > maximum)):
         raise MarksOutOfRange(f"Marks must be between 0 and {maximum}.")
@@ -424,9 +446,7 @@ def portal_test_assignments(student: StudentProfile):
         return TestAssignment.objects.none()
     return (
         TestAssignment.objects.filter(student=student, revoked_at__isnull=True)
-        .select_related(
-            "test_paper__subject", "test_paper__standard", "test_paper__board"
-        )
+        .select_related("test_paper__subject", "test_paper__standard")
         .prefetch_related(
             Prefetch(
                 "test_paper__files",
@@ -444,7 +464,7 @@ def portal_note_assignments(student: StudentProfile):
         return NoteAssignment.objects.none()
     return NoteAssignment.objects.filter(
         student=student, revoked_at__isnull=True
-    ).select_related("note__subject", "note__standard", "note__board")
+    ).select_related("note__subject", "note__standard")
 
 
 def portal_test_file(assignment: TestAssignment, kind: str) -> DocumentFile:
@@ -455,6 +475,8 @@ def portal_test_file(assignment: TestAssignment, kind: str) -> DocumentFile:
         if not assignment.answer_key_unlocked:
             raise AnswerKeyLocked()
         return doc
+    if not assignment.paper_available:
+        raise PaperLocked()
     doc = current_file(assignment.test_paper, DocumentFile.Kind.PAPER)
     if doc is None:
         raise Http404

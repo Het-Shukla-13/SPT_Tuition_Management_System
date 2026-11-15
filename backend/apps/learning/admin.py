@@ -9,31 +9,37 @@ from apps.learning.models import (
 )
 
 
+class _BoardsColumn:
+    @admin.display(description="Boards")
+    def board_list(self, obj):
+        return ", ".join(b.code for b in obj.boards.all()) or "All boards"
+
+
 @admin.register(TestPaper)
-class TestPaperAdmin(admin.ModelAdmin):
+class TestPaperAdmin(_BoardsColumn, admin.ModelAdmin):
     list_display = [
         "title",
-        "board",
+        "board_list",
         "standard",
         "subject",
-        "academic_year",
+        "academic_year_name",
         "is_archived",
     ]
-    list_filter = ["board", "standard", "subject", "is_archived"]
+    list_filter = ["boards", "standard", "subject", "is_archived"]
     search_fields = ["title"]
 
 
 @admin.register(Note)
-class NoteAdmin(admin.ModelAdmin):
+class NoteAdmin(_BoardsColumn, admin.ModelAdmin):
     list_display = [
         "title",
-        "board",
+        "board_list",
         "standard",
         "subject",
-        "academic_year",
+        "academic_year_name",
         "is_archived",
     ]
-    list_filter = ["board", "standard", "subject", "is_archived"]
+    list_filter = ["boards", "standard", "subject", "is_archived"]
     search_fields = ["title"]
 
 

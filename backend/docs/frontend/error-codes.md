@@ -44,6 +44,7 @@ details. Branch on `error_code`, never on `message` text.
 | 400 | `PHOTO_TOO_LARGE` | The photo is too large. | Show `message`. |
 | 400 | `REFUND_TOO_LARGE` | The refund is more than what was paid. | Show `message`. |
 | 400 | `SUBJECT_FEE_NOT_CHARGED` | This subject's fee isn't on the account, so it can't be taken off. | Show `message`. |
+| 400 | `TEST_NOT_OVER` | Marks can be entered once the test is over. | Show `message`. |
 | 400 | `VALIDATION_ERROR` | Validation failed. | Show each entry of `errors` (field -> messages) next to its form field. |
 | 400 | `WRONG_BOARD_YEAR` | That academic year belongs to a different board. | Show `message`. |
 | 400 | `WRONG_PASSWORD` | Your current password is incorrect. | Show `message` under the current-password field. |
@@ -59,6 +60,7 @@ details. Branch on `error_code`, never on `message` text.
 | 403 | `CSRF_HEADER_MISSING` | Missing the X-Requested-With header required when using the login cookie. | Bug in the frontend: send `X-Requested-With: XMLHttpRequest` on refresh. |
 | 403 | `OWNER_PROTECTED` | Owner accounts can't be changed by anyone else in the app. | Show `message` (not allowed). Don't retry. |
 | 403 | `OWNER_REQUIRED` | Only the institute owner account can modify another administrator. | Show `message` (not allowed). Don't retry. |
+| 403 | `PAPER_LOCKED` | The question paper opens when the test starts. | Show `message` (not allowed). Don't retry. |
 | 403 | `PERMISSION_DENIED` | You do not have permission to perform this action. | Show `message` (not allowed). Don't retry. |
 | 404 | `ANSWER_KEY_UNAVAILABLE` | No answer key is available. | Show a 'not found' state. |
 | 404 | `NOT_FOUND` | Not found. | Show a 'not found' state. |

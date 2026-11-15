@@ -97,10 +97,9 @@ def _add_rows(b, start, n):
         )
         paper = TestPaper.objects.create(
             title=f"T{i}",
-            board=b["cbse"],
             standard=b["tenth"],
             subject=b["maths"],
-            academic_year=b["year"],
+            academic_year_name=(b["year"]).name,
             max_marks=10,
         )
         paper.chapters.add(b["chapter"])
@@ -124,10 +123,9 @@ def _add_rows(b, start, n):
         )
         note = Note.objects.create(
             title=f"N{i}",
-            board=b["cbse"],
             standard=b["tenth"],
             subject=b["maths"],
-            academic_year=b["year"],
+            academic_year_name=(b["year"]).name,
         )
         note.chapters.add(b["chapter"])
         TestAssignment.objects.create(
@@ -185,10 +183,9 @@ def test_portal_lists_have_constant_queries(base, suffix):
         for i in range(4):
             paper = TestPaper.objects.create(
                 title=f"E{i}",
-                board=base["cbse"],
                 standard=base["tenth"],
                 subject=base["maths"],
-                academic_year=base["year"],
+                academic_year_name=(base["year"]).name,
             )
             paper.chapters.add(base["chapter"])
             TestAssignment.objects.create(
@@ -198,10 +195,9 @@ def test_portal_lists_have_constant_queries(base, suffix):
             )
             note = Note.objects.create(
                 title=f"EN{i}",
-                board=base["cbse"],
                 standard=base["tenth"],
                 subject=base["maths"],
-                academic_year=base["year"],
+                academic_year_name=(base["year"]).name,
             )
             note.chapters.add(base["chapter"])
             NoteAssignment.objects.create(student=student, note=note)
