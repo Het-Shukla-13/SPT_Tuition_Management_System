@@ -36,12 +36,9 @@ const columns: ColumnDef<FeeAccountListItem, unknown>[] = [
       </Link>
     ),
   },
-  {
-    id: "class",
-    header: "Year · standard",
-    cell: ({ row }) =>
-      `${row.original.board} ${row.original.academic_year_name} · ${row.original.standard}`,
-  },
+  { id: "board", header: "Board", cell: ({ row }) => row.original.board },
+  { id: "year", header: "Year", cell: ({ row }) => row.original.academic_year_name },
+  { id: "standard", header: "Standard", cell: ({ row }) => row.original.standard },
   {
     id: "total",
     header: "Total",
