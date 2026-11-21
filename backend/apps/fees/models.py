@@ -1,7 +1,8 @@
 """
 Fees (spec part 6). Design: docs/plans/phase-4-fees.md.
 
-- FeeStructure: the standard fee for a standard in a board's academic year.
+- FeeStructure: the standard fee for a standard in a board's academic year,
+  covering its included subjects; optional subjects are extras (add-ons).
   Only a suggestion for new admissions; changing it never touches accounts.
 - StudentFeeAccount: one per student per academic year.
 - LedgerEntry: append-only money records. Never edited or deleted: mistakes
@@ -31,7 +32,15 @@ class FeeStructure(GlobalTimeStampedModel):
         AcademicYear, on_delete=models.PROTECT, related_name="+"
     )
     standard = models.ForeignKey(Standard, on_delete=models.PROTECT, related_name="+")
-    total_fee = models.DecimalField(**MONEY)
+    total_fee = models.DecimalField(
+        **MONEY, help_text="Standard fee: covers all the included subjects."
+    )
+    included_subjects = models.ManyToManyField(
+        Subject,
+        blank=True,
+        related_name="+",
+        help_text="Subjects the standard fee covers. Optional subjects (add-ons) are extra.",
+    )
     description = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True)
 

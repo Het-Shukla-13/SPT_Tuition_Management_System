@@ -40,6 +40,13 @@ class FeeStructureSerializer(serializers.ModelSerializer):
         help_text="Extra yearly fees for optional subjects (e.g. Gujarati). "
         "Sending the list replaces it.",
     )
+    included_subjects = serializers.PrimaryKeyRelatedField(
+        queryset=Subject.objects.all(),
+        many=True,
+        required=False,
+        help_text="Subjects the standard fee (total_fee) covers. Sending the list replaces it.",
+    )
+    included_subject_names = serializers.SerializerMethodField()
 
     class Meta:
         model = FeeStructure
@@ -51,6 +58,8 @@ class FeeStructureSerializer(serializers.ModelSerializer):
             "standard",
             "standard_name",
             "total_fee",
+            "included_subjects",
+            "included_subject_names",
             "add_ons",
             "description",
             "is_active",
@@ -60,11 +69,50 @@ class FeeStructureSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
         extra_kwargs = {"total_fee": {"min_value": 0}}
 
+    def get_included_subject_names(self, obj) -> list[str]:
+        return [s.name for s in obj.included_subjects.all()]
+
     def validate_add_ons(self, value):
         ids = [a["subject"].pk for a in value]
         if len(ids) != len(set(ids)):
             raise serializers.ValidationError("A subject is listed twice.")
         return value
+
+    def validate_included_subjects(self, value):
+        ids = [s.pk for s in value]
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError("A subject is listed twice.")
+        return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        # A subject is either covered by the standard fee or an optional extra,
+        # never both. Compare against what's saved for the list not being sent.
+        if "included_subjects" in attrs:
+            included = list(attrs["included_subjects"])
+        elif self.instance is not None:
+            included = list(self.instance.included_subjects.all())
+        else:
+            included = []
+        if "add_ons" in attrs:
+            optional = [a["subject"] for a in attrs["add_ons"]]
+        elif self.instance is not None:
+            optional = [a.subject for a in self.instance.add_ons.all()]
+        else:
+            optional = []
+        both = sorted(
+            {s.name for s in included} & {s.name for s in optional}, key=str.lower
+        )
+        if both:
+            raise serializers.ValidationError(
+                {
+                    "included_subjects": [
+                        f"{', '.join(both)} can't be both included and optional. "
+                        "Pick one."
+                    ]
+                }
+            )
+        return attrs
 
     def _save_add_ons(self, structure, add_ons):
         if add_ons is None:

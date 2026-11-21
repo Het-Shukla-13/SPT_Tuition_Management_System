@@ -75,7 +75,15 @@ class SubjectSerializer(_ReferenceSerializer):
 
     class Meta:
         model = Subject
-        fields = ["id", "name", "code", "is_active", "created_at", "updated_at"]
+        fields = [
+            "id",
+            "name",
+            "code",
+            "is_main",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
 

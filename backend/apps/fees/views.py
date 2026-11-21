@@ -65,7 +65,7 @@ class FeeStructureViewSet(EnvelopeModelViewSet):
     serializer_class = FeeStructureSerializer
     queryset = FeeStructure.objects.select_related(
         "academic_year__board", "standard"
-    ).prefetch_related("add_ons__subject")
+    ).prefetch_related("add_ons__subject", "included_subjects")
     filterset_fields = [
         "academic_year",
         "academic_year__name",

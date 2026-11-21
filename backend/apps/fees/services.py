@@ -167,6 +167,17 @@ def next_receipt_number(on_date) -> str:
 # ─────────────────────────────────────────────────────────────
 # Accounts
 # ─────────────────────────────────────────────────────────────
+def standard_fee_remarks(academic_year, subjects=(), subject_fees=()) -> str:
+    """
+    "Standard fee for CBSE 2026-27 (Mathematics, Science)": the subjects the
+    agreed fee covers are the student's subjects not charged as optional lines.
+    """
+    optional = {s.pk for s, amount in subject_fees if amount and amount > 0}
+    covered = sorted({s.name for s in subjects if s.pk not in optional}, key=str.lower)
+    text = f"Standard fee for {academic_year}"
+    return f"{text} ({', '.join(covered)})" if covered else text
+
+
 def create_account(
     *,
     actor,
@@ -176,11 +187,14 @@ def create_account(
     opening_balance=ZERO,
     opening_balance_reason="",
     subject_fees=(),
+    subjects=(),
     ip=None,
 ) -> StudentFeeAccount:
     """
     Call inside the caller's transaction (admission / rollover).
     subject_fees: [(subject, amount)] extra fees for optional subjects, each its own line.
+    subjects: all the subjects the student takes; the agreed-fee line names the
+    ones it covers (those not charged as an optional line).
     """
     if agreed_fee is None or agreed_fee < 0:
         raise InvalidAmount("The agreed fee can't be negative.")
@@ -197,7 +211,7 @@ def create_account(
             account=account,
             entry_type=T.CHARGE,
             amount=agreed_fee,
-            remarks=f"Agreed fee for {academic_year}",
+            remarks=standard_fee_remarks(academic_year, subjects, subject_fees),
             recorded_by=actor,
         )
     for subject, amount in subject_fees:

@@ -25,7 +25,7 @@ edge-case register (Fees). Builds on Phase 2 (students, history) and Phase 3 (ac
 ## B. Fees (`fees` app)
 | Model (table) | Purpose |
 |---|---|
-| `FeeStructure` (`fee_structures`) | Standard fee per board + standard + academic year; description, `is_active`. Suggestion for new admissions only; editing it never changes existing accounts. |
+| `FeeStructure` (`fee_structures`) | Standard fee per board + standard + academic year, covering its `included_subjects` (M2M; optional subjects are `FeeStructureAddOn` extras); description, `is_active`. Suggestion for new admissions only; editing it never changes existing accounts. |
 | `StudentFeeAccount` (`student_fee_accounts`) | One per student per academic year: `agreed_fee`, `opening_balance` (carried dues, + or credit, -), status cache. Totals are always computed from ledger entries. |
 | `LedgerEntry` (`fee_ledger_entries`) | Append-only money record: type `CHARGE` (agreed fee) / `ADJUSTMENT` (+/-, reason) / `PAYMENT` / `REVERSAL` (of a payment, reason) / `REFUND` / `CARRY_FORWARD`. Amount (Decimal 12,2), date, method, reference, remarks, `visible_to_student`, recorded_by, `idempotency_key` (unique), `reverses` (FK to the reversed entry, one reversal max). |
 | `Receipt` | Generated PDF per payment (number `RCPT-<year>-NNNNN`), rendered on demand. |

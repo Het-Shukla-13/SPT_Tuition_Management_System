@@ -24,8 +24,8 @@ class StandardAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ["name", "code", "is_active"]
-    list_filter = ["is_active"]
+    list_display = ["name", "code", "is_main", "is_active"]
+    list_filter = ["is_main", "is_active"]
 
 
 @admin.register(Chapter)
