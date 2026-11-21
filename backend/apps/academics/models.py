@@ -57,6 +57,10 @@ class Standard(ReferenceModel):
 class Subject(ReferenceModel):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, help_text="Short code, e.g. MATH")
+    is_main = models.BooleanField(
+        default=False,
+        help_text="Main subject: ticked by default as an included subject in new fee structures.",
+    )
 
     class Meta:
         db_table = "subjects"
