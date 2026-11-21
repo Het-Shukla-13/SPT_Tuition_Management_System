@@ -7,6 +7,7 @@ from apps.fees.models import FeeStructure, LedgerEntry, StudentFeeAccount
 class FeeStructureAdmin(admin.ModelAdmin):
     list_display = ["academic_year", "standard", "total_fee", "is_active"]
     list_filter = ["academic_year__board", "is_active"]
+    filter_horizontal = ["included_subjects"]
 
 
 @admin.register(StudentFeeAccount)
