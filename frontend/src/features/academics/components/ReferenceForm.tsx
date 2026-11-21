@@ -136,8 +136,11 @@ function Field({
           disabled={disabled}
           className="mt-0.5 size-5 accent-[var(--color-primary)]"
         />
-        {field.label}
-        {error && <span className="block text-[13px] text-danger">{error}</span>}
+        <span className="flex flex-col gap-0.5">
+          {field.label}
+          {field.hint && <span className="text-xs font-normal text-muted">{field.hint}</span>}
+          {error && <span className="block text-[13px] text-danger">{error}</span>}
+        </span>
       </label>
     );
   }

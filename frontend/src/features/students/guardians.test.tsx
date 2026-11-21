@@ -95,6 +95,8 @@ describe("Guardians at admission", () => {
     expect(within(login2).getByLabelText("Email")).toHaveValue("rohan@example.com");
     const login1 = screen.getByText("New login 1").closest("div")!.parentElement!;
     await user.type(within(login1).getByLabelText("Email"), "kavita@example.com");
+    // No fee structure for this standard: the fee has to be typed.
+    await user.type(screen.getByLabelText("Standard fee (without optional subjects)"), "20000");
 
     await user.click(screen.getByRole("button", { name: "Admit student" }));
     expect(await screen.findByText("profile page")).toBeInTheDocument();

@@ -5040,8 +5040,8 @@ components:
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
           nullable: true
-          description: Agreed fee for this academic year. Defaults to the standard's
-            fee structure.
+          description: Standard fee for this academic year, without optional subjects.
+            Defaults to the standard's fee structure.
         opening_balance:
           type: string
           format: decimal
@@ -5590,6 +5590,18 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: 'Standard fee: covers all the included subjects.'
+        included_subjects:
+          type: array
+          items:
+            type: integer
+          description: Subjects the standard fee (total_fee) covers. Sending the list
+            replaces it.
+        included_subject_names:
+          type: array
+          items:
+            type: string
+          readOnly: true
         add_ons:
           type: array
           items:
@@ -5615,6 +5627,7 @@ components:
       - board_code
       - created_at
       - id
+      - included_subject_names
       - standard
       - standard_name
       - total_fee
@@ -5658,6 +5671,13 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: 'Standard fee: covers all the included subjects.'
+        included_subjects:
+          type: array
+          items:
+            type: integer
+          description: Subjects the standard fee (total_fee) covers. Sending the list
+            replaces it.
         add_ons:
           type: array
           items:
@@ -7232,6 +7252,13 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: 'Standard fee: covers all the included subjects.'
+        included_subjects:
+          type: array
+          items:
+            type: integer
+          description: Subjects the standard fee (total_fee) covers. Sending the list
+            replaces it.
         add_ons:
           type: array
           items:
@@ -7385,6 +7412,10 @@ components:
           minLength: 1
           description: Short code, e.g. MATH
           maxLength: 20
+        is_main:
+          type: boolean
+          description: 'Main subject: ticked by default as an included subject in
+            new fee structures.'
         is_active:
           type: boolean
     PatchedTestAssignmentUpdateRequest:
@@ -8460,6 +8491,10 @@ components:
           type: string
           description: Short code, e.g. MATH
           maxLength: 20
+        is_main:
+          type: boolean
+          description: 'Main subject: ticked by default as an included subject in
+            new fee structures.'
         is_active:
           type: boolean
         created_at:
@@ -8522,6 +8557,10 @@ components:
           minLength: 1
           description: Short code, e.g. MATH
           maxLength: 20
+        is_main:
+          type: boolean
+          description: 'Main subject: ticked by default as an included subject in
+            new fee structures.'
         is_active:
           type: boolean
       required:

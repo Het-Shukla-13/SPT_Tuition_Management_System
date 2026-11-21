@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { XIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -16,10 +16,10 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { ReferenceSelect, useReferenceOptions } from "@/features/academics";
 import { displayName } from "@/features/auth/session";
 import { splitName, useEnquiry, useUpdateEnquiry } from "@/features/enquiries";
-import { useCurrentStructure } from "@/features/fees";
+import { isAmount, shiftFee, toAmount, useCurrentStructure } from "@/features/fees";
 import { ApiError } from "@/lib/api/envelope";
 import type { AdminUser } from "@/lib/api/types";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import { MEDIUM_OPTIONS } from "@/lib/options";
 import type { Enquiry } from "@/lib/api/types";
 
@@ -35,13 +35,14 @@ import {
   keptIndexes,
   validateGuardians,
 } from "../guardians";
-import { type ExtraChoice, optionalSubjectRows } from "../optionalSubjects";
+import {
+  type ExtraChoice,
+  type OptionalRow,
+  optionalSubjectRows,
+  type SubjectMove,
+} from "../optionalSubjects";
 
 const requiredId = (what: string) => z.string().min(1, `Choose a ${what}.`);
-const money = z
-  .string()
-  .trim()
-  .regex(/^(\d+(\.\d{1,2})?)?$/, "Enter an amount like 20000 or 20000.50.");
 
 const schema = z
   .object({
@@ -56,7 +57,14 @@ const schema = z
     school: requiredId("school"),
     admission_date: z.string(),
     subjects: z.array(z.number()).min(1, "Choose at least one subject."),
-    agreed_fee: money,
+    agreed_fee: z
+      .string()
+      .trim()
+      .refine(
+        (v) => !v.startsWith("-"),
+        "The standard fee can't go below zero: lower the optional amounts or raise it.",
+      )
+      .regex(/^(\d+(\.\d{1,2})?)?$/, "Enter an amount like 20000 or 20000.50."),
     opening_balance: z
       .string()
       .trim()
@@ -182,9 +190,118 @@ function AdmissionForm({
     name: ["board", "standard", "subjects"],
   });
   const structure = useCurrentStructure(board, standard);
+  const current = structure.data; // undefined: not known yet; null: none for this year/standard
   const [extras, setExtras] = useState<Record<number, ExtraChoice>>({});
   const [extrasError, setExtrasError] = useState<string | undefined>();
-  const extraRows = optionalSubjectRows(structure.data?.add_ons ?? [], chosen, extras);
+  // Per-student moves between included and optional, for the structure they were made against.
+  const structureKey = current?.id ?? null;
+  const [moveState, setMoveState] = useState<{
+    key: number | null;
+    moves: Record<number, SubjectMove>;
+  }>({ key: null, moves: {} });
+  const moves = moveState.key === structureKey ? moveState.moves : {};
+  const setMoves = (next: Record<number, SubjectMove>) =>
+    setMoveState({ key: structureKey, moves: next });
+  const names: Record<number, string> = Object.fromEntries(
+    (subjects.data ?? []).map((s) => [s.id, String(s.name)]),
+  );
+  const extraRows = optionalSubjectRows(current?.add_ons ?? [], chosen, extras, moves, names);
+  const [firstName, agreedFee] = useWatch({
+    control: form.control,
+    name: ["first_name", "agreed_fee"],
+  });
+
+  // Staff's own ticks and typed fee win over the fee structure's suggestions.
+  const subjectsTouched = useRef(false);
+  const feeTouched = useRef(false);
+  const prefilledFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (current === undefined) return;
+    const id = current?.id ?? null;
+    if (id === prefilledFor.current) return;
+    prefilledFor.current = id;
+    if (current && !subjectsTouched.current && current.included_subjects?.length)
+      form.setValue("subjects", current.included_subjects);
+    if (!feeTouched.current)
+      form.setValue("agreed_fee", current ? String(Number(current.total_fee)) : "");
+  }, [current, form]);
+
+  const fee = () => form.getValues("agreed_fee");
+  const setFee = (value: string) =>
+    form.setValue("agreed_fee", value, { shouldValidate: form.formState.isSubmitted });
+
+  const optionalIds = new Set(extraRows.map((r) => r.subject));
+  const covered = chosen.filter((id) => !optionalIds.has(id));
+  const includedIds = current?.included_subjects ?? [];
+  const includedName = (id: number) =>
+    names[id] ?? current?.included_subject_names?.[includedIds.indexOf(id)] ?? "a subject";
+  const missing = includedIds.filter((id) => !chosen.includes(id));
+  const studentName = firstName.trim() || "This student";
+  const charged = extraRows
+    .filter((r) => r.choice.on)
+    .reduce((t, r) => t + toAmount(r.choice.amount), 0);
+  const yearTotal = isAmount(agreedFee) ? toAmount(agreedFee) + charged : null;
+  const opening = /^-?\d+(\.\d{1,2})?$/.test(openingBalance.trim()) ? Number(openingBalance) : 0;
+
+  /** An included subject charged separately: the amount typed comes off the standard fee. */
+  const makeOptional = (id: number) => {
+    const move = moves[id];
+    if (move?.to === "included") {
+      // It was optional in the structure: put its line back and take its amount out again.
+      const rest = { ...moves };
+      delete rest[id];
+      setMoves(rest);
+      setFee(shiftFee(fee(), -toAmount(move.amount)));
+      const usual = current?.add_ons?.find((a) => a.subject === id)?.amount;
+      setExtras((e) => ({
+        ...e,
+        // Waived before it was made included: waived again.
+        [id]: move.amount
+          ? { on: true, amount: move.amount }
+          : { on: false, amount: usual ? String(Number(usual)) : "" },
+      }));
+      return;
+    }
+    setMoves({ ...moves, [id]: { to: "optional", amount: "" } });
+  };
+
+  /** Covered by the standard fee again: the row goes and its amount goes into the fee. */
+  const makeIncluded = (row: OptionalRow) => {
+    const amount = row.choice.on ? row.choice.amount : "";
+    setFee(shiftFee(fee(), toAmount(amount)));
+    const rest = { ...moves };
+    if (row.moved) delete rest[row.subject];
+    else rest[row.subject] = { to: "included", amount };
+    setMoves(rest);
+  };
+
+  const changeRow = (row: OptionalRow, choice: ExtraChoice) => {
+    if (!row.moved) {
+      setExtras((e) => ({ ...e, [row.subject]: choice }));
+      return;
+    }
+    // Keep a student taking everything paying the same: the fee moves with the amount.
+    setFee(shiftFee(fee(), toAmount(row.choice.amount) - toAmount(choice.amount)));
+    setMoves({ ...moves, [row.subject]: { to: "optional", amount: choice.amount } });
+  };
+
+  /** A dropped subject's move is undone, so its amount is back in the standard fee. */
+  const changeSubjects = (next: number[]) => {
+    subjectsTouched.current = true;
+    const rest = { ...moves };
+    let total = fee();
+    for (const [key, move] of Object.entries(moves)) {
+      const id = Number(key);
+      if (next.includes(id)) continue;
+      total = shiftFee(total, (move.to === "optional" ? 1 : -1) * toAmount(move.amount));
+      delete rest[id];
+    }
+    if (Object.keys(rest).length !== Object.keys(moves).length) {
+      setMoves(rest);
+      setFee(total);
+    }
+    form.setValue("subjects", next, { shouldValidate: form.formState.isSubmitted });
+  };
 
   const submit = async (values: Values, confirmDuplicate = false) => {
     const opt = (v: string) => v.trim() || undefined;
@@ -192,11 +309,17 @@ function AdmissionForm({
     setGuardianErrors(guardianProblems);
     if (Object.keys(guardianProblems).length) return;
     const included = extraRows.filter((r) => r.choice.on);
-    if (included.some((r) => !/^\d+(\.\d{1,2})?$/.test(r.choice.amount))) {
+    if (included.some((r) => !isAmount(r.choice.amount))) {
       setExtrasError("Enter amounts like 2000, or untick the subject.");
       return;
     }
     setExtrasError(undefined);
+    if (current === null && !values.agreed_fee) {
+      form.setError("agreed_fee", {
+        message: "There's no fee structure for this standard yet: enter the standard fee.",
+      });
+      return;
+    }
     const body: AdmissionBody = {
       first_name: values.first_name.trim(),
       last_name: values.last_name.trim(),
@@ -217,7 +340,7 @@ function AdmissionForm({
       opening_balance: values.opening_balance || "0",
       opening_balance_reason: values.opening_balance_reason.trim(),
       // Once the fee structure is known, send exactly what staff chose (may be none).
-      ...(structure.data !== undefined && {
+      ...(current !== undefined && {
         subject_fees: included.map((r) => ({ subject: r.subject, amount: r.choice.amount })),
       }),
       confirm_duplicate: confirmDuplicate,
@@ -421,7 +544,7 @@ function AdmissionForm({
                 label="Subjects"
                 options={(subjects.data ?? []).map((s) => ({ value: s.id, label: String(s.name) }))}
                 value={field.value}
-                onChange={field.onChange}
+                onChange={changeSubjects}
                 loading={subjects.isPending}
                 error={errors.subjects?.message}
               />
@@ -440,18 +563,24 @@ function AdmissionForm({
         <Section n={4} title="Fee for this academic year">
           <Grid>
             <FormField
-              label="Agreed fee (₹)"
+              label="Standard fee (without optional subjects)"
               hint={
-                structure.data
-                  ? `Leave empty for the fee structure: ₹${Number(structure.data.total_fee).toLocaleString("en-IN")}.`
-                  : "Leave empty to use the standard's fee structure."
+                current
+                  ? `From the fee structure: ${formatMoney(current.total_fee)} for the included subjects. Change it for this student if needed.`
+                  : current === null
+                    ? "No fee structure for this year and standard: enter the fee."
+                    : "Filled in from the fee structure once the board and standard are chosen."
               }
               error={errors.agreed_fee?.message}
             >
               {(p) => (
                 <Input
                   {...p}
-                  {...form.register("agreed_fee")}
+                  {...form.register("agreed_fee", {
+                    onChange: () => {
+                      feeTouched.current = true;
+                    },
+                  })}
                   inputMode="decimal"
                   placeholder="e.g. 20000"
                 />
@@ -465,11 +594,60 @@ function AdmissionForm({
               {(p) => <Input {...p} {...form.register("opening_balance")} inputMode="decimal" />}
             </FormField>
           </Grid>
+          {current !== undefined && covered.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-[13px] font-bold">Covered by the standard fee</span>
+              <ul className="flex flex-wrap gap-2">
+                {covered.map((id) => (
+                  <li
+                    key={id}
+                    className="flex items-center gap-1 rounded-full border border-line py-0.5 pr-1 pl-3 text-sm font-semibold"
+                  >
+                    {names[id] ?? includedName(id)}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Make ${names[id] ?? includedName(id)} optional`}
+                      onClick={() => makeOptional(id)}
+                    >
+                      Make optional
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted">
+                Only for this student: an optional subject gets its own line, and its amount comes
+                off the standard fee. The fee structure doesn't change.
+              </p>
+            </div>
+          )}
+          {current && missing.length > 0 && (
+            <p
+              role="status"
+              className="rounded-[var(--radius-control)] border border-warning/40 bg-warning-bg px-3 py-2 text-sm text-warning"
+            >
+              {`⚠ ${studentName} isn't taking ${missing.length} of the included subjects (${missing.map(includedName).join(", ")}). The standard fee covers all of them. Lower it if you're charging less.`}
+            </p>
+          )}
           <OptionalSubjectFees
             rows={extraRows}
             error={extrasError}
-            onChange={(subject, choice) => setExtras((e) => ({ ...e, [subject]: choice }))}
+            onChange={changeRow}
+            onMakeIncluded={makeIncluded}
           />
+          {yearTotal !== null && (
+            <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              <b>
+                Total for {firstName.trim() || "this student"} this year: {formatMoney(yearTotal)}
+              </b>
+              {opening !== 0 && (
+                <span className="text-muted">
+                  Plus opening balance: {formatMoney(opening)} (not included above)
+                </span>
+              )}
+            </p>
+          )}
           {openingBalance && Number(openingBalance) !== 0 && (
             <FormField
               label="What is the opening balance for?"

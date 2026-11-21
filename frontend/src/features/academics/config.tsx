@@ -202,6 +202,11 @@ export const REFERENCE_CONFIGS: ReferenceConfig[] = [
     columns: [
       { header: "Name", cell: (i) => <b>{s(i, "name")}</b> },
       { header: "Code", cell: (i) => s(i, "code") },
+      {
+        header: "Main",
+        cell: (i) =>
+          i.is_main ? <Badge tone="brand">Main</Badge> : <span className="text-muted">–</span>,
+      },
     ],
     fields: [
       { name: "name", label: "Name", type: "text", required: true, width: "half" },
@@ -212,6 +217,12 @@ export const REFERENCE_CONFIGS: ReferenceConfig[] = [
         required: true,
         hint: "e.g. MATH",
         width: "half",
+      },
+      {
+        name: "is_main",
+        label: "Main subject",
+        type: "checkbox",
+        hint: "Ticked by default as included subjects in new fee structures.",
       },
     ],
   },

@@ -408,3 +408,110 @@ describe("AdmissionPage optional subject fees", () => {
     expect(body.subject_fees).toEqual([{ subject: 22, amount: "1000" }]);
   });
 });
+
+describe("AdmissionPage included subjects", () => {
+  const SUBJECTS = [
+    { id: 23, name: "English", code: "ENG", is_main: true, is_active: true },
+    { id: 25, name: "Gujarati", code: "GUJ", is_main: false, is_active: true },
+    { id: 21, name: "Mathematics", code: "MATH", is_main: true, is_active: true },
+    { id: 22, name: "Science", code: "SCI", is_main: true, is_active: true },
+    { id: 24, name: "Social Science", code: "SST", is_main: true, is_active: true },
+  ];
+  const STRUCTURE = {
+    id: 9,
+    total_fee: "20000.00",
+    included_subjects: [23, 21, 22, 24],
+    included_subject_names: ["English", "Mathematics", "Science", "Social Science"],
+    add_ons: [{ subject: 25, subject_name: "Gujarati", amount: "2000.00" }],
+  };
+
+  const start = async () => {
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.get(`${API}/academics/subjects/`, () => ok(SUBJECTS, page(SUBJECTS.length))),
+      http.get(`${API}/admin/fee-structures/`, () => ok([STRUCTURE], page(1))),
+      http.post(`${API}/admin/students/`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return ok({ student: { ...STUDENT, id: 8 }, invite_sent: {} });
+      }),
+    );
+    const view = renderScreen(<AdmissionPage />, {
+      path: "/staff/students/new",
+      extraRoutes: [{ path: "/staff/students/:id", element: <p>profile page</p> }],
+    });
+    await view.user.type(screen.getByLabelText("First name"), "Riya");
+    await view.user.type(screen.getByLabelText("Last name"), "Shah");
+    await view.user.selectOptions(await screen.findByLabelText("Board"), "1");
+    await view.user.selectOptions(screen.getByLabelText("Standard"), "10");
+    await view.user.selectOptions(screen.getByLabelText("School"), "3");
+    await view.user.type(screen.getByLabelText("Name"), "Kavita Shah");
+    await view.user.type(screen.getByLabelText("Phone"), "9876543210");
+    return { ...view, body: () => body };
+  };
+  const feeField = () => screen.getByLabelText("Standard fee (without optional subjects)");
+
+  it("pre-ticks the included subjects and fills in the standard fee", async () => {
+    await start();
+    await waitFor(() => expect(screen.getByLabelText("Mathematics")).toBeChecked());
+    for (const name of ["English", "Science", "Social Science"])
+      expect(screen.getByLabelText(name)).toBeChecked();
+    expect(screen.getByLabelText("Gujarati")).not.toBeChecked();
+    expect(feeField()).toHaveValue("20000");
+    expect(
+      screen.getByText(/fee structure: ₹20,000 for the included subjects/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Total for Riya this year: ₹20,000")).toBeInTheDocument();
+  });
+
+  it("warns about skipped included subjects, moves subjects per student and sends it all", async () => {
+    const { user, body } = await start();
+    await waitFor(() => expect(screen.getByLabelText("English")).toBeChecked());
+
+    await user.click(screen.getByLabelText("English"));
+    await user.click(screen.getByLabelText("Social Science"));
+    expect(
+      screen.getByText(
+        "⚠ Riya isn't taking 2 of the included subjects (English, Social Science). The standard fee covers all of them. Lower it if you're charging less.",
+      ),
+    ).toBeInTheDocument();
+    expect(feeField()).toHaveValue("20000"); // never lowered automatically
+
+    // Science charged separately for Riya: its amount comes off the standard fee.
+    await user.click(screen.getByRole("button", { name: "Make Science optional" }));
+    await user.type(screen.getByLabelText("Science fee"), "3000");
+    expect(feeField()).toHaveValue("17000");
+    expect(screen.getByText("Total for Riya this year: ₹20,000")).toBeInTheDocument();
+
+    // Gujarati is optional in the structure: its row appears, then it's made included.
+    await user.click(screen.getByLabelText("Gujarati"));
+    expect(await screen.findByLabelText("Gujarati fee")).toHaveValue("2000");
+    expect(screen.getByText("Total for Riya this year: ₹22,000")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Make Gujarati included" }));
+    expect(screen.queryByLabelText("Gujarati fee")).not.toBeInTheDocument();
+    expect(feeField()).toHaveValue("19000");
+    expect(screen.getByText("Total for Riya this year: ₹22,000")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Admit student" }));
+    expect(await screen.findByText("profile page")).toBeInTheDocument();
+    expect(body()).toMatchObject({
+      subjects: [21, 22, 25],
+      agreed_fee: "19000",
+      subject_fees: [{ subject: 22, amount: "3000" }],
+    });
+  }, 20_000);
+
+  it("'Make included' adds the amount back; the opening balance stays separate", async () => {
+    const { user } = await start();
+    await waitFor(() => expect(feeField()).toHaveValue("20000"));
+    await user.click(screen.getByRole("button", { name: "Make Science optional" }));
+    await user.type(screen.getByLabelText("Science fee"), "3000");
+    expect(feeField()).toHaveValue("17000");
+    await user.click(screen.getByRole("button", { name: "Make Science included" }));
+    expect(feeField()).toHaveValue("20000");
+    expect(screen.queryByLabelText("Science fee")).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Opening balance (₹, optional)"), "500");
+    expect(screen.getByText("Total for Riya this year: ₹20,000")).toBeInTheDocument();
+    expect(screen.getByText(/Plus opening balance: ₹500/)).toBeInTheDocument();
+  }, 20_000);
+});
