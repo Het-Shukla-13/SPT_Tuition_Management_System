@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { toast } from "sonner";
 
 import { type ColumnDef, DataTable } from "@/components/shared/DataTable";
+import { ChipToggleGroup } from "@/components/shared/ChipToggleGroup";
 import { FilterBar } from "@/components/shared/FilterBar";
 import { FormField } from "@/components/shared/FormField";
 import { Money } from "@/components/shared/Money";
@@ -16,10 +17,14 @@ import type { FeeStructure } from "@/lib/api/types";
 import { useListParams } from "@/lib/useListParams";
 
 import { useFeeStructures, useSaveFeeStructure } from "../api";
+import { isAmount, shiftFee, toAmount } from "../feeMath";
 import { asYears, yearsOfBoard } from "../years";
 import { YearNameFilter } from "./YearNameFilter";
 
 const FILTERS = ["academic_year__board", "academic_year__name", "standard"] as const;
+
+/** An optional subject's extra fee; `moved`: taken out of the included subjects in this form. */
+type Extra = { subject: string; amount: string; moved?: boolean };
 
 /** The standard fee per academic year + standard; admission suggests it as the agreed fee. */
 export function StructuresTab() {
@@ -34,9 +39,19 @@ export function StructuresTab() {
     { id: "standard", header: "Standard", cell: ({ row }) => <b>{row.original.standard_name}</b> },
     {
       id: "fee",
-      header: "Yearly fee",
+      header: "Standard fee",
       meta: { align: "right" },
       cell: ({ row }) => <Money value={row.original.total_fee} />,
+    },
+    {
+      id: "included",
+      header: "Included subjects",
+      cell: ({ row }) =>
+        row.original.included_subject_names?.length ? (
+          <span className="text-sm">{row.original.included_subject_names.join(", ")}</span>
+        ) : (
+          <span className="text-muted">–</span>
+        ),
     },
     {
       id: "extras",
@@ -94,9 +109,9 @@ export function StructuresTab() {
     <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <p className="max-w-2xl text-sm text-muted">
-          The usual yearly fee for each board, year and standard, plus any extra fee for optional
-          subjects like Gujarati or Hindi. On admission these are suggested and can still be changed
-          per student.
+          The standard yearly fee for each board, year and standard, covering its included subjects,
+          plus any extra fee for optional subjects like Gujarati or Hindi. On admission these are
+          suggested and can still be changed per student.
         </p>
         <Button onClick={() => setEditing(null)}>+ Add fee structure</Button>
       </div>
@@ -163,15 +178,80 @@ function StructureDialog({
   const [standard, setStandard] = useState(structure ? String(structure.standard) : "");
   const [fee, setFee] = useState(structure ? String(Number(structure.total_fee)) : "");
   const [description, setDescription] = useState(structure?.description ?? "");
-  const [extras, setExtras] = useState<{ subject: string; amount: string }[]>(
+  const [extras, setExtras] = useState<Extra[]>(
     (structure?.add_ons ?? []).map((a) => ({
       subject: String(a.subject),
       amount: String(Number(a.amount)),
     })),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const setExtra = (i: number, patch: Partial<{ subject: string; amount: string }>) =>
-    setExtras((list) => list.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const subjects = useReferenceOptions("subjects");
+  // New structures start with the main subjects included, once they've loaded.
+  const [pickedIncluded, setPickedIncluded] = useState<number[] | null>(
+    structure ? (structure.included_subjects ?? []) : null,
+  );
+  const included =
+    pickedIncluded ?? (subjects.data ?? []).filter((s) => s.is_main).map((s) => s.id);
+  const subjectName = (id: string) =>
+    String(subjects.data?.find((s) => String(s.id) === id)?.name ?? "this subject");
+
+  /** Ticking an included subject that's listed as optional moves it back (and its amount). */
+  const changeIncluded = (next: number[]) => {
+    let rows = extras;
+    let total = fee;
+    for (const id of next.filter((n) => !included.includes(n))) {
+      const row = rows.find((x) => x.subject === String(id));
+      if (!row) continue;
+      total = shiftFee(total, toAmount(row.amount));
+      rows = rows.filter((x) => x !== row);
+    }
+    setExtras(rows);
+    setFee(total);
+    setPickedIncluded(next);
+  };
+
+  /**
+   * Choosing an included subject as optional takes it out of the included ones,
+   * and its amount comes off the standard fee: a student taking everything pays the same.
+   */
+  const changeExtraSubject = (i: number, subject: string) => {
+    const row = extras[i];
+    if (!row) return;
+    let inc = included;
+    let total = fee;
+    if (row.moved && row.subject) {
+      inc = [...inc, Number(row.subject)];
+      total = shiftFee(total, toAmount(row.amount));
+    }
+    const moved = !!subject && inc.includes(Number(subject));
+    if (moved) {
+      inc = inc.filter((id) => id !== Number(subject));
+      total = shiftFee(total, -toAmount(row.amount));
+    }
+    setExtras(extras.map((x, j) => (j === i ? { ...x, subject, moved } : x)));
+    setPickedIncluded(inc);
+    setFee(total);
+  };
+
+  const changeExtraAmount = (i: number, amount: string) => {
+    const row = extras[i];
+    if (!row) return;
+    if (row.moved) setFee(shiftFee(fee, toAmount(row.amount) - toAmount(amount)));
+    setExtras(extras.map((x, j) => (j === i ? { ...x, amount } : x)));
+  };
+
+  /** Back into the included subjects: its amount goes back into the standard fee. */
+  const makeIncluded = (i: number) => {
+    const row = extras[i];
+    if (!row) return;
+    setPickedIncluded([...included, Number(row.subject)]);
+    setFee(shiftFee(fee, toAmount(row.amount)));
+    setExtras(extras.filter((_, j) => j !== i));
+  };
+
+  const allIncluded = isAmount(fee) ? toAmount(fee) : null;
+  const everything =
+    allIncluded === null ? null : allIncluded + extras.reduce((t, x) => t + toAmount(x.amount), 0);
 
   return (
     <Dialog open onOpenChange={(o) => !o && !save.isPending && onClose()}>
@@ -185,8 +265,10 @@ function StructureDialog({
             if (!board) next.board = "Choose the board.";
             else if (!year) next.academic_year = "Choose the academic year.";
             if (!standard) next.standard = "Choose the standard.";
-            if (!/^\d+(\.\d{1,2})?$/.test(fee))
-              next.total_fee = "Enter the yearly fee, e.g. 22000.";
+            if (fee.trim().startsWith("-"))
+              next.total_fee =
+                "The standard fee can't go below zero: lower the optional amounts or raise it.";
+            else if (!isAmount(fee)) next.total_fee = "Enter the standard fee, e.g. 22000.";
             const picked = extras.map((x) => x.subject);
             if (
               extras.some(
@@ -205,6 +287,7 @@ function StructureDialog({
                   academic_year: Number(year),
                   standard: Number(standard),
                   total_fee: fee,
+                  included_subjects: included,
                   add_ons: extras.map((x) => ({ subject: Number(x.subject), amount: x.amount })),
                   description: description.trim(),
                 },
@@ -275,7 +358,19 @@ function StructureDialog({
               />
             )}
           </FormField>
-          <FormField label="Yearly fee (₹)" error={errors.total_fee}>
+          <ChipToggleGroup
+            label="Included subjects (covered by the standard fee)"
+            options={(subjects.data ?? []).map((s) => ({ value: s.id, label: String(s.name) }))}
+            value={included}
+            onChange={changeIncluded}
+            loading={subjects.isPending}
+            error={errors.included_subjects}
+          />
+          <FormField
+            label="Standard fee (for the included subjects)"
+            hint="What a student taking all the included subjects pays for the year."
+            error={errors.total_fee}
+          >
             {(p) => (
               <Input
                 {...p}
@@ -289,14 +384,16 @@ function StructureDialog({
             <legend className="mb-1 text-[13px] font-bold">Extra fees for optional subjects</legend>
             <p className="text-xs text-muted">
               Charged only to students who take that subject, as a separate line on their fees.
+              Picking an included subject here moves it out of the included ones and takes its
+              amount off the standard fee.
             </p>
             {extras.map((x, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="flex flex-wrap items-center gap-2">
                 <ReferenceSelect
                   aria-label={`Optional subject ${i + 1}`}
                   resource="subjects"
                   value={x.subject}
-                  onChange={(e) => setExtra(i, { subject: e.target.value })}
+                  onChange={(e) => changeExtraSubject(i, e.target.value)}
                   placeholder="Subject…"
                 />
                 <span className="text-sm">₹</span>
@@ -304,10 +401,21 @@ function StructureDialog({
                   aria-label={`Extra fee ${i + 1}`}
                   inputMode="decimal"
                   value={x.amount}
-                  onChange={(e) => setExtra(i, { amount: e.target.value.trim() })}
+                  onChange={(e) => changeExtraAmount(i, e.target.value.trim())}
                   className="w-28 text-right"
                   placeholder="2000"
                 />
+                {x.subject && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Make ${subjectName(x.subject)} included`}
+                    onClick={() => makeIncluded(i)}
+                  >
+                    Make included
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="ghost"
@@ -345,6 +453,21 @@ function StructureDialog({
               in Academics setup, then pick it here.
             </p>
           </fieldset>
+          {allIncluded !== null && (
+            <div
+              aria-label="Yearly totals"
+              className="flex flex-col gap-1 rounded-[var(--radius-control)] bg-subtle px-3 py-2 text-sm"
+            >
+              <span>
+                Student taking all included subjects: <Money value={allIncluded} />
+              </span>
+              {extras.length > 0 && (
+                <span>
+                  Also taking every optional subject: <Money value={everything} />
+                </span>
+              )}
+            </div>
+          )}
           <FormField label="Note (optional)">
             {(p) => (
               <Input {...p} value={description} onChange={(e) => setDescription(e.target.value)} />

@@ -8,3 +8,4 @@ export {
   withRunningBalance,
 } from "./api";
 export { SubjectFeeFollowUp } from "./components/SubjectFeeFollowUp";
+export { isAmount, shiftFee, toAmount } from "./feeMath";
