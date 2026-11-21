@@ -279,7 +279,8 @@ class AdmissionSerializer(_PersonalFields):
         min_value=0,
         required=False,
         allow_null=True,
-        help_text="Agreed fee for this academic year. Defaults to the standard's fee structure.",
+        help_text="Standard fee for this academic year, without optional subjects. "
+        "Defaults to the standard's fee structure.",
     )
     opening_balance = serializers.DecimalField(
         max_digits=12,

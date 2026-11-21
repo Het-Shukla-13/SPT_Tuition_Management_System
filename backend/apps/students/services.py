@@ -253,7 +253,8 @@ def admit_student(
 
 def _open_fee_account(*, actor, student, year, fee: dict, subjects, ip) -> None:
     """
-    Agreed fee from the form, else the standard's fee structure for this year.
+    Agreed fee (the standard fee, without optional subjects) from the form,
+    else the standard's fee structure for this year.
     Optional subjects' extra fees from the form, else the structure's for the
     subjects they take; each becomes its own line on the account.
     """
@@ -280,6 +281,7 @@ def _open_fee_account(*, actor, student, year, fee: dict, subjects, ip) -> None:
         opening_balance=fee.get("opening_balance") or 0,
         opening_balance_reason=fee.get("opening_balance_reason", ""),
         subject_fees=subject_fees,
+        subjects=subjects,
         ip=ip,
     )
 

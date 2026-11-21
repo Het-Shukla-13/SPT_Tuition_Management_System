@@ -493,7 +493,8 @@ Each **board has its own academic years** (dates typed in by the admin every yea
 year**. Student history, tests/notes and fee accounts use the student's board's year.
 
 ### How are fees stored?
-- `FeeStructure`: standard fee per standard in a board's year. **Only a suggestion** for new admissions;
+- `FeeStructure`: standard fee (`total_fee`) per standard in a board's year, covering its
+  `included_subjects`; optional subjects are extras (`add_ons`). **Only a suggestion** for new admissions;
   editing it never changes existing students.
 - `StudentFeeAccount`: one per student per academic year (created at admission with `agreed_fee`, default =
   fee structure, else `FEE_REQUIRED`; optional `opening_balance` + reason for dues from before the app).
@@ -525,7 +526,7 @@ reversals, refunds; agreed fee ≥ 0; one account per student per year.
 ### Endpoints
 | Endpoint | Notes |
 |---|---|
-| `/admin/fee-structures/` | CRUD (no delete); filter year/`academic_year__name` (every board's "2026-27")/board/standard/`academic_year__is_current`. `add_ons: [{subject, amount}]` = extra yearly fees for optional subjects (e.g. Gujarati); sending the list replaces it |
+| `/admin/fee-structures/` | CRUD (no delete); filter year/`academic_year__name` (every board's "2026-27")/board/standard/`academic_year__is_current`. `included_subjects: [id]` = subjects the standard fee covers (+ read-only `included_subject_names`); `add_ons: [{subject, amount}]` = extra yearly fees for optional subjects (e.g. Gujarati). Sending either list replaces it; a subject can't be in both (400) |
 | `POST .../accounts/{id}/subject-fees/` | `{subject, action: ADD\|REMOVE, amount?, reason?}`: a student starts (CHARGE line) or drops (minus ADJUSTMENT) an optional subject mid-year |
 | `GET /admin/fees/accounts/` | Fees table. `academic_year__name` (a year across boards), `?status=PAID|PARTIAL\|PARTIAL\|PENDING\|CREDIT\|CARRIED_FORWARD\|OVERDUE\|ENDING_SOON`, `pending_min/max`, `paid_min/max`, `total_min/max`, `academic_year`, `academic_year__board`, `student__standard`, `student__school`, `student__status`, `student__admission_date__gte/lte`; search name/admission no./guardian phone; `ordering=-pending\|total\|paid\|credit\|last_payment_date\|student__first_name\|student__standard__level` |
 | `GET /admin/fees/accounts/{id}/` | Totals + full ledger |
@@ -542,6 +543,15 @@ subject they take** (`subject` set on the line), so the bill shows exactly what'
 The admission form may send `subject_fees: [{subject, amount}]` to change or waive them
 (`[]` = none); omitted = the structure's. Mid-year starts/drops go through
 `subject-fees/`. Rollover charges the new year's extras for the subjects they still take.
+
+### Included vs optional subjects
+A structure's **included subjects** are covered by its standard fee; new structures start with the
+main subjects (`Subject.is_main`: English, Mathematics, Science, Social Studies), which admins can change.
+A subject is either included or optional on a structure, never both. Per student, the admission form
+can move a subject between the two (it sends a lower/higher `agreed_fee` and the matching `subject_fees`);
+the structure itself never changes. The agreed-fee CHARGE line names what it covers, e.g.
+"Standard fee for CBSE 2026-27 (Mathematics, Science)" (the student's subjects without an optional line).
+If a student skips some included subjects, staff lower the standard fee by hand.
 
 ### Year-end rollover (per board)
 1. Admin creates the board's next academic year (dates for that year) and its fee structures.

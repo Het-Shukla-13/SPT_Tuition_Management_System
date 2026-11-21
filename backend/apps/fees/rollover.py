@@ -222,6 +222,7 @@ def _apply_one(*, actor, board, to_year, item, ip) -> dict:
         opening_balance=carried,
         opening_balance_reason="Carried forward from previous year" if carried else "",
         subject_fees=structure_subject_fees(to_year, new_standard, current_subjects),
+        subjects=current_subjects,
         ip=ip,
     )
     record(
