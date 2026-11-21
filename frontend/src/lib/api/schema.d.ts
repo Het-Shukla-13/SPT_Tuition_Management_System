@@ -2282,7 +2282,7 @@ export interface components {
             confirm_duplicate: boolean;
             /**
              * Format: decimal
-             * @description Agreed fee for this academic year. Defaults to the standard's fee structure.
+             * @description Standard fee for this academic year, without optional subjects. Defaults to the standard's fee structure.
              */
             agreed_fee?: string | null;
             /**
@@ -2532,8 +2532,14 @@ export interface components {
             readonly board_code: string;
             standard: number;
             readonly standard_name: string;
-            /** Format: decimal */
+            /**
+             * Format: decimal
+             * @description Standard fee: covers all the included subjects.
+             */
             total_fee: string;
+            /** @description Subjects the standard fee (total_fee) covers. Sending the list replaces it. */
+            included_subjects?: number[];
+            readonly included_subject_names: string[];
             /** @description Extra yearly fees for optional subjects (e.g. Gujarati). Sending the list replaces it. */
             add_ons?: components["schemas"]["FeeStructureAddOn"][];
             description?: string;
@@ -2557,8 +2563,13 @@ export interface components {
         FeeStructureRequest: {
             academic_year: number;
             standard: number;
-            /** Format: decimal */
+            /**
+             * Format: decimal
+             * @description Standard fee: covers all the included subjects.
+             */
             total_fee: string;
+            /** @description Subjects the standard fee (total_fee) covers. Sending the list replaces it. */
+            included_subjects?: number[];
             /** @description Extra yearly fees for optional subjects (e.g. Gujarati). Sending the list replaces it. */
             add_ons?: components["schemas"]["FeeStructureAddOnRequest"][];
             description?: string;
@@ -3319,8 +3330,13 @@ export interface components {
         PatchedFeeStructureRequest: {
             academic_year?: number;
             standard?: number;
-            /** Format: decimal */
+            /**
+             * Format: decimal
+             * @description Standard fee: covers all the included subjects.
+             */
             total_fee?: string;
+            /** @description Subjects the standard fee (total_fee) covers. Sending the list replaces it. */
+            included_subjects?: number[];
             /** @description Extra yearly fees for optional subjects (e.g. Gujarati). Sending the list replaces it. */
             add_ons?: components["schemas"]["FeeStructureAddOnRequest"][];
             description?: string;
@@ -3395,6 +3411,8 @@ export interface components {
             name?: string;
             /** @description Short code, e.g. MATH */
             code?: string;
+            /** @description Main subject: ticked by default as an included subject in new fee structures. */
+            is_main?: boolean;
             is_active?: boolean;
         };
         /** @description Reschedule one student's test: date, optional time, duration, remarks. */
@@ -3876,6 +3894,8 @@ export interface components {
             name: string;
             /** @description Short code, e.g. MATH */
             code: string;
+            /** @description Main subject: ticked by default as an included subject in new fee structures. */
+            is_main?: boolean;
             is_active?: boolean;
             /** Format: date-time */
             readonly created_at: string;
@@ -3910,6 +3930,8 @@ export interface components {
             name: string;
             /** @description Short code, e.g. MATH */
             code: string;
+            /** @description Main subject: ticked by default as an included subject in new fee structures. */
+            is_main?: boolean;
             is_active?: boolean;
         };
         SubjectsRequest: {
